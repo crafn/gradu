@@ -1,0 +1,2 @@
+#!/bin/bash
+gcc -Wall -Wextra -std=c89 -pedantic src/unity.c -o gen

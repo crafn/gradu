@@ -9,7 +9,7 @@ typedef enum {
 	TokenType_number, /* 2538 */
 	TokenType_string, /* "something" */
 	TokenType_assign, /* = */
-	TokenType_end_statement, /* ; */
+	TokenType_semi, /* ; */
 	TokenType_comma, /* , */
 	TokenType_open_paren, /* ( */
 	TokenType_close_paren, /* ) */
@@ -60,8 +60,9 @@ const char* tokentype_codestr(TokenType type);
 
 typedef struct Token {
 	TokenType type;
-	const char *text; /* Not terminated! */
+	const char *text_buf; /* Not terminated! */
 	int text_len;
+	int line;
 	bool last_on_line;
 } Token;
 

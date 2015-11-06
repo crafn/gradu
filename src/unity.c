@@ -1,2 +1,3 @@
-#include "tokenize.c"
 #include "main.c"
+#include "parse.c"
+#include "tokenize.c"

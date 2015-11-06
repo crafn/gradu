@@ -12,7 +12,7 @@ INTERNAL TokenType single_char_tokentype(char ch)
 {
 	switch (ch) {
 		case '=': return TokenType_assign;
-		case ';': return TokenType_end_statement;
+		case ';': return TokenType_semi;
 		case ',': return TokenType_comma;
 		case '(': return TokenType_open_paren;
 		case ')': return TokenType_close_paren;
@@ -106,13 +106,14 @@ typedef enum {
 	TokState_comment
 } TokState;
 
-typedef struct Tokenization {
+typedef struct TokenizeCtx {
 	TokState state;
 	const char *end;
+	int cur_line;
 	Array(Token) tokens;
-} Tokenization;
+} TokenizeCtx;
 
-INTERNAL void commit_token(Tokenization *t, const char *b, const char *e, TokenType type)
+INTERNAL void commit_token(TokenizeCtx *t, const char *b, const char *e, TokenType type)
 {
 	if (e > b) {
 		Token tok = {0};
@@ -123,8 +124,9 @@ INTERNAL void commit_token(Tokenization *t, const char *b, const char *e, TokenT
 				type = kw;
 		}
 		tok.type = type;
-		tok.text = b;
+		tok.text_buf = b;
 		tok.text_len = e - b;
+		tok.line = t->cur_line;
 		tok.last_on_line = last_on_line;
 
 		push_array(Token)(&t->tokens, tok);
@@ -136,8 +138,9 @@ Array(Token) tokenize(const char* src, int src_size)
 {
 	const char *cur = src;
 	const char *tok_begin = src;
-	Tokenization t = {0};
+	TokenizeCtx t = {0};
 	t.end = src + src_size;
+	t.cur_line = 1;
 	t.tokens = create_array(Token)(src_size/4); /* Estimate token count */
 
 	while (cur < t.end && tok_begin < t.end) {
@@ -153,6 +156,8 @@ Array(Token) tokenize(const char* src, int src_size)
 					t.state = TokState_name;
 				else if (*cur == '\"')
 					t.state = TokState_str;
+				else if (linebreak(*cur))
+					++t.cur_line;
 				tok_begin = cur;
 			break;
 			case TokState_maybe_single_char: {
@@ -213,8 +218,9 @@ Array(Token) tokenize(const char* src, int src_size)
 
 	{ /* Append eof */
 		Token eof = {0};
-		eof.text = "eof";
-		eof.text_len = strlen(eof.text);
+		eof.text_buf = "eof";
+		eof.text_len = strlen(eof.text_buf);
+		eof.line = t.cur_line;
 		eof.last_on_line = true;
 		push_array(Token)(&t.tokens, eof);
 	}
@@ -228,7 +234,7 @@ const char* tokentype_str(TokenType type)
 		case TokenType_name: return "name";
 		case TokenType_number: return "number";
 		case TokenType_assign: return "assign";
-		case TokenType_end_statement: return "end_statement";
+		case TokenType_semi: return "semi";
 		case TokenType_comma: return "comma";
 		case TokenType_open_paren: return "open_paren";
 		case TokenType_close_paren: return "close_paren";
@@ -283,7 +289,7 @@ const char* tokentype_codestr(TokenType type)
 		case TokenType_name: return "";
 		case TokenType_number: return "";
 		case TokenType_assign: return "=";
-		case TokenType_end_statement: return ";";
+		case TokenType_semi: return ";";
 		case TokenType_comma: return ",";
 		case TokenType_open_paren: return "(";
 		case TokenType_close_paren: return ")";
@@ -335,6 +341,6 @@ void print_tokens(Token *tokens, int token_count)
 {
 	int i;
 	for (i = 0; i < token_count; ++i) {
-		printf("%s: %.*s\n", tokentype_str(tokens[i].type), tokens[i].text_len, tokens[i].text);
+		printf("%12s: %10.*s %8i\n", tokentype_str(tokens[i].type), tokens[i].text_len, tokens[i].text_buf, tokens[i].line);
 	}
 }

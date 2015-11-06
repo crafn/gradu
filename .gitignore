@@ -35,3 +35,4 @@ gen
 # Temp files
 *.swp
 *~
+.fuse_hidden*

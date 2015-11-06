@@ -8,7 +8,10 @@
 #include <stdio.h>
 #include <string.h>
 
-typedef enum { true, false } bool;
+/* Usage: FAIL(("Something %i", 10)) */
+#define FAIL(args) do { printf("INTERNAL FAILURE: "); printf args; printf("\n"); abort(); } while(0)
+
+typedef enum { false, true } bool;
 
 #define INTERNAL static
 #define LOCAL_PERSIST static
@@ -25,6 +28,7 @@ typedef enum { true, false } bool;
 #define create_array(V) JOIN3(create_, V, _array)
 #define destroy_array(V) JOIN3(destroy_, V, _array)
 #define push_array(V) JOIN3(push_, V, _array)
+#define pop_array(V) JOIN3(pop_, V, _array)
 #define copy_array(V) JOIN3(copy_, V, _array)
 
 #define DECLARE_ARRAY(V)\
@@ -37,6 +41,7 @@ typedef struct Array(V) {\
 Array(V) create_array(V)(int capacity);\
 void destroy_array(V)(Array(V) *arr);\
 void push_array(V)(Array(V) *arr, V value);\
+V pop_array(V)(Array(V) *arr);\
 Array(V) copy_array(V)(Array(V) *arr);\
 
 #define DEFINE_ARRAY(V)\
@@ -63,6 +68,13 @@ void push_array(V)(Array(V) *arr, V value)\
 		arr->data = (V*)realloc(arr->data, arr->capacity*sizeof(*arr->data));\
 	}\
 	arr->data[arr->size++] = value;\
+}\
+V pop_array(V)(Array(V) *arr)\
+{\
+	assert(arr);\
+	assert(arr->size > 0);\
+	--arr->size;\
+	return arr->data[arr->size];\
 }\
 Array(V) copy_array(V)(Array(V) *arr)\
 {\

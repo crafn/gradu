@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "tokenize.h"
+#include "parse.h"
 
 int main(int argc, const char **argv)
 {
@@ -9,6 +10,7 @@ int main(int argc, const char **argv)
 	char *src_buf = NULL;
 	int src_size;
 	Array(Token) tokens = {0};
+	RootAstNode *root = NULL;
 
 	if (argc < 2) {
 		printf("Give source file as argument\n");
@@ -35,9 +37,20 @@ int main(int argc, const char **argv)
 	}
 
 	tokens = tokenize(src_buf, src_size);
+	if (!tokens.data)
+		goto cleanup;
+	printf("Tokens\n");
 	print_tokens(tokens.data, tokens.size);
 
+	root = parse_tokens(tokens.data);
+	if (!root)
+		goto cleanup;
+
+	printf("AST\n");
+	print_ast(&root->b, 2);
+
 cleanup:
+	destroy_ast_tree(root);
 	destroy_array(Token)(&tokens);
 	free(src_buf);
 	if (file)

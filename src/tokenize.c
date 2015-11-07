@@ -341,6 +341,6 @@ void print_tokens(Token *tokens, int token_count)
 {
 	int i;
 	for (i = 0; i < token_count; ++i) {
-		printf("%12s: %10.*s %8i\n", tokentype_str(tokens[i].type), tokens[i].text_len, tokens[i].text_buf, tokens[i].line);
+		printf("%12s: %20.*s %8i\n", tokentype_str(tokens[i].type), tokens[i].text_len, tokens[i].text_buf, tokens[i].line);
 	}
 }

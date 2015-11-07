@@ -5,10 +5,9 @@
 #include "tokenize.h"
 
 typedef enum {
-	AstNodeType_root,
+	AstNodeType_scope,
 	AstNodeType_ident,
 	AstNodeType_decl,
-	AstNodeType_block,
 	AstNodeType_literal,
 	AstNodeType_biop
 		/*
@@ -21,23 +20,27 @@ typedef enum {
 } AstNodeType;
 
 struct AstNode;
+struct DeclAstNode;
 typedef struct AstNode *AstNodePtr;
 
 DECLARE_ARRAY(AstNodePtr)
 
 typedef struct AstNode {
 	AstNodeType type;
+	struct AstNode *parent;
 } AstNode;
 
-typedef struct RootAstNode {
+typedef struct ScopeAstNode {
 	AstNode b;
 	Array(AstNodePtr) nodes;
-} RootAstNode;
+} ScopeAstNode;
 
 typedef struct IdentAstNode {
 	AstNode b;
 	const char *text_buf;
 	int text_len;
+
+	struct DeclAstNode *decl; /* Pointer to node which declares this identifier */
 } IdentAstNode;
 
 typedef struct DeclAstNode {
@@ -46,11 +49,6 @@ typedef struct DeclAstNode {
 	IdentAstNode *ident;
 	AstNode *value;
 } DeclAstNode;
-
-typedef struct BlockAstNode {
-	AstNode b;
-	Array(AstNodePtr) nodes;
-} BlockAstNode;
 
 typedef enum {
 	LiteralType_int
@@ -73,8 +71,8 @@ typedef struct BiopAstNode {
 } BiopAstNode;
 
 /* Created AST will have pointers to tokens */
-RootAstNode *parse_tokens(Token *toks);
-void destroy_ast_tree(RootAstNode *node);
+ScopeAstNode *parse_tokens(Token *toks);
+void destroy_ast_tree(ScopeAstNode *node);
 
 void print_ast(AstNode *node, int indent);
 

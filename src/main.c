@@ -10,7 +10,7 @@ int main(int argc, const char **argv)
 	char *src_buf = NULL;
 	int src_size;
 	Array(Token) tokens = {0};
-	RootAstNode *root = NULL;
+	ScopeAstNode *root = NULL;
 
 	if (argc < 2) {
 		printf("Give source file as argument\n");

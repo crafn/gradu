@@ -1,3 +1,6 @@
+struct int { }
+struct char { }
+struct void { }
 
 int test;
 
@@ -6,8 +9,15 @@ char bbbbbb;
 void func()
 {
 	int temp_var;
-	bool temp_var2;
+	int temp_var2;
 
 	temp_var = 1 + 2 * 3;
+	temp_var2 = temp_var * 5 + 2 * 3;
+
+	struct LocalType { }
+	void inner_func()
+	{
+		LocalType bug_test;
+	}
 }
 

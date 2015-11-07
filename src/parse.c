@@ -65,18 +65,24 @@ INTERNAL IdentAstNode *create_ident_node(Token *tok)
 INTERNAL DeclAstNode *create_decl_node()
 { return CREATE_NODE(DeclAstNode, AstNodeType_decl); }
 
-INTERNAL BlockAstNode *create_block_node()
+INTERNAL ScopeAstNode *create_scope_node()
 {
-	BlockAstNode *block = CREATE_NODE(BlockAstNode, AstNodeType_block);
-	block->nodes = create_array(AstNodePtr)(8);
-	return block;
+	ScopeAstNode *scope = CREATE_NODE(ScopeAstNode, AstNodeType_scope);
+	scope->nodes = create_array(AstNodePtr)(8);
+	return scope;
 }
 
 INTERNAL LiteralAstNode *create_literal_node()
 { return CREATE_NODE(LiteralAstNode, AstNodeType_literal); }
 
-INTERNAL BiopAstNode *create_biop_node()
-{ return CREATE_NODE(BiopAstNode, AstNodeType_biop); }
+INTERNAL BiopAstNode *create_biop_node(TokenType type, AstNode *lhs, AstNode *rhs)
+{
+	BiopAstNode *biop = CREATE_NODE(BiopAstNode, AstNodeType_biop);
+	biop->type = type;
+	biop->lhs = lhs;
+	biop->rhs = rhs;
+	return biop;
+}
 
 /* Recursive */
 INTERNAL void destroy_node(AstNode *node)
@@ -84,12 +90,12 @@ INTERNAL void destroy_node(AstNode *node)
 	if (!node)
 		return;
 	switch (node->type) {
-		case AstNodeType_root: {
-			CASTED_NODE(RootAstNode, root, node);
+		case AstNodeType_scope: {
+			CASTED_NODE(ScopeAstNode, scope, node);
 			int i;
-			for (i = 0; i < root->nodes.size; ++i)
-				destroy_node(root->nodes.data[i]);
-			destroy_array(AstNodePtr)(&root->nodes);
+			for (i = 0; i < scope->nodes.size; ++i)
+				destroy_node(scope->nodes.data[i]);
+			destroy_array(AstNodePtr)(&scope->nodes);
 		} break;
 		case AstNodeType_ident: {
 		} break;
@@ -98,14 +104,6 @@ INTERNAL void destroy_node(AstNode *node)
 			destroy_node(decl->type);
 			destroy_node(&decl->ident->b);
 			destroy_node(decl->value);
-		} break;
-		case AstNodeType_block: {
-			CASTED_NODE(BlockAstNode, block, node);
-			int i;
-			for (i = 0; i < block->nodes.size; ++i)
-				destroy_node(block->nodes.data[i]);
-			destroy_array(AstNodePtr)(&block->nodes);
-
 		} break;
 		case AstNodeType_literal: {
 		} break;
@@ -121,15 +119,21 @@ INTERNAL void destroy_node(AstNode *node)
 
 DEFINE_ARRAY(AstNodePtr)
 
-typedef Token *TokenPtr;
-DECLARE_ARRAY(TokenPtr)
-DEFINE_ARRAY(TokenPtr)
+/* Mirrors call stack in parsing */
+/* Used in searching, setting parent nodes, and backtracking */
+typedef struct ParseStackFrame {
+	Token *begin_tok;
+	AstNode *node;
+} ParseStackFrame;
+
+DECLARE_ARRAY(ParseStackFrame)
+DEFINE_ARRAY(ParseStackFrame)
 
 typedef struct ParseCtx {
-	RootAstNode *root;
+	ScopeAstNode *root;
 	Token *tok; /* Access with cur_tok */
 	Token *most_advanced_token_used;
-	Array(TokenPtr) backtrack_stack;
+	Array(ParseStackFrame) parse_stack;
 } ParseCtx;
 
 
@@ -163,124 +167,180 @@ INTERNAL bool accept_tok(ParseCtx *ctx, TokenType type)
 }
 
 
-/* Backtracking */
+/* Backtracking / stack traversing */
 
-INTERNAL void push_backtrack(ParseCtx *ctx)
-{ push_array(TokenPtr)(&ctx->backtrack_stack, cur_tok(ctx)); }
+INTERNAL void begin_node_parsing(ParseCtx *ctx, AstNode *node)
+{
+	ParseStackFrame frame = {0};
+	frame.begin_tok = cur_tok(ctx);
+	frame.node = node;
+	push_array(ParseStackFrame)(&ctx->parse_stack, frame);
+}
 
-INTERNAL void pop_backtrack(ParseCtx *ctx)
-{ pop_array(TokenPtr)(&ctx->backtrack_stack); }
+INTERNAL void end_node_parsing(ParseCtx *ctx)
+{
+	pop_array(ParseStackFrame)(&ctx->parse_stack);
+}
 
-INTERNAL void do_backtrack(ParseCtx *ctx)
-{ ctx->tok = pop_array(TokenPtr)(&ctx->backtrack_stack); }
+INTERNAL void cancel_node_parsing(ParseCtx *ctx)
+{
+	ParseStackFrame frame = pop_array(ParseStackFrame)(&ctx->parse_stack);
+	destroy_node(frame.node);
+	ctx->tok = frame.begin_tok;
+}
+
+/* Find declaration visible in current parse scope */
+INTERNAL DeclAstNode *find_decl_scoped(ParseCtx *ctx, const char *buf, int buf_len)
+{
+	int f, i;
+	DeclAstNode *found_decl = NULL;
+	for (f = ctx->parse_stack.size - 1; f >= 0; --f) {
+		AstNode *stack_node = ctx->parse_stack.data[f].node;
+		if (!stack_node || stack_node->type != AstNodeType_scope)
+			continue;
+
+		{
+			CASTED_NODE(ScopeAstNode, scope, stack_node);
+			for (i = 0; i < scope->nodes.size; ++i) {
+				AstNode *node = scope->nodes.data[i];
+				if (node->type != AstNodeType_decl)
+					continue;
+
+				{
+					CASTED_NODE(DeclAstNode, decl, node);
+					/*printf("trying to match decl %.*s <=> %.*s\n",
+							buf_len, buf,
+							decl->ident->text_len, decl->ident->text_buf);
+							*/
+					if (decl->ident->text_len != buf_len)
+						continue;
+					if (strncmp(buf, decl->ident->text_buf, buf_len))
+						continue;
+
+					/* Found declaration for identifier named 'buf' */
+					found_decl = decl;
+					break;
+				}
+			}
+		}
+		if (found_decl)
+			break;
+	}
+	return found_decl;
+}
 
 
 /* Parsing */
-INTERNAL bool parse_var_decl(ParseCtx *ctx, AstNode **ret);
-INTERNAL bool parse_func_decl(ParseCtx *ctx, AstNode **ret);
+INTERNAL bool parse_ident(ParseCtx *ctx, AstNode **ret, DeclAstNode *decl);
+INTERNAL bool parse_decl(ParseCtx *ctx, AstNode **ret);
 INTERNAL bool parse_block(ParseCtx *ctx, AstNode **ret);
 INTERNAL bool parse_literal(ParseCtx *ctx, AstNode **ret);
 INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec);
 INTERNAL AstNode *parse_element(ParseCtx *ctx);
 
-/* Parse example: int test */
-INTERNAL bool parse_var_decl(ParseCtx *ctx, AstNode **ret)
+
+/* If decl is NULL, then declaration is searched. */
+/* Parse example: foo */
+INTERNAL bool parse_ident(ParseCtx *ctx, AstNode **ret, DeclAstNode *decl)
 {
-	IdentAstNode *type = NULL;
-	DeclAstNode *decl = NULL;
-	IdentAstNode *ident = NULL;
+	Token *tok = cur_tok(ctx);
+	IdentAstNode *ident = create_ident_node(tok);
 
-	push_backtrack(ctx);
+	begin_node_parsing(ctx, &ident->b);
 
-	decl = create_decl_node();
-
-	/* @todo ptrs, typedefs, const, types with multiple identifiers... */
-
-	/* Expect type name */
-	if (cur_tok(ctx)->type != TokenType_name)
+	if (tok->type != TokenType_name)
 		goto mismatch;
-	type = create_ident_node(cur_tok(ctx));
+
+	if (decl) {
+		ident->decl = decl;
+	} else {
+		ident->decl = find_decl_scoped(ctx, tok->text_buf, tok->text_len);
+		if (!ident->decl)
+			goto mismatch;
+	}
 	advance_tok(ctx);
-	decl->type = (AstNode*)type;
 
-	/* Expect variable name */
-	if (cur_tok(ctx)->type != TokenType_name)
-		goto mismatch;
-	ident = create_ident_node(cur_tok(ctx));
-	advance_tok(ctx);
-	decl->ident = ident;
+	end_node_parsing(ctx);
 
-	/* @todo Consider merging var decl and func decl parsing */
-	if (cur_tok(ctx)->type == TokenType_open_paren)
-		goto mismatch;
-
-	pop_backtrack(ctx);
-	*ret = (AstNode*)decl;
+	*ret = (AstNode*)ident;
 	return true;
 
 mismatch:
-	do_backtrack(ctx);
-	destroy_node((AstNode*)decl);
+	cancel_node_parsing(ctx);
 	return false;
 }
 
-/* Parse example: int foo(int a, int b) { return 1; } */
-INTERNAL bool parse_func_decl(ParseCtx *ctx, AstNode **ret)
+/* Parse examples: int test -- int func() { } -- struct foo { } */
+INTERNAL bool parse_decl(ParseCtx *ctx, AstNode **ret)
 {
+	DeclAstNode *decl = create_decl_node();
 	IdentAstNode *type = NULL;
-	DeclAstNode *decl = NULL;
 	IdentAstNode *ident = NULL;
-	AstNode *body = NULL;
+	AstNode *value = NULL;
 
-	push_backtrack(ctx);
+	begin_node_parsing(ctx, &decl->b);
 
-	decl = create_decl_node();
 
-	/* Expect type name */
-	if (cur_tok(ctx)->type != TokenType_name)
-		goto mismatch;
-	type = create_ident_node(cur_tok(ctx));
-	advance_tok(ctx);
-	decl->type = (AstNode*)type;
+	/* @todo ptrs, typedefs, const, types with multiple identifiers... */
 
-	/* Expect variable name */
-	if (cur_tok(ctx)->type != TokenType_name)
-		goto mismatch;
-	ident = create_ident_node(cur_tok(ctx));
-	advance_tok(ctx);
-	decl->ident = ident;
+	if (accept_tok(ctx, TokenType_kw_struct)) {
+		/* This is a struct definition */
 
-	if (!accept_tok(ctx, TokenType_open_paren))
-		goto mismatch;
-	if (!accept_tok(ctx, TokenType_close_paren))
-		goto mismatch;
+		/* Expect type name */
+		if (!parse_ident(ctx, (AstNode**)&ident, decl))
+			goto mismatch;
+		decl->ident = ident;
 
-	if (cur_tok(ctx)->type == TokenType_semi) {
-		/* No body */
-	} else if (parse_block(ctx, &body)) {
-		/* Body parsed */
-		decl->value = body;
+		/* Expect empty block */
+		if (parse_block(ctx, &value))
+			decl->value = value;
+		 else
+			goto mismatch;
 	} else {
-		goto mismatch;
+		/* This is variable or function declaration */
+
+		/* Expect type name */
+		if (!parse_ident(ctx, (AstNode**)&type, NULL)) /* @todo Ptr to type decl */
+			goto mismatch;
+		decl->type = (AstNode*)type;
+
+		/* Expect variable name */
+		if (!parse_ident(ctx, (AstNode**)&ident, decl))
+			goto mismatch;
+		decl->ident = ident;
+
+		/* Function decl parsing */
+		if (accept_tok(ctx, TokenType_open_paren)) {
+			if (!accept_tok(ctx, TokenType_close_paren))
+				goto mismatch;
+
+			if (cur_tok(ctx)->type == TokenType_semi) {
+				/* No body */
+			} else if (parse_block(ctx, &value)) {
+				/* Body parsed */
+				decl->value = value;
+			} else {
+				goto mismatch;
+			}
+		}
 	}
 
-	pop_backtrack(ctx);
+	end_node_parsing(ctx);
+
 	*ret = (AstNode*)decl;
 	return true;
 
 mismatch:
-	do_backtrack(ctx);
-	destroy_node((AstNode*)decl);
+	cancel_node_parsing(ctx);
 	return false;
 }
 
 /* Parse example: { .... } */
 INTERNAL bool parse_block(ParseCtx *ctx, AstNode **ret)
 {
-	BlockAstNode *block = NULL;
+	ScopeAstNode *scope = create_scope_node();
 
-	push_backtrack(ctx);
-	block = create_block_node();
+	begin_node_parsing(ctx, &scope->b);
 
 	if (!accept_tok(ctx, TokenType_open_brace))
 		goto mismatch;
@@ -289,29 +349,27 @@ INTERNAL bool parse_block(ParseCtx *ctx, AstNode **ret)
 		AstNode *element = parse_element(ctx);
 		if (!element)
 			goto mismatch;
-		push_array(AstNodePtr)(&block->nodes, element);
+		push_array(AstNodePtr)(&scope->nodes, element);
 	}
 
-	pop_backtrack(ctx);
+	end_node_parsing(ctx);
 
-	*ret = (AstNode*)block;
+	*ret = (AstNode*)scope;
 	return true;
 
 mismatch:
-	do_backtrack(ctx);
-	destroy_node(&block->b);
+	cancel_node_parsing(ctx);
 	return false;
 }
 
 /* Parse example: 1234 */
 INTERNAL bool parse_literal(ParseCtx *ctx, AstNode **ret)
 {
-	LiteralAstNode *literal = NULL;
+	LiteralAstNode *literal = create_literal_node();
 	Token *tok = cur_tok(ctx);
 
-	push_backtrack(ctx);
+	begin_node_parsing(ctx, &literal->b);
 
-	literal = create_literal_node();
 	switch (tok->type) {
 		case TokenType_number:
 			literal->type = LiteralType_int;
@@ -321,14 +379,13 @@ INTERNAL bool parse_literal(ParseCtx *ctx, AstNode **ret)
 	}
 	advance_tok(ctx);
 
-	pop_backtrack(ctx);
+	end_node_parsing(ctx);
 
 	*ret = (AstNode*)literal;
 	return true;
 
 mismatch:
-	do_backtrack(ctx);
-	destroy_node(&literal->b);
+	cancel_node_parsing(ctx);
 	return false;
 }
 
@@ -337,13 +394,12 @@ INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec)
 {
 	AstNode *expr = NULL;
 
-	push_backtrack(ctx);
+	begin_node_parsing(ctx, NULL); /* @todo ExprAstNode enclosing all expressions? */
 
 	if (parse_literal(ctx, &expr)) {
 		;
-	} else if (cur_tok(ctx)->type == TokenType_name) {
-		expr = (AstNode*)create_ident_node(cur_tok(ctx));
-		advance_tok(ctx);
+	} else if (parse_ident(ctx, &expr, NULL)) {
+		;
 	} else {
 		goto mismatch;
 	}
@@ -365,22 +421,15 @@ INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec)
 		if (!parse_expr(ctx, &rhs, next_min_prec))
 			goto mismatch;
 
-		{
-			BiopAstNode *biop = create_biop_node();
-				biop->type = tok->type;
-				biop->lhs = expr;
-				biop->rhs = rhs;
-			expr = &biop->b;
-		}
+		expr = &create_biop_node(tok->type, expr, rhs)->b;
 	}
 
-	pop_backtrack(ctx);
+	end_node_parsing(ctx);
 
 	*ret = expr;
 	return true;
 mismatch:
-	do_backtrack(ctx);
-	destroy_node(expr);
+	cancel_node_parsing(ctx);
 	return false;
 }
 
@@ -389,15 +438,11 @@ INTERNAL AstNode *parse_element(ParseCtx *ctx)
 {
 	AstNode *result = NULL;
 
-	push_backtrack(ctx);
+	begin_node_parsing(ctx, NULL);
 
-	if (parse_var_decl(ctx, &result))
-		accept_tok(ctx, TokenType_semi);
-	else if (parse_func_decl(ctx, &result))
+	if (parse_decl(ctx, &result))
 		accept_tok(ctx, TokenType_semi);
 	else if (parse_expr(ctx, &result, 0))
-		accept_tok(ctx, TokenType_semi);
-	else if (parse_literal(ctx, &result)) /* @todo parse_expr does this? */
 		accept_tok(ctx, TokenType_semi);
 	else {
 		Token *begin = cur_tok(ctx);
@@ -411,22 +456,21 @@ INTERNAL AstNode *parse_element(ParseCtx *ctx)
 #endif
 	}
 
-	pop_backtrack(ctx);
+	end_node_parsing(ctx);
 	return result;
 }
 
-RootAstNode *parse_tokens(Token *toks)
+ScopeAstNode *parse_tokens(Token *toks)
 {
 	bool failure = false;
 	ParseCtx ctx = {0};
-	RootAstNode *root = malloc(sizeof(*root));
-
-	root->nodes = create_array(AstNodePtr)(128);
-	root->b.type = AstNodeType_root;
+	ScopeAstNode *root = create_scope_node();
 
 	ctx.root = root;
-	ctx.tok = toks;
-	ctx.backtrack_stack = create_array(TokenPtr)(32);
+	ctx.tok = ctx.most_advanced_token_used = toks;
+	ctx.parse_stack = create_array(ParseStackFrame)(32);
+
+	begin_node_parsing(&ctx, &root->b);
 
 	while (ctx.tok->type != TokenType_eof) {
 		AstNode *elem = parse_element(&ctx);
@@ -436,7 +480,9 @@ RootAstNode *parse_tokens(Token *toks)
 		}
 		push_array(AstNodePtr)(&root->nodes, elem); 
 	}
-	destroy_array(TokenPtr)(&ctx.backtrack_stack);
+	end_node_parsing(&ctx);
+
+	destroy_array(ParseStackFrame)(&ctx.parse_stack);
 
 	if (failure) {
 		printf("Compilation failed\n");
@@ -446,7 +492,7 @@ RootAstNode *parse_tokens(Token *toks)
 	return root;
 }
 
-void destroy_ast_tree(RootAstNode *node)
+void destroy_ast_tree(ScopeAstNode *node)
 { destroy_node((AstNode*)node); }
 
 INTERNAL void print_indent(int indent)
@@ -461,11 +507,11 @@ void print_ast(AstNode *node, int indent)
 	print_indent(indent);
 
 	switch (node->type) {
-		case AstNodeType_root: {
-			CASTED_NODE(RootAstNode, root, node);
-			printf("root\n");
-			for (i = 0; i < root->nodes.size; ++i)
-				print_ast(root->nodes.data[i], indent + 2);
+		case AstNodeType_scope: {
+			CASTED_NODE(ScopeAstNode, scope, node);
+			printf("scope\n");
+			for (i = 0; i < scope->nodes.size; ++i)
+				print_ast(scope->nodes.data[i], indent + 2);
 		} break;
 		case AstNodeType_ident: {
 			CASTED_NODE(IdentAstNode, ident, node);
@@ -477,12 +523,6 @@ void print_ast(AstNode *node, int indent)
 			print_ast(decl->type, indent + 2);
 			print_ast(&decl->ident->b, indent + 2);
 			print_ast(decl->value, indent + 2);
-		} break;
-		case AstNodeType_block: {
-			CASTED_NODE(BlockAstNode, block, node);
-			printf("block\n");
-			for (i = 0; i < block->nodes.size; ++i)
-				print_ast(block->nodes.data[i], indent + 2);
 		} break;
 		case AstNodeType_literal: {
 			CASTED_NODE(LiteralAstNode, literal, node);

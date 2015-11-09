@@ -2,8 +2,6 @@ struct int { }
 struct char { }
 struct void { }
 
-int test;
-
 char bbbbbb;
 
 void func()
@@ -15,9 +13,8 @@ void func()
 	temp_var2 = temp_var * 5 + 2 * 3;
 
 	struct LocalType { }
-	void inner_func()
+	void local_func()
 	{
 		LocalType bug_test;
 	}
 }
-

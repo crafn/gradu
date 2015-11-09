@@ -1,6 +1,4 @@
-#include <assert.h>
-#include <stdio.h>
-
+#include "core.h"
 #include "tokenize.h"
 #include "parse.h"
 
@@ -32,7 +30,7 @@ int main(int argc, const char **argv)
 
 		src_buf = malloc(size);
 		count = fread(src_buf, size, 1, file);
-		assert(count == 1);
+		ASSERT(count == 1);
 		src_size = size;
 	}
 

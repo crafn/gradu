@@ -66,6 +66,9 @@ typedef struct Token {
 	bool last_on_line;
 } Token;
 
+/* String args */
+#define TOK_ARGS(tok) tok->text_len, tok->text_buf
+
 DECLARE_ARRAY(Token)
 
 /* Tokens will be pointing to the 'src' string */

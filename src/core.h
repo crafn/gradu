@@ -7,9 +7,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 /* Usage: FAIL(("Something %i", 10)) */
 #define FAIL(args) do { printf("INTERNAL FAILURE: "); printf args; printf("\n"); abort(); } while(0)
+#define ASSERT(x) assert(x)
+
+#define NONULL(x) nonull_impl(x)
+void *nonull_impl(void *ptr) { if (!ptr) abort(); return ptr; }
+
 
 typedef enum { false, true } bool;
 

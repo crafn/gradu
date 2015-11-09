@@ -3,19 +3,19 @@
 int str_to_int(const char *c, int len)
 {
 	const char *end = c + len;
-    int value = 0;
-    int sign = 1;
-    if (*c == '+' || *c == '-') {
-       if(*c == '-')
-		   sign = -1;
-       c++;
-    }
-    while (c < end) {
-        value *= 10;
-        value += (int)(*c - '0');
-        c++;
-    }
-    return value * sign;
+	int value = 0;
+	int sign = 1;
+	if (*c == '+' || *c == '-') {
+		if(*c == '-')
+			sign = -1;
+		c++;
+	}
+	while (c < end) {
+		value *= 10;
+		value += (int)(*c - '0');
+		c++;
+	}
+	return value * sign;
 }
 
 int op_prec(TokenType type)
@@ -132,7 +132,9 @@ DEFINE_ARRAY(ParseStackFrame)
 typedef struct ParseCtx {
 	ScopeAstNode *root;
 	Token *tok; /* Access with cur_tok */
-	Token *most_advanced_token_used;
+
+	char *error_msg; /* Dynamically allocated */
+	Token *error_tok;
 	Array(ParseStackFrame) parse_stack;
 } ParseCtx;
 
@@ -142,19 +144,19 @@ typedef struct ParseCtx {
 INTERNAL Token *cur_tok(ParseCtx *ctx)
 { return ctx->tok; }
 
+/*
 INTERNAL Token *next_tok(Token *tok)
 {
 	if (tok->type != TokenType_eof)
 		return tok + 1;
 	return tok;
 }
+*/
 
 INTERNAL void advance_tok(ParseCtx *ctx)
 {
-	assert(ctx->tok->type != TokenType_eof);
+	ASSERT(ctx->tok->type != TokenType_eof);
 	++ctx->tok;
-	if (ctx->tok > ctx->most_advanced_token_used)
-		ctx->most_advanced_token_used = ctx->tok;
 }
 
 INTERNAL bool accept_tok(ParseCtx *ctx, TokenType type)
@@ -189,6 +191,34 @@ INTERNAL void cancel_node_parsing(ParseCtx *ctx)
 	ctx->tok = frame.begin_tok;
 }
 
+void report_error(ParseCtx *ctx, const char *fmt, ...)
+{
+	char buf[1024*10];
+	char *msg;
+	va_list args;
+	int len;
+
+	if (cur_tok(ctx) <= ctx->error_tok)
+		return; /* Don't overwrite error generated from less succesfull parsing (heuristic) */
+
+	va_start(args, fmt);
+	/* @todo Find open source non-gpl snprintf */
+	len = vsprintf(buf, fmt, args);
+	if (len < 0)
+		return;
+	if (len > (int)sizeof(buf)/2) /* Crappy failsafe */
+		abort();
+	va_end(args);
+
+	msg = NONULL(malloc(len + 1));
+	strncpy(msg, buf, len);
+	msg[len] = '\0';
+
+	free(ctx->error_msg);
+	ctx->error_msg = msg;
+	ctx->error_tok = cur_tok(ctx);
+}
+
 /* Find declaration visible in current parse scope */
 INTERNAL DeclAstNode *find_decl_scoped(ParseCtx *ctx, const char *buf, int buf_len)
 {
@@ -210,7 +240,7 @@ INTERNAL DeclAstNode *find_decl_scoped(ParseCtx *ctx, const char *buf, int buf_l
 					CASTED_NODE(DeclAstNode, decl, node);
 					/*printf("trying to match decl %.*s <=> %.*s\n",
 							buf_len, buf,
-							decl->ident->text_len, decl->ident->text_buf);
+							TOK_ARGS(decl->ident),
 							*/
 					if (decl->ident->text_len != buf_len)
 						continue;
@@ -248,15 +278,19 @@ INTERNAL bool parse_ident(ParseCtx *ctx, AstNode **ret, DeclAstNode *decl)
 
 	begin_node_parsing(ctx, &ident->b);
 
-	if (tok->type != TokenType_name)
+	if (tok->type != TokenType_name) {
+		report_error(ctx, "'%.*s' is not an identifier", TOK_ARGS(tok));
 		goto mismatch;
+	}
 
 	if (decl) {
 		ident->decl = decl;
 	} else {
 		ident->decl = find_decl_scoped(ctx, tok->text_buf, tok->text_len);
-		if (!ident->decl)
+		if (!ident->decl) {
+			report_error(ctx, "'%.*s' is not declared in this scope", TOK_ARGS(tok));
 			goto mismatch;
+		}
 	}
 	advance_tok(ctx);
 
@@ -286,33 +320,41 @@ INTERNAL bool parse_decl(ParseCtx *ctx, AstNode **ret)
 	if (accept_tok(ctx, TokenType_kw_struct)) {
 		/* This is a struct definition */
 
-		/* Expect type name */
-		if (!parse_ident(ctx, (AstNode**)&ident, decl))
+		if (!parse_ident(ctx, (AstNode**)&ident, decl)) {
+			report_error(ctx, "Expected type name, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
 			goto mismatch;
+		}
 		decl->ident = ident;
+		decl->is_type_decl = true;
 
-		/* Expect empty block */
 		if (parse_block(ctx, &value))
 			decl->value = value;
-		 else
+		 else {
+			report_error(ctx, "Expected '{', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
 			goto mismatch;
+		 }
 	} else {
 		/* This is variable or function declaration */
 
-		/* Expect type name */
-		if (!parse_ident(ctx, (AstNode**)&type, NULL)) /* @todo Ptr to type decl */
+		if (!parse_ident(ctx, (AstNode**)&type, NULL)) { /* @todo Ptr to type decl */
+			report_error(ctx, "Expected type name, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
 			goto mismatch;
+		}
 		decl->type = (AstNode*)type;
 
-		/* Expect variable name */
-		if (!parse_ident(ctx, (AstNode**)&ident, decl))
+		if (!parse_ident(ctx, (AstNode**)&ident, decl)) {
+			report_error(ctx, "Expected identifier, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
 			goto mismatch;
+		}
 		decl->ident = ident;
 
-		/* Function decl parsing */
 		if (accept_tok(ctx, TokenType_open_paren)) {
-			if (!accept_tok(ctx, TokenType_close_paren))
+			decl->is_func_decl = true;
+
+			if (!accept_tok(ctx, TokenType_close_paren)) {
+				report_error(ctx, "Expected ')', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
 				goto mismatch;
+			}
 
 			if (cur_tok(ctx)->type == TokenType_semi) {
 				/* No body */
@@ -320,6 +362,12 @@ INTERNAL bool parse_decl(ParseCtx *ctx, AstNode **ret)
 				/* Body parsed */
 				decl->value = value;
 			} else {
+				goto mismatch;
+			}
+		} else {
+			decl->is_var_decl = true;
+			if (!accept_tok(ctx, TokenType_semi)) {
+				report_error(ctx, "Expected ';' before '%.*s'", TOK_ARGS(cur_tok(ctx)));
 				goto mismatch;
 			}
 		}
@@ -342,8 +390,10 @@ INTERNAL bool parse_block(ParseCtx *ctx, AstNode **ret)
 
 	begin_node_parsing(ctx, &scope->b);
 
-	if (!accept_tok(ctx, TokenType_open_brace))
+	if (!accept_tok(ctx, TokenType_open_brace)) {
+		report_error(ctx, "Expected '{', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
 		goto mismatch;
+	}
 
 	while (!accept_tok(ctx, TokenType_close_brace)) {
 		AstNode *element = parse_element(ctx);
@@ -375,7 +425,9 @@ INTERNAL bool parse_literal(ParseCtx *ctx, AstNode **ret)
 			literal->type = LiteralType_int;
 			literal->value.integer = str_to_int(tok->text_buf, tok->text_len);
 		break;
-		default: goto mismatch;
+		default:
+			report_error(ctx, "Expected literal, got '%.*s'", TOK_ARGS(tok));
+			goto mismatch;
 	}
 	advance_tok(ctx);
 
@@ -399,8 +451,13 @@ INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec)
 	if (parse_literal(ctx, &expr)) {
 		;
 	} else if (parse_ident(ctx, &expr, NULL)) {
-		;
+		CASTED_NODE(IdentAstNode, ident, expr);
+		if (ident->decl->is_type_decl) {
+			report_error(ctx, "Expression can't start with a type name (%.*s)", TOK_ARGS(ident));
+			goto mismatch;
+		}
 	} else {
+		report_error(ctx, "Expected identifier or literal, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
 		goto mismatch;
 	}
 	/* @todo ^ parse parens */
@@ -428,8 +485,10 @@ INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec)
 
 	*ret = expr;
 	return true;
+
 mismatch:
 	cancel_node_parsing(ctx);
+	destroy_node(expr);
 	return false;
 }
 
@@ -444,20 +503,15 @@ INTERNAL AstNode *parse_element(ParseCtx *ctx)
 		accept_tok(ctx, TokenType_semi);
 	else if (parse_expr(ctx, &result, 0))
 		accept_tok(ctx, TokenType_semi);
-	else {
-		Token *begin = cur_tok(ctx);
-		Token *end = next_tok(ctx->most_advanced_token_used);
-		printf("Parsing of '%.*s' at line %i failed\n",
-				(int)(end->text_buf - begin->text_buf + end->text_len), begin->text_buf,
-				begin->line);
-#if 0
-		printf("Current AST:\n");
-		print_ast(&ctx->root->b, 2);
-#endif
-	}
+	else 
+		goto mismatch;
 
 	end_node_parsing(ctx);
 	return result;
+
+mismatch:
+	cancel_node_parsing(ctx);
+	return NULL;
 }
 
 ScopeAstNode *parse_tokens(Token *toks)
@@ -467,7 +521,7 @@ ScopeAstNode *parse_tokens(Token *toks)
 	ScopeAstNode *root = create_scope_node();
 
 	ctx.root = root;
-	ctx.tok = ctx.most_advanced_token_used = toks;
+	ctx.tok = toks;
 	ctx.parse_stack = create_array(ParseStackFrame)(32);
 
 	begin_node_parsing(&ctx, &root->b);
@@ -482,13 +536,23 @@ ScopeAstNode *parse_tokens(Token *toks)
 	}
 	end_node_parsing(&ctx);
 
-	destroy_array(ParseStackFrame)(&ctx.parse_stack);
-
 	if (failure) {
+		Token *tok = ctx.error_tok;
+		const char *msg = ctx.error_msg;
+		if (tok && msg) {
+			printf("Error at line %i near token '%.*s':\n   %s\n",
+					tok->line, TOK_ARGS(tok), msg);
+		} else {
+			printf("Internal parser error (excuse)\n");
+		}
 		printf("Compilation failed\n");
 		destroy_ast_tree(root);
 		root = NULL;
 	}
+
+	free(ctx.error_msg);
+	destroy_array(ParseStackFrame)(&ctx.parse_stack);
+
 	return root;
 }
 
@@ -515,7 +579,7 @@ void print_ast(AstNode *node, int indent)
 		} break;
 		case AstNodeType_ident: {
 			CASTED_NODE(IdentAstNode, ident, node);
-			printf("ident: %.*s\n", ident->text_len, ident->text_buf);
+			printf("ident: %.*s\n", TOK_ARGS(ident));
 		} break;
 		case AstNodeType_decl: {
 			CASTED_NODE(DeclAstNode, decl, node);

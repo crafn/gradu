@@ -27,7 +27,6 @@ DECLARE_ARRAY(AstNodePtr)
 
 typedef struct AstNode {
 	AstNodeType type;
-	struct AstNode *parent;
 } AstNode;
 
 typedef struct ScopeAstNode {
@@ -48,6 +47,10 @@ typedef struct DeclAstNode {
 	AstNode *type;
 	IdentAstNode *ident;
 	AstNode *value;
+
+	bool is_type_decl;
+	bool is_var_decl;
+	bool is_func_decl;
 } DeclAstNode;
 
 typedef enum {

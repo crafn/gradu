@@ -47,7 +47,9 @@ INTERNAL TokenType double_char_tokentype(char ch1, char ch2)
 	if (ch1 == '!' && ch2 == '=')
 		return TokenType_nequals;
 	if (ch1 == '/' && ch2 == '/')
-		return TokenType_comment;
+		return TokenType_line_comment;
+	if (ch1 == '/' && ch2 == '*')
+		return TokenType_block_comment;
 	if (ch1 == '<' && ch2 == '=')
 		return TokenType_leq;
 	if (ch1 == '>' && ch2 == '=')
@@ -103,11 +105,13 @@ typedef enum {
 	TokState_number_after_dot,
 	TokState_name,
 	TokState_str,
-	TokState_comment
+	TokState_line_comment,
+	TokState_block_comment
 } TokState;
 
 typedef struct TokenizeCtx {
 	TokState state;
+	int block_comment_depth;
 	const char *end;
 	int cur_line;
 	Array(Token) tokens;
@@ -166,8 +170,12 @@ Array(Token) tokenize(const char* src, int src_size)
 					commit_token(&t, tok_begin, cur, single_char_tokentype(*tok_begin));
 					--cur;
 				} else {
-					if (type == TokenType_comment) {
-						t.state = TokState_comment;
+					if (type == TokenType_line_comment) {
+						t.state = TokState_line_comment;
+						tok_begin += 2;
+					} else if (type == TokenType_block_comment) {
+						t.state = TokState_block_comment;
+						t.block_comment_depth = 1;
 						tok_begin += 2;
 					} else {
 						commit_token(&t, tok_begin, cur + 1, type);
@@ -208,9 +216,20 @@ Array(Token) tokenize(const char* src, int src_size)
 				if (*cur == '\"')
 					commit_token(&t, tok_begin + 1, cur, TokenType_string);
 			break;
-			case TokState_comment:
+			case TokState_line_comment:
 				if (linebreak(*cur))
-					commit_token(&t, tok_begin, cur, TokenType_comment);
+					commit_token(&t, tok_begin, cur, TokenType_line_comment);
+			case TokState_block_comment: {
+				char a = *(cur - 1);
+				char b = *(cur);
+				if (double_char_tokentype(a, b) == TokenType_block_comment) {
+					++t.block_comment_depth;
+				} else if (a == '*' && b == '/') {
+					--t.block_comment_depth;
+					if (t.block_comment_depth <= 0)
+						commit_token(&t, tok_begin, cur - 1, TokenType_block_comment);
+				}
+			} break;
 			default:;
 		}
 		++cur;
@@ -265,7 +284,8 @@ const char* tokentype_str(TokenType type)
 		case TokenType_question: return "question";
 		case TokenType_tilde: return "tilde";
 		case TokenType_squote: return "squote";
-		case TokenType_comment: return "comment";
+		case TokenType_line_comment: return "line_comment";
+		case TokenType_block_comment: return "block_comment";
 		case TokenType_kw_struct: return "kw_struct";
 		case TokenType_kw_return: return "kw_return";
 		case TokenType_kw_goto: return "kw_goto";
@@ -320,7 +340,8 @@ const char* tokentype_codestr(TokenType type)
 		case TokenType_question: return "?";
 		case TokenType_tilde: return "~";
 		case TokenType_squote: return "'";
-		case TokenType_comment: return "//";
+		case TokenType_line_comment: return "// ...";
+		case TokenType_block_comment: return "/* ... */";
 		case TokenType_kw_struct: return "struct";
 		case TokenType_kw_return: return "return";
 		case TokenType_kw_goto: return "goto";

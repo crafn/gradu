@@ -1,9 +1,16 @@
+// These types are just placeholders
 struct int { }
 struct char { }
 struct void { }
 
 int aaaaa;
 char bbbbbb;
+
+/*
+	Block comments work
+
+	/* Even nested! */
+*/
 
 void func()
 {
@@ -13,9 +20,35 @@ void func()
 	temp_var = 1 + 2 * 3;
 	temp_var2 = temp_var * 5 + 2 * 3;
 
+	// Local functions are illegal in C
 	struct LocalType { }
 	void local_func()
 	{
-		LocalType bug_test;
+		LocalType bug_test; // Just to test that identifier lookup works
 	}
 }
+
+
+
+/*
+Output from the compiler:
+
+struct int { /* @todo */ };
+struct char { /* @todo */ };
+struct void { /* @todo */ };
+int aaaaa;
+char bbbbbb;
+struct LocalType { /* @todo */ };
+void local_func( /* @todo */ )
+{
+    LocalType bug_test;
+};
+void func( /* @todo */ )
+{
+    int temp_var;
+    int temp_var2;
+    temp_var = 1 + 2 * 3;
+    temp_var2 = temp_var * 5 + 2 * 3;
+};
+
+*/

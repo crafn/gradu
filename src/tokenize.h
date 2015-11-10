@@ -40,7 +40,8 @@ typedef enum {
 	TokenType_tilde, /* ~ */
 	TokenType_question, /* ? */
 	TokenType_squote, /* ' */
-	TokenType_comment, /* // this is comment */
+	TokenType_line_comment, /* // this is comment */
+	TokenType_block_comment, /* this is block comment */
 	TokenType_kw_struct, /* struct */
 	TokenType_kw_return, /* return */
 	TokenType_kw_goto, /* goto */
@@ -69,11 +70,14 @@ typedef struct Token {
 /* String args */
 #define TOK_ARGS(tok) tok->text_len, tok->text_buf
 
+static bool is_comment_tok(Token *tok) { return tok->type == TokenType_line_comment || tok->type == TokenType_block_comment; }
+
 DECLARE_ARRAY(Token)
 
 /* Tokens will be pointing to the 'src' string */
 Array(Token) tokenize(const char* src, int src_size);
 
 void print_tokens(Token *tokens, int token_count);
+
 
 #endif

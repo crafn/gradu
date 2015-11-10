@@ -189,19 +189,12 @@ typedef struct ParseCtx {
 INTERNAL Token *cur_tok(ParseCtx *ctx)
 { return ctx->tok; }
 
-/*
-INTERNAL Token *next_tok(Token *tok)
-{
-	if (tok->type != TokenType_eof)
-		return tok + 1;
-	return tok;
-}
-*/
-
 INTERNAL void advance_tok(ParseCtx *ctx)
 {
 	ASSERT(ctx->tok->type != TokenType_eof);
-	++ctx->tok;
+	do {
+		++ctx->tok;
+	} while (is_comment_tok(ctx->tok));
 }
 
 INTERNAL bool accept_tok(ParseCtx *ctx, TokenType type)
@@ -556,8 +549,10 @@ ScopeAstNode *parse_tokens(Token *toks)
 	ScopeAstNode *root = create_ast_tree();
 
 	ctx.root = root;
-	ctx.tok = toks;
 	ctx.parse_stack = create_array(ParseStackFrame)(32);
+	ctx.tok = toks;
+	if (is_comment_tok(ctx.tok))
+		advance_tok(&ctx);
 
 	begin_node_parsing(&ctx, AST_BASE(root));
 

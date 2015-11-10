@@ -1,4 +1,5 @@
 #include "core.h"
+#include "codegen.h"
 #include "tokenize.h"
 #include "parse.h"
 
@@ -9,6 +10,7 @@ int main(int argc, const char **argv)
 	int src_size;
 	Array(Token) tokens = {0};
 	ScopeAstNode *root = NULL;
+	Array(char) c_code = {0};
 
 	if (argc < 2) {
 		printf("Give source file as argument\n");
@@ -47,7 +49,12 @@ int main(int argc, const char **argv)
 	printf("AST\n");
 	print_ast(&root->b, 2);
 
+	printf("C\n");
+	c_code = gen_c_code(root);
+	printf("%.*s", c_code.size, c_code.data);
+
 cleanup:
+	destroy_array(char)(&c_code);
 	destroy_ast_tree(root);
 	destroy_array(Token)(&tokens);
 	free(src_buf);

@@ -92,4 +92,11 @@ Array(V) copy_array(V)(Array(V) *arr)\
 	return copy;\
 }\
 
+
+DECLARE_ARRAY(char)
+
+/* @todo Make this safe.. */
+void safe_vsprintf(Array(char) *buf, const char *fmt, va_list args);
+void append_str(Array(char) *buf, const char *fmt, ...);
+
 #endif

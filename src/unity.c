@@ -1,3 +1,5 @@
+#include "codegen.c"
+#include "core.c"
 #include "main.c"
 #include "parse.c"
 #include "tokenize.c"

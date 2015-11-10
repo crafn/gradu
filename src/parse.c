@@ -42,10 +42,6 @@ int op_assoc(TokenType type)
 bool is_op(TokenType type)
 { return op_prec(type) >= 0; }
 
-/* Usage: CASTED_NODE(IdentAstNode, ident, generic_node); printf("%c", ident->text_buf[0]); */
-#define CASTED_NODE(type, name, assign) \
-	type *name = (type*)assign
-
 INTERNAL AstNode *create_node_impl(AstNodeType type, int size)
 {
 	AstNode *n = calloc(1, size);
@@ -54,28 +50,30 @@ INTERNAL AstNode *create_node_impl(AstNodeType type, int size)
 }
 #define CREATE_NODE(type, type_enum) ((type*)create_node_impl(type_enum, sizeof(type)))
 
-INTERNAL IdentAstNode *create_ident_node(Token *tok)
-{
-	IdentAstNode * ident = CREATE_NODE(IdentAstNode, AstNodeType_ident);
-	ident->text_buf = tok->text_buf;
-	ident->text_len = tok->text_len;
-	return ident;
-}
-
-INTERNAL DeclAstNode *create_decl_node()
-{ return CREATE_NODE(DeclAstNode, AstNodeType_decl); }
-
-INTERNAL ScopeAstNode *create_scope_node()
+ScopeAstNode *create_scope_node()
 {
 	ScopeAstNode *scope = CREATE_NODE(ScopeAstNode, AstNodeType_scope);
 	scope->nodes = create_array(AstNodePtr)(8);
 	return scope;
 }
 
-INTERNAL LiteralAstNode *create_literal_node()
+IdentAstNode *create_ident_node(Token *tok)
+{
+	IdentAstNode * ident = CREATE_NODE(IdentAstNode, AstNodeType_ident);
+	if (tok) {
+		ident->text_buf = tok->text_buf;
+		ident->text_len = tok->text_len;
+	}
+	return ident;
+}
+
+DeclAstNode *create_decl_node()
+{ return CREATE_NODE(DeclAstNode, AstNodeType_decl); }
+
+LiteralAstNode *create_literal_node()
 { return CREATE_NODE(LiteralAstNode, AstNodeType_literal); }
 
-INTERNAL BiopAstNode *create_biop_node(TokenType type, AstNode *lhs, AstNode *rhs)
+BiopAstNode *create_biop_node(TokenType type, AstNode *lhs, AstNode *rhs)
 {
 	BiopAstNode *biop = CREATE_NODE(BiopAstNode, AstNodeType_biop);
 	biop->type = type;
@@ -84,8 +82,55 @@ INTERNAL BiopAstNode *create_biop_node(TokenType type, AstNode *lhs, AstNode *rh
 	return biop;
 }
 
+/* Node copying */
+
+ScopeAstNode *copy_scope_node(ScopeAstNode *scope, AstNode **subnodes, int subnode_count)
+{
+	ScopeAstNode *copy = create_scope_node();
+	int i;
+	for (i = 0; i < subnode_count; ++i)
+		push_array(AstNodePtr)(&copy->nodes, subnodes[i]);
+	copy->is_root = scope->is_root;
+	return copy;
+}
+
+IdentAstNode *copy_ident_node(IdentAstNode *ident)
+{
+	IdentAstNode *copy = create_ident_node(NULL);
+	copy->text_buf = ident->text_buf;
+	copy->text_len = ident->text_len;
+	/* @todo ident->decl as param. Now it will be NULL in the copy. */
+	return copy;
+}
+
+DeclAstNode *copy_decl_node(DeclAstNode *decl, AstNode *type, AstNode *ident, AstNode *value)
+{
+	DeclAstNode *copy = create_decl_node();
+	ASSERT(ident->type == AstNodeType_ident);
+	copy->type = type;
+	copy->ident = (IdentAstNode*)ident;
+	copy->value = value;
+	copy->is_type_decl = decl->is_type_decl;
+	copy->is_var_decl = decl->is_var_decl;
+	copy->is_func_decl = decl->is_func_decl;
+	return copy;
+}
+
+LiteralAstNode *copy_literal_node(LiteralAstNode *literal)
+{
+	LiteralAstNode *copy = create_literal_node();
+	*copy = *literal;
+	return copy;
+}
+
+BiopAstNode *copy_biop_node(BiopAstNode *biop, AstNode *lhs, AstNode *rhs)
+{
+	BiopAstNode *copy = create_biop_node(biop->type, lhs, rhs);
+	return copy;
+}
+
 /* Recursive */
-INTERNAL void destroy_node(AstNode *node)
+void destroy_node(AstNode *node)
 {
 	if (!node)
 		return;
@@ -102,7 +147,7 @@ INTERNAL void destroy_node(AstNode *node)
 		case AstNodeType_decl: {
 			CASTED_NODE(DeclAstNode, decl, node);
 			destroy_node(decl->type);
-			destroy_node(&decl->ident->b);
+			destroy_node(AST_BASE(decl->ident));
 			destroy_node(decl->value);
 		} break;
 		case AstNodeType_literal: {
@@ -133,7 +178,7 @@ typedef struct ParseCtx {
 	ScopeAstNode *root;
 	Token *tok; /* Access with cur_tok */
 
-	char *error_msg; /* Dynamically allocated */
+	Array(char) error_msg;
 	Token *error_tok;
 	Array(ParseStackFrame) parse_stack;
 } ParseCtx;
@@ -193,28 +238,18 @@ INTERNAL void cancel_node_parsing(ParseCtx *ctx)
 
 void report_error(ParseCtx *ctx, const char *fmt, ...)
 {
-	char buf[1024*10];
-	char *msg;
+	Array(char) msg;
 	va_list args;
-	int len;
 
 	if (cur_tok(ctx) <= ctx->error_tok)
 		return; /* Don't overwrite error generated from less succesfull parsing (heuristic) */
 
 	va_start(args, fmt);
-	/* @todo Find open source non-gpl snprintf */
-	len = vsprintf(buf, fmt, args);
-	if (len < 0)
-		return;
-	if (len > (int)sizeof(buf)/2) /* Crappy failsafe */
-		abort();
+	msg = create_array(char)(0);
+	safe_vsprintf(&msg, fmt, args);
 	va_end(args);
 
-	msg = NONULL(malloc(len + 1));
-	strncpy(msg, buf, len);
-	msg[len] = '\0';
-
-	free(ctx->error_msg);
+	destroy_array(char)(&ctx->error_msg);
 	ctx->error_msg = msg;
 	ctx->error_tok = cur_tok(ctx);
 }
@@ -276,7 +311,7 @@ INTERNAL bool parse_ident(ParseCtx *ctx, AstNode **ret, DeclAstNode *decl)
 	Token *tok = cur_tok(ctx);
 	IdentAstNode *ident = create_ident_node(tok);
 
-	begin_node_parsing(ctx, &ident->b);
+	begin_node_parsing(ctx, AST_BASE(ident));
 
 	if (tok->type != TokenType_name) {
 		report_error(ctx, "'%.*s' is not an identifier", TOK_ARGS(tok));
@@ -312,7 +347,7 @@ INTERNAL bool parse_decl(ParseCtx *ctx, AstNode **ret)
 	IdentAstNode *ident = NULL;
 	AstNode *value = NULL;
 
-	begin_node_parsing(ctx, &decl->b);
+	begin_node_parsing(ctx, AST_BASE(decl));
 
 
 	/* @todo ptrs, typedefs, const, types with multiple identifiers... */
@@ -388,7 +423,7 @@ INTERNAL bool parse_block(ParseCtx *ctx, AstNode **ret)
 {
 	ScopeAstNode *scope = create_scope_node();
 
-	begin_node_parsing(ctx, &scope->b);
+	begin_node_parsing(ctx, AST_BASE(scope));
 
 	if (!accept_tok(ctx, TokenType_open_brace)) {
 		report_error(ctx, "Expected '{', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
@@ -418,7 +453,7 @@ INTERNAL bool parse_literal(ParseCtx *ctx, AstNode **ret)
 	LiteralAstNode *literal = create_literal_node();
 	Token *tok = cur_tok(ctx);
 
-	begin_node_parsing(ctx, &literal->b);
+	begin_node_parsing(ctx, AST_BASE(literal));
 
 	switch (tok->type) {
 		case TokenType_number:
@@ -478,7 +513,7 @@ INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec)
 		if (!parse_expr(ctx, &rhs, next_min_prec))
 			goto mismatch;
 
-		expr = &create_biop_node(tok->type, expr, rhs)->b;
+		expr = AST_BASE(create_biop_node(tok->type, expr, rhs));
 	}
 
 	end_node_parsing(ctx);
@@ -518,13 +553,13 @@ ScopeAstNode *parse_tokens(Token *toks)
 {
 	bool failure = false;
 	ParseCtx ctx = {0};
-	ScopeAstNode *root = create_scope_node();
+	ScopeAstNode *root = create_ast_tree();
 
 	ctx.root = root;
 	ctx.tok = toks;
 	ctx.parse_stack = create_array(ParseStackFrame)(32);
 
-	begin_node_parsing(&ctx, &root->b);
+	begin_node_parsing(&ctx, AST_BASE(root));
 
 	while (ctx.tok->type != TokenType_eof) {
 		AstNode *elem = parse_element(&ctx);
@@ -538,7 +573,7 @@ ScopeAstNode *parse_tokens(Token *toks)
 
 	if (failure) {
 		Token *tok = ctx.error_tok;
-		const char *msg = ctx.error_msg;
+		const char *msg = ctx.error_msg.data;
 		if (tok && msg) {
 			printf("Error at line %i near token '%.*s':\n   %s\n",
 					tok->line, TOK_ARGS(tok), msg);
@@ -550,9 +585,16 @@ ScopeAstNode *parse_tokens(Token *toks)
 		root = NULL;
 	}
 
-	free(ctx.error_msg);
+	destroy_array(char)(&ctx.error_msg);
 	destroy_array(ParseStackFrame)(&ctx.parse_stack);
 
+	return root;
+}
+
+ScopeAstNode *create_ast_tree()
+{
+	ScopeAstNode *root = create_scope_node();
+	root->is_root = true;
 	return root;
 }
 
@@ -585,7 +627,7 @@ void print_ast(AstNode *node, int indent)
 			CASTED_NODE(DeclAstNode, decl, node);
 			printf("decl\n");
 			print_ast(decl->type, indent + 2);
-			print_ast(&decl->ident->b, indent + 2);
+			print_ast(AST_BASE(decl->ident), indent + 2);
 			print_ast(decl->value, indent + 2);
 		} break;
 		case AstNodeType_literal: {

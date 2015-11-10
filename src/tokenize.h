@@ -64,6 +64,8 @@ typedef struct Token {
 	const char *text_buf; /* Not terminated! */
 	int text_len;
 	int line;
+
+	bool empty_line_before;
 	bool last_on_line;
 } Token;
 

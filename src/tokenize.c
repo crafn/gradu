@@ -114,6 +114,8 @@ typedef struct TokenizeCtx {
 	int block_comment_depth;
 	const char *end;
 	int cur_line;
+	bool last_line_was_empty;
+	int tokens_on_line;
 	Array(Token) tokens;
 } TokenizeCtx;
 
@@ -131,10 +133,12 @@ INTERNAL void commit_token(TokenizeCtx *t, const char *b, const char *e, TokenTy
 		tok.text_buf = b;
 		tok.text_len = e - b;
 		tok.line = t->cur_line;
+		tok.empty_line_before = t->last_line_was_empty;
 		tok.last_on_line = last_on_line;
 
 		push_array(Token)(&t->tokens, tok);
 		t->state = TokState_none;
+		++t->tokens_on_line;
 	}
 }
 
@@ -150,18 +154,21 @@ Array(Token) tokenize(const char* src, int src_size)
 	while (cur < t.end && tok_begin < t.end) {
 		switch (t.state) {
 			case TokState_none:
-				if (single_char_tokentype(*cur) != TokenType_unknown)
+				if (single_char_tokentype(*cur) != TokenType_unknown) {
 					t.state = TokState_maybe_single_char;
-				else if (*cur >= '0' && *cur <= '9')
+				} else if (*cur >= '0' && *cur <= '9') {
 					t.state = TokState_number;
-				else if (	(*cur >= 'a' && *cur <= 'z') ||
+				} else if (	(*cur >= 'a' && *cur <= 'z') ||
 							(*cur >= 'A' && *cur <= 'Z') ||
-							(*cur == '_'))
+							(*cur == '_')) {
 					t.state = TokState_name;
-				else if (*cur == '\"')
+				} else if (*cur == '\"') {
 					t.state = TokState_str;
-				else if (linebreak(*cur))
+				} else if (linebreak(*cur)) {
 					++t.cur_line;
+					t.last_line_was_empty = (t.tokens_on_line == 0);
+					t.tokens_on_line = 0;
+				}
 				tok_begin = cur;
 			break;
 			case TokState_maybe_single_char: {
@@ -362,6 +369,6 @@ void print_tokens(Token *tokens, int token_count)
 {
 	int i;
 	for (i = 0; i < token_count; ++i) {
-		printf("%12s: %20.*s %8i\n", tokentype_str(tokens[i].type), tokens[i].text_len, tokens[i].text_buf, tokens[i].line);
+		printf("%12s: %20.*s %8i %8i\n", tokentype_str(tokens[i].type), tokens[i].text_len, tokens[i].text_buf, tokens[i].line, tokens[i].empty_line_before);
 	}
 }

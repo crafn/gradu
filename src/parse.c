@@ -88,6 +88,7 @@ ScopeAstNode *copy_scope_node(ScopeAstNode *scope, AstNode **subnodes, int subno
 {
 	ScopeAstNode *copy = create_scope_node();
 	int i;
+	copy->b = scope->b;
 	for (i = 0; i < subnode_count; ++i)
 		push_array(AstNodePtr)(&copy->nodes, subnodes[i]);
 	copy->is_root = scope->is_root;
@@ -97,6 +98,7 @@ ScopeAstNode *copy_scope_node(ScopeAstNode *scope, AstNode **subnodes, int subno
 IdentAstNode *copy_ident_node(IdentAstNode *ident)
 {
 	IdentAstNode *copy = create_ident_node(NULL);
+	copy->b = ident->b;
 	copy->text_buf = ident->text_buf;
 	copy->text_len = ident->text_len;
 	/* @todo ident->decl as param. Now it will be NULL in the copy. */
@@ -107,6 +109,7 @@ DeclAstNode *copy_decl_node(DeclAstNode *decl, AstNode *type, AstNode *ident, As
 {
 	DeclAstNode *copy = create_decl_node();
 	ASSERT(ident->type == AstNodeType_ident);
+	copy->b = decl->b;
 	copy->type = type;
 	copy->ident = (IdentAstNode*)ident;
 	copy->value = value;
@@ -119,6 +122,7 @@ DeclAstNode *copy_decl_node(DeclAstNode *decl, AstNode *type, AstNode *ident, As
 LiteralAstNode *copy_literal_node(LiteralAstNode *literal)
 {
 	LiteralAstNode *copy = create_literal_node();
+	copy->b = literal->b;
 	*copy = *literal;
 	return copy;
 }
@@ -126,6 +130,7 @@ LiteralAstNode *copy_literal_node(LiteralAstNode *literal)
 BiopAstNode *copy_biop_node(BiopAstNode *biop, AstNode *lhs, AstNode *rhs)
 {
 	BiopAstNode *copy = create_biop_node(biop->type, lhs, rhs);
+	copy->b = biop->b;
 	return copy;
 }
 
@@ -214,6 +219,8 @@ INTERNAL void begin_node_parsing(ParseCtx *ctx, AstNode *node)
 	ParseStackFrame frame = {0};
 	frame.begin_tok = cur_tok(ctx);
 	frame.node = node;
+	if (node)
+		node->begin_tok = cur_tok(ctx);
 	push_array(ParseStackFrame)(&ctx->parse_stack, frame);
 }
 
@@ -473,6 +480,7 @@ mismatch:
 INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec)
 {
 	AstNode *expr = NULL;
+	Token *begin_tok = cur_tok(ctx);
 
 	begin_node_parsing(ctx, NULL); /* @todo ExprAstNode enclosing all expressions? */
 
@@ -511,6 +519,7 @@ INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec)
 
 	end_node_parsing(ctx);
 
+	expr->begin_tok = begin_tok; /* @todo begin_node_parsing would set this */
 	*ret = expr;
 	return true;
 

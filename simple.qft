@@ -30,25 +30,33 @@ void func()
 
 
 
+
+
+
 /*
 Output from the compiler:
+
 
 struct int { /* @todo */ };
 struct char { /* @todo */ };
 struct void { /* @todo */ };
+
 int aaaaa;
 char bbbbbb;
+
 struct LocalType { /* @todo */ };
 void local_func( /* @todo */ )
 {
     LocalType bug_test;
-};
+}
+
 void func( /* @todo */ )
 {
     int temp_var;
     int temp_var2;
+
     temp_var = 1 + 2 * 3;
     temp_var2 = temp_var * 5 + 2 * 3;
-};
+}
 
 */

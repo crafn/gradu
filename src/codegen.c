@@ -132,10 +132,21 @@ INTERNAL ScopeAstNode *lift_types_and_funcs_to_global_scope(ScopeAstNode *root)
 	return dst;
 }
 
+INTERNAL bool is_func_decl(AstNode *node)
+{
+	if (node->type != AstNodeType_decl)
+		return false;
+	{
+		CASTED_NODE(DeclAstNode, decl, node);
+		return decl->is_func_decl;
+	}
+}
+
 /* Almost 1-1 mapping between nodes and C constructs */
 INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AstNode *node)
 {
 	int i;
+
 	switch (node->type) {
 	case AstNodeType_scope: {
 		CASTED_NODE(ScopeAstNode, scope, node);
@@ -147,9 +158,14 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AstNode *node)
 			append_str(buf, "%*s{\n", indent, "");
 		for (i = 0; i < scope->nodes.size; ++i) {
 			AstNode *sub = scope->nodes.data[i];
+			if (sub->begin_tok && sub->begin_tok->empty_line_before)
+				append_str(buf, "\n"); /* Retain some vertical spacing from original code */
 			append_str(buf, "%*s", new_indent, "");
 			ast_to_c_str(buf, new_indent, sub);
-			append_str(buf, ";\n");
+
+			if (!is_func_decl(sub))
+				append_str(buf, ";");
+			append_str(buf, "\n");
 		}
 		if (!scope->is_root)
 			append_str(buf, "%*s}", indent, "");

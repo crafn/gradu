@@ -27,6 +27,7 @@ DECLARE_ARRAY(AstNodePtr)
 
 typedef struct AstNode {
 	AstNodeType type;
+	Token *begin_tok;
 } AstNode;
 
 typedef struct ScopeAstNode {

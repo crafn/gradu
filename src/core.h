@@ -54,8 +54,10 @@ Array(V) copy_array(V)(Array(V) *arr);\
 Array(V) create_array(V)(int capacity)\
 {\
 	Array(V) arr = {0};\
-	arr.data = (V*)malloc(capacity*sizeof(*arr.data));\
-	arr.capacity = capacity;\
+	if (capacity > 0) {\
+		arr.data = (V*)malloc(capacity*sizeof(*arr.data));\
+		arr.capacity = capacity;\
+	}\
 	return arr;\
 }\
 void destroy_array(V)(Array(V) *arr)\

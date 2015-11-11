@@ -142,10 +142,18 @@ INTERNAL bool is_func_decl(AstNode *node)
 	}
 }
 
+INTERNAL void append_c_comment(Array(char) *buf, Token *comment)
+{
+	if (comment->type == TokenType_line_comment)
+		append_str(buf, "/*%.*s */", TOK_ARGS(comment));
+	else
+		append_str(buf, "/*%.*s*/", TOK_ARGS(comment));
+}
+
 /* Almost 1-1 mapping between nodes and C constructs */
 INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AstNode *node)
 {
-	int i;
+	int i, k;
 
 	switch (node->type) {
 	case AstNodeType_scope: {
@@ -158,13 +166,31 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AstNode *node)
 			append_str(buf, "%*s{\n", indent, "");
 		for (i = 0; i < scope->nodes.size; ++i) {
 			AstNode *sub = scope->nodes.data[i];
+
+			/* Comments are enabled only for scope nodes for now */
+			for (k = 0; k < sub->pre_comments.size; ++k) {
+				Token *comment = sub->pre_comments.data[k];
+				if (comment->empty_line_before)
+					append_str(buf, "\n");
+				append_str(buf, "%*s", new_indent, "");
+				append_c_comment(buf, comment);
+				append_str(buf, "\n");
+			}
+
 			if (sub->begin_tok && sub->begin_tok->empty_line_before)
 				append_str(buf, "\n"); /* Retain some vertical spacing from original code */
+
 			append_str(buf, "%*s", new_indent, "");
 			ast_to_c_str(buf, new_indent, sub);
 
 			if (!is_func_decl(sub))
 				append_str(buf, ";");
+
+			for (k = 0; k < sub->post_comments.size; ++k) {
+				append_str(buf, " ");
+				append_c_comment(buf, sub->post_comments.data[k]);
+			}
+
 			append_str(buf, "\n");
 		}
 		if (!scope->is_root)

@@ -67,12 +67,15 @@ typedef struct Token {
 
 	bool empty_line_before;
 	bool last_on_line;
+
+	/* Used only for comments */
+	int comment_bound_to; /* -1 == prev token, 1 == next_token */
 } Token;
 
 /* String args */
 #define TOK_ARGS(tok) tok->text_len, tok->text_buf
 
-static bool is_comment_tok(Token *tok) { return tok->type == TokenType_line_comment || tok->type == TokenType_block_comment; }
+static bool is_comment_tok(TokenType type) { return type == TokenType_line_comment || type == TokenType_block_comment; }
 
 DECLARE_ARRAY(Token)
 

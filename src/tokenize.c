@@ -116,6 +116,7 @@ typedef struct TokenizeCtx {
 	int cur_line;
 	bool last_line_was_empty;
 	int tokens_on_line;
+	int comments_on_line;
 	Array(Token) tokens;
 } TokenizeCtx;
 
@@ -133,13 +134,29 @@ INTERNAL void commit_token(TokenizeCtx *t, const char *b, const char *e, TokenTy
 		tok.text_buf = b;
 		tok.text_len = e - b;
 		tok.line = t->cur_line;
-		tok.empty_line_before = t->last_line_was_empty;
+		tok.empty_line_before = (t->tokens_on_line == 0 && t->last_line_was_empty);
 		tok.last_on_line = last_on_line;
+
+		if (is_comment_tok(type)) {
+			if (t->tokens_on_line  == t->comments_on_line)
+				tok.comment_bound_to = 1; /* If line is only comments, bound to next token */
+			else
+				tok.comment_bound_to = -1; /* Else bound to token left to comment */
+			++t->comments_on_line;
+		}
 
 		push_array(Token)(&t->tokens, tok);
 		t->state = TokState_none;
 		++t->tokens_on_line;
 	}
+}
+
+INTERNAL void on_linebreak(TokenizeCtx *t)
+{
+	++t->cur_line;
+	t->last_line_was_empty = (t->tokens_on_line == 0);
+	t->tokens_on_line = 0;
+	t->comments_on_line = 0;
 }
 
 Array(Token) tokenize(const char* src, int src_size)
@@ -165,9 +182,7 @@ Array(Token) tokenize(const char* src, int src_size)
 				} else if (*cur == '\"') {
 					t.state = TokState_str;
 				} else if (linebreak(*cur)) {
-					++t.cur_line;
-					t.last_line_was_empty = (t.tokens_on_line == 0);
-					t.tokens_on_line = 0;
+					on_linebreak(&t);
 				}
 				tok_begin = cur;
 			break;
@@ -224,8 +239,10 @@ Array(Token) tokenize(const char* src, int src_size)
 					commit_token(&t, tok_begin + 1, cur, TokenType_string);
 			break;
 			case TokState_line_comment:
-				if (linebreak(*cur))
+				if (linebreak(*cur)) {
 					commit_token(&t, tok_begin, cur, TokenType_line_comment);
+					on_linebreak(&t);
+				}
 			case TokState_block_comment: {
 				char a = *(cur - 1);
 				char b = *(cur);
@@ -369,6 +386,9 @@ void print_tokens(Token *tokens, int token_count)
 {
 	int i;
 	for (i = 0; i < token_count; ++i) {
-		printf("%12s: %20.*s %8i %8i\n", tokentype_str(tokens[i].type), tokens[i].text_len, tokens[i].text_buf, tokens[i].line, tokens[i].empty_line_before);
+		Token tok = tokens[i];
+		int text_len = MIN(tok.text_len, 20);
+		printf("%14s: %20.*s %8i last_on_line: %i empty_line_before: %i\n",
+				tokentype_str(tok.type), text_len, tok.text_buf, tok.line, tok.last_on_line, tok.empty_line_before);
 	}
 }

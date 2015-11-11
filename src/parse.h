@@ -22,12 +22,20 @@ typedef enum {
 struct AstNode;
 struct DeclAstNode;
 typedef struct AstNode *AstNodePtr;
+typedef struct Token *TokenPtr;
 
 DECLARE_ARRAY(AstNodePtr)
+DECLARE_ARRAY(TokenPtr)
 
 typedef struct AstNode {
 	AstNodeType type;
+
+	/* Information for human-readable output */
+
 	Token *begin_tok;
+	/* Comments on the previous line(s) (like this comment) */
+	Array(TokenPtr) pre_comments;
+	Array(TokenPtr) post_comments; /* On the same line (like this comment) */
 } AstNode;
 
 typedef struct ScopeAstNode {

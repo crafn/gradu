@@ -16,6 +16,8 @@
 #define NONULL(x) nonull_impl(x)
 void *nonull_impl(void *ptr) { if (!ptr) abort(); return ptr; }
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 typedef enum { false, true } bool;
 

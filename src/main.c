@@ -9,7 +9,7 @@ int main(int argc, const char **argv)
 	char *src_buf = NULL;
 	int src_size;
 	Array(Token) tokens = {0};
-	ScopeAstNode *root = NULL;
+	AST_Scope *root = NULL;
 	Array(char) c_code = {0};
 
 	if (argc < 2) {

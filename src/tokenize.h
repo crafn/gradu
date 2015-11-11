@@ -4,63 +4,63 @@
 #include "core.h"
 
 typedef enum {
-	TokenType_eof,
-	TokenType_name, /* single_word_like_this */
-	TokenType_number, /* 2538 */
-	TokenType_string, /* "something" */
-	TokenType_assign, /* = */
-	TokenType_semi, /* ; */
-	TokenType_comma, /* , */
-	TokenType_open_paren, /* ( */
-	TokenType_close_paren, /* ) */
-	TokenType_open_brace, /* { */
-	TokenType_close_brace, /* } */
-	TokenType_open_square, /* [ */
-	TokenType_close_square, /* ] */
-	TokenType_rdiv, /* `\` */
-	TokenType_right_arrow, /* -> */
-	TokenType_equals, /* == */
-	TokenType_nequals, /* != */
-	TokenType_less, /* < */
-	TokenType_greater, /* > */
-	TokenType_leq, /* <= */
-	TokenType_geq, /* >= */
-	TokenType_add_assign, /* += */
-	TokenType_sub_assign, /* -= */
-	TokenType_mul_assign, /* *= */
-	TokenType_div_assign, /* /= */
-	TokenType_add, /* + */
-	TokenType_sub, /* - */
-	TokenType_mul, /* * */
-	TokenType_div, /* / */
-	TokenType_mod, /* % */
-	TokenType_dot, /* . */
-	TokenType_amp, /* & */
-	TokenType_hat, /* ^ */
-	TokenType_tilde, /* ~ */
-	TokenType_question, /* ? */
-	TokenType_squote, /* ' */
-	TokenType_line_comment, /* // this is comment */
-	TokenType_block_comment, /* this is block comment */
-	TokenType_kw_struct, /* struct */
-	TokenType_kw_return, /* return */
-	TokenType_kw_goto, /* goto */
-	TokenType_kw_break, /* break */
-	TokenType_kw_continue, /* continue */
-	TokenType_kw_else, /* else */
-	TokenType_kw_null, /* NULL */
-	TokenType_kw_for, /* for */
-	TokenType_kw_if, /* if */
-	TokenType_kw_true, /* true */
-	TokenType_kw_false, /* false */
-	TokenType_unknown
-} TokenType;
+	Token_eof,
+	Token_name, /* single_word_like_this */
+	Token_number, /* 2538 */
+	Token_string, /* "something" */
+	Token_assign, /* = */
+	Token_semi, /* ; */
+	Token_comma, /* , */
+	Token_open_paren, /* ( */
+	Token_close_paren, /* ) */
+	Token_open_brace, /* { */
+	Token_close_brace, /* } */
+	Token_open_square, /* [ */
+	Token_close_square, /* ] */
+	Token_rdiv, /* `\` */
+	Token_right_arrow, /* -> */
+	Token_equals, /* == */
+	Token_nequals, /* != */
+	Token_less, /* < */
+	Token_greater, /* > */
+	Token_leq, /* <= */
+	Token_geq, /* >= */
+	Token_add_assign, /* += */
+	Token_sub_assign, /* -= */
+	Token_mul_assign, /* *= */
+	Token_div_assign, /* /= */
+	Token_add, /* + */
+	Token_sub, /* - */
+	Token_mul, /* * */
+	Token_div, /* / */
+	Token_mod, /* % */
+	Token_dot, /* . */
+	Token_amp, /* & */
+	Token_hat, /* ^ */
+	Token_tilde, /* ~ */
+	Token_question, /* ? */
+	Token_squote, /* ' */
+	Token_line_comment, /* // this is comment */
+	Token_block_comment, /* this is block comment */
+	Token_kw_struct, /* struct */
+	Token_kw_return, /* return */
+	Token_kw_goto, /* goto */
+	Token_kw_break, /* break */
+	Token_kw_continue, /* continue */
+	Token_kw_else, /* else */
+	Token_kw_null, /* NULL */
+	Token_kw_for, /* for */
+	Token_kw_if, /* if */
+	Token_kw_true, /* true */
+	Token_kw_false, /* false */
+	Token_unknown
+} Token_Type;
 
-const char* tokentype_str(TokenType type);
-const char* tokentype_codestr(TokenType type);
+const char* tokentype_str(Token_Type type);
+const char* tokentype_codestr(Token_Type type);
 
 typedef struct Token {
-	TokenType type;
+	Token_Type type;
 	const char *text_buf; /* Not terminated! */
 	int text_len;
 	int line;
@@ -75,7 +75,7 @@ typedef struct Token {
 /* String args */
 #define TOK_ARGS(tok) tok->text_len, tok->text_buf
 
-static bool is_comment_tok(TokenType type) { return type == TokenType_line_comment || type == TokenType_block_comment; }
+static bool is_comment_tok(Token_Type type) { return type == Token_line_comment || type == Token_block_comment; }
 
 DECLARE_ARRAY(Token)
 

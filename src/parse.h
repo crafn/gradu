@@ -5,116 +5,116 @@
 #include "tokenize.h"
 
 typedef enum {
-	AstNodeType_scope,
-	AstNodeType_ident,
-	AstNodeType_decl,
-	AstNodeType_literal,
-	AstNodeType_biop,
-	AstNodeType_control
+	AST_scope,
+	AST_ident,
+	AST_decl,
+	AST_literal,
+	AST_biop,
+	AST_control
 		/*
-	AstNodeType_uop,
-	AstNodeType_call,
-	AstNodeType_label,
+	AST_uop,
+	AST_call,
+	AST_label,
 	*/
-} AstNodeType;
+} AST_Node_Type;
 
-struct AstNode;
-struct DeclAstNode;
-typedef struct AstNode *AstNodePtr;
-typedef struct Token *TokenPtr;
+struct AST_Node;
+struct AST_Decl;
+typedef struct AST_Node *AST_Node_Ptr;
+typedef struct Token *Token_Ptr;
 
-DECLARE_ARRAY(AstNodePtr)
-DECLARE_ARRAY(TokenPtr)
+DECLARE_ARRAY(AST_Node_Ptr)
+DECLARE_ARRAY(Token_Ptr)
 
-typedef struct AstNode {
-	AstNodeType type;
+typedef struct AST_Node {
+	AST_Node_Type type;
 
 	/* Information for human-readable output */
 
 	Token *begin_tok;
 	/* Comments on the previous line(s) (like this comment) */
-	Array(TokenPtr) pre_comments;
-	Array(TokenPtr) post_comments; /* On the same line (like this comment) */
-} AstNode;
+	Array(Token_Ptr) pre_comments;
+	Array(Token_Ptr) post_comments; /* On the same line (like this comment) */
+} AST_Node;
 
-typedef struct ScopeAstNode {
-	AstNode b;
-	Array(AstNodePtr) nodes;
+typedef struct AST_Scope {
+	AST_Node b;
+	Array(AST_Node_Ptr) nodes;
 	bool is_root;
-} ScopeAstNode;
+} AST_Scope;
 
-typedef struct IdentAstNode {
-	AstNode b;
+typedef struct AST_Ident {
+	AST_Node b;
 	const char *text_buf;
 	int text_len;
 
-	struct DeclAstNode *decl; /* Pointer to node which declares this identifier */
-} IdentAstNode;
+	struct AST_Decl *decl; /* Pointer to node which declares this identifier */
+} AST_Ident;
 
-typedef struct DeclAstNode {
-	AstNode b;
-	AstNode *type;
-	IdentAstNode *ident;
-	AstNode *value;
+typedef struct AST_Decl {
+	AST_Node b;
+	AST_Node *type;
+	AST_Ident *ident;
+	AST_Node *value;
 
 	bool is_type_decl;
 	bool is_var_decl;
 	bool is_func_decl;
-} DeclAstNode;
+} AST_Decl;
 
 typedef enum {
-	LiteralType_int
-} LiteralType;
+	Literal_int
+} Literal_Type;
 
-typedef struct LiteralAstNode {
-	AstNode b;
-	LiteralType type;
+typedef struct AST_Literal {
+	AST_Node b;
+	Literal_Type type;
 	union {
 		/* @todo Different integer sizes etc */
 		int integer;
 	} value;
-} LiteralAstNode;
+} AST_Literal;
 
-typedef struct BiopAstNode {
-	AstNode b;
-	TokenType type;
-	AstNode *lhs;
-	AstNode *rhs;
-} BiopAstNode;
+typedef struct AST_Biop {
+	AST_Node b;
+	Token_Type type;
+	AST_Node *lhs;
+	AST_Node *rhs;
+} AST_Biop;
 
-typedef struct ControlAstNode {
-	AstNode b;
-	TokenType type;
+typedef struct AST_Control {
+	AST_Node b;
+	Token_Type type;
 	/* For return and goto */
-	AstNode *value;
-} ControlAstNode;
+	AST_Node *value;
+} AST_Control;
 
-/* Usage: CASTED_NODE(IdentAstNode, ident, generic_node); printf("%c", ident->text_buf[0]); */
+/* Usage: CASTED_NODE(AST_Ident, ident, generic_node); printf("%c", ident->text_buf[0]); */
 #define CASTED_NODE(type, name, assign) \
 	type *name = (type*)assign
 #define AST_BASE(node) (&(node)->b)
 
 /* Created AST will have pointers to tokens */
-ScopeAstNode *parse_tokens(Token *toks);
+AST_Scope *parse_tokens(Token *toks);
 
-ScopeAstNode *create_ast_tree();
-void destroy_ast_tree(ScopeAstNode *node);
+AST_Scope *create_ast_tree();
+void destroy_ast_tree(AST_Scope *node);
 
-ScopeAstNode *create_scope_node();
-IdentAstNode *create_ident_node(Token *tok);
-DeclAstNode *create_decl_node();
-LiteralAstNode *create_literal_node();
-BiopAstNode *create_biop_node(TokenType type, AstNode *lhs, AstNode *rhs);
+AST_Scope *create_scope_node();
+AST_Ident *create_ident_node(Token *tok);
+AST_Decl *create_decl_node();
+AST_Literal *create_literal_node();
+AST_Biop *create_biop_node(Token_Type type, AST_Node *lhs, AST_Node *rhs);
 
-ScopeAstNode *copy_scope_node(ScopeAstNode *scope, AstNode **subnodes, int subnode_count);
-IdentAstNode *copy_ident_node(IdentAstNode *ident);
-DeclAstNode *copy_decl_node(DeclAstNode *decl, AstNode *type, AstNode *ident, AstNode *value);
-LiteralAstNode *copy_literal_node(LiteralAstNode *literal);
-BiopAstNode *copy_biop_node(BiopAstNode *biop, AstNode *lhs, AstNode *rhs);
-ControlAstNode *copy_control_node(ControlAstNode *control, AstNode *value);
+AST_Scope *copy_scope_node(AST_Scope *scope, AST_Node **subnodes, int subnode_count);
+AST_Ident *copy_ident_node(AST_Ident *ident);
+AST_Decl *copy_decl_node(AST_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value);
+AST_Literal *copy_literal_node(AST_Literal *literal);
+AST_Biop *copy_biop_node(AST_Biop *biop, AST_Node *lhs, AST_Node *rhs);
+AST_Control *copy_control_node(AST_Control *control, AST_Node *value);
 
-void destroy_node(AstNode *node);
+void destroy_node(AST_Node *node);
 
-void print_ast(AstNode *node, int indent);
+void print_ast(AST_Node *node, int indent);
 
 #endif

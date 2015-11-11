@@ -4,6 +4,6 @@
 #include "core.h"
 #include "parse.h"
 
-Array(char) gen_c_code(ScopeAstNode *root);
+Array(char) gen_c_code(AST_Scope *root);
 
 #endif

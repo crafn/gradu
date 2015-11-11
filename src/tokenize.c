@@ -8,109 +8,109 @@ INTERNAL bool whitespace(char ch)
 INTERNAL bool linebreak(char ch)
 { return ch == '\n'; }
 
-INTERNAL TokenType single_char_tokentype(char ch)
+INTERNAL Token_Type single_char_tokentype(char ch)
 {
 	switch (ch) {
-		case '=': return TokenType_assign;
-		case ';': return TokenType_semi;
-		case ',': return TokenType_comma;
-		case '(': return TokenType_open_paren;
-		case ')': return TokenType_close_paren;
-		case '{': return TokenType_open_brace;
-		case '}': return TokenType_close_brace;
-		case '[': return TokenType_open_square;
-		case ']': return TokenType_close_square;
-		case '<': return TokenType_less;
-		case '>': return TokenType_greater;
-		case '+': return TokenType_add;
-		case '-': return TokenType_sub;
-		case '*': return TokenType_mul;
-		case '/': return TokenType_div;
-		case '\\': return TokenType_rdiv;
-		case '%': return TokenType_mod;
-		case '.': return TokenType_dot;
-		case '&': return TokenType_amp;
-		case '^': return TokenType_hat;
-		case '?': return TokenType_question;
-		case '~': return TokenType_tilde;
-		case '\'': return TokenType_squote;
-		default: return TokenType_unknown;
+		case '=': return Token_assign;
+		case ';': return Token_semi;
+		case ',': return Token_comma;
+		case '(': return Token_open_paren;
+		case ')': return Token_close_paren;
+		case '{': return Token_open_brace;
+		case '}': return Token_close_brace;
+		case '[': return Token_open_square;
+		case ']': return Token_close_square;
+		case '<': return Token_less;
+		case '>': return Token_greater;
+		case '+': return Token_add;
+		case '-': return Token_sub;
+		case '*': return Token_mul;
+		case '/': return Token_div;
+		case '\\': return Token_rdiv;
+		case '%': return Token_mod;
+		case '.': return Token_dot;
+		case '&': return Token_amp;
+		case '^': return Token_hat;
+		case '?': return Token_question;
+		case '~': return Token_tilde;
+		case '\'': return Token_squote;
+		default: return Token_unknown;
 	}
 }
 
-INTERNAL TokenType double_char_tokentype(char ch1, char ch2)
+INTERNAL Token_Type double_char_tokentype(char ch1, char ch2)
 {
 	if (ch1 == '-' && ch2 == '>')
-		return TokenType_right_arrow;
+		return Token_right_arrow;
 	if (ch1 == '=' && ch2 == '=')
-		return TokenType_equals;
+		return Token_equals;
 	if (ch1 == '!' && ch2 == '=')
-		return TokenType_nequals;
+		return Token_nequals;
 	if (ch1 == '/' && ch2 == '/')
-		return TokenType_line_comment;
+		return Token_line_comment;
 	if (ch1 == '/' && ch2 == '*')
-		return TokenType_block_comment;
+		return Token_block_comment;
 	if (ch1 == '<' && ch2 == '=')
-		return TokenType_leq;
+		return Token_leq;
 	if (ch1 == '>' && ch2 == '=')
-		return TokenType_geq;
+		return Token_geq;
 	if (ch2 == '=') {
 		switch (ch1) {
-			case '+': return TokenType_add_assign;
-			case '-': return TokenType_sub_assign;
-			case '*': return TokenType_mul_assign;
-			case '/': return TokenType_div_assign;
+			case '+': return Token_add_assign;
+			case '-': return Token_sub_assign;
+			case '*': return Token_mul_assign;
+			case '/': return Token_div_assign;
 			default:;
 		}
 	}
 
-	return TokenType_unknown;
+	return Token_unknown;
 }
 
-INTERNAL TokenType kw_tokentype(const char *buf, int size)
+INTERNAL Token_Type kw_tokentype(const char *buf, int size)
 {
 	if (!strncmp(buf, "struct", size))
-		return TokenType_kw_struct;
+		return Token_kw_struct;
 	if (!strncmp(buf, "return", size))
-		return TokenType_kw_return;
+		return Token_kw_return;
 	if (!strncmp(buf, "goto", size))
-		return TokenType_kw_goto;
+		return Token_kw_goto;
 	if (!strncmp(buf, "break", size))
-		return TokenType_kw_break;
+		return Token_kw_break;
 	if (!strncmp(buf, "continue", size))
-		return TokenType_kw_continue;
+		return Token_kw_continue;
 	if (!strncmp(buf, "else", size))
-		return TokenType_kw_else;
+		return Token_kw_else;
 	if (!strncmp(buf, "NULL", size))
-		return TokenType_kw_null;
+		return Token_kw_null;
 	if (!strncmp(buf, "for", size))
-		return TokenType_kw_for;
+		return Token_kw_for;
 	if (!strncmp(buf, "if", size))
-		return TokenType_kw_if;
+		return Token_kw_if;
 	if (!strncmp(buf, "true", size))
-		return TokenType_kw_true;
+		return Token_kw_true;
 	if (!strncmp(buf, "false", size))
-		return TokenType_kw_false;
+		return Token_kw_false;
 	if (!strncmp(buf, "true", size))
-		return TokenType_kw_true;
+		return Token_kw_true;
 	if (!strncmp(buf, "false", size))
-		return TokenType_kw_false;
-	return TokenType_unknown;
+		return Token_kw_false;
+	return Token_unknown;
 }
 
 typedef enum {
-	TokState_none,
-	TokState_maybe_single_char,
-	TokState_number,
-	TokState_number_after_dot,
-	TokState_name,
-	TokState_str,
-	TokState_line_comment,
-	TokState_block_comment
-} TokState;
+	Tok_State_none,
+	Tok_State_maybe_single_char,
+	Tok_State_number,
+	Tok_State_number_after_dot,
+	Tok_State_name,
+	Tok_State_str,
+	Tok_State_line_comment,
+	Tok_State_block_comment
+} Tok_State;
 
-typedef struct TokenizeCtx {
-	TokState state;
+typedef struct Tokenize_Ctx {
+	Tok_State state;
 	int block_comment_depth;
 	const char *end;
 	int cur_line;
@@ -118,16 +118,16 @@ typedef struct TokenizeCtx {
 	int tokens_on_line;
 	int comments_on_line;
 	Array(Token) tokens;
-} TokenizeCtx;
+} Tokenize_Ctx;
 
-INTERNAL void commit_token(TokenizeCtx *t, const char *b, const char *e, TokenType type)
+INTERNAL void commit_token(Tokenize_Ctx *t, const char *b, const char *e, Token_Type type)
 {
 	if (e > b) {
 		Token tok = {0};
 		bool last_on_line = e + 1 < t->end && linebreak(*e);
-		if (type == TokenType_name) {
-			TokenType kw = kw_tokentype(b, e - b);
-			if (kw != TokenType_unknown)
+		if (type == Token_name) {
+			Token_Type kw = kw_tokentype(b, e - b);
+			if (kw != Token_unknown)
 				type = kw;
 		}
 		tok.type = type;
@@ -146,12 +146,12 @@ INTERNAL void commit_token(TokenizeCtx *t, const char *b, const char *e, TokenTy
 		}
 
 		push_array(Token)(&t->tokens, tok);
-		t->state = TokState_none;
+		t->state = Tok_State_none;
 		++t->tokens_on_line;
 	}
 }
 
-INTERNAL void on_linebreak(TokenizeCtx *t)
+INTERNAL void on_linebreak(Tokenize_Ctx *t)
 {
 	++t->cur_line;
 	t->last_line_was_empty = (t->tokens_on_line == 0);
@@ -163,40 +163,40 @@ Array(Token) tokenize(const char* src, int src_size)
 {
 	const char *cur = src;
 	const char *tok_begin = src;
-	TokenizeCtx t = {0};
+	Tokenize_Ctx t = {0};
 	t.end = src + src_size;
 	t.cur_line = 1;
 	t.tokens = create_array(Token)(src_size/4); /* Estimate token count */
 
 	while (cur < t.end && tok_begin < t.end) {
 		switch (t.state) {
-			case TokState_none:
-				if (single_char_tokentype(*cur) != TokenType_unknown) {
-					t.state = TokState_maybe_single_char;
+			case Tok_State_none:
+				if (single_char_tokentype(*cur) != Token_unknown) {
+					t.state = Tok_State_maybe_single_char;
 				} else if (*cur >= '0' && *cur <= '9') {
-					t.state = TokState_number;
+					t.state = Tok_State_number;
 				} else if (	(*cur >= 'a' && *cur <= 'z') ||
 							(*cur >= 'A' && *cur <= 'Z') ||
 							(*cur == '_')) {
-					t.state = TokState_name;
+					t.state = Tok_State_name;
 				} else if (*cur == '\"') {
-					t.state = TokState_str;
+					t.state = Tok_State_str;
 				} else if (linebreak(*cur)) {
 					on_linebreak(&t);
 				}
 				tok_begin = cur;
 			break;
-			case TokState_maybe_single_char: {
-				TokenType type = double_char_tokentype(*tok_begin, *cur);
-				if (type == TokenType_unknown) {
+			case Tok_State_maybe_single_char: {
+				Token_Type type = double_char_tokentype(*tok_begin, *cur);
+				if (type == Token_unknown) {
 					commit_token(&t, tok_begin, cur, single_char_tokentype(*tok_begin));
 					--cur;
 				} else {
-					if (type == TokenType_line_comment) {
-						t.state = TokState_line_comment;
+					if (type == Token_line_comment) {
+						t.state = Tok_State_line_comment;
 						tok_begin += 2;
-					} else if (type == TokenType_block_comment) {
-						t.state = TokState_block_comment;
+					} else if (type == Token_block_comment) {
+						t.state = Tok_State_block_comment;
 						t.block_comment_depth = 1;
 						tok_begin += 2;
 					} else {
@@ -205,53 +205,53 @@ Array(Token) tokenize(const char* src, int src_size)
 				}
 			}
 			break;
-			case TokState_number_after_dot:
-			case TokState_number:
+			case Tok_State_number_after_dot:
+			case Tok_State_number:
 				if (	whitespace(*cur) ||
-						single_char_tokentype(*cur) != TokenType_unknown) {
-					if (t.state == TokState_number_after_dot) {
+						single_char_tokentype(*cur) != Token_unknown) {
+					if (t.state == Tok_State_number_after_dot) {
 						/* `123.` <- last dot is detected and removed, */
 						/* because `.>` is a token */
-						commit_token(&t, tok_begin, cur - 1, TokenType_number);
+						commit_token(&t, tok_begin, cur - 1, Token_number);
 						cur -= 2;
 						break;
 					} else if (*cur != '.') {
-						commit_token(&t, tok_begin, cur, TokenType_number);
+						commit_token(&t, tok_begin, cur, Token_number);
 						--cur;
 						break;
 					}
 				}
 
 				if (*cur == '.')
-					t.state = TokState_number_after_dot;
+					t.state = Tok_State_number_after_dot;
 				else
-					t.state = TokState_number;
+					t.state = Tok_State_number;
 			break;
-			case TokState_name:
+			case Tok_State_name:
 				if (	whitespace(*cur) ||
-						single_char_tokentype(*cur) != TokenType_unknown) {
-					commit_token(&t, tok_begin, cur, TokenType_name);
+						single_char_tokentype(*cur) != Token_unknown) {
+					commit_token(&t, tok_begin, cur, Token_name);
 					--cur;
 				}
 			break;
-			case TokState_str:
+			case Tok_State_str:
 				if (*cur == '\"')
-					commit_token(&t, tok_begin + 1, cur, TokenType_string);
+					commit_token(&t, tok_begin + 1, cur, Token_string);
 			break;
-			case TokState_line_comment:
+			case Tok_State_line_comment:
 				if (linebreak(*cur)) {
-					commit_token(&t, tok_begin, cur, TokenType_line_comment);
+					commit_token(&t, tok_begin, cur, Token_line_comment);
 					on_linebreak(&t);
 				}
-			case TokState_block_comment: {
+			case Tok_State_block_comment: {
 				char a = *(cur - 1);
 				char b = *(cur);
-				if (double_char_tokentype(a, b) == TokenType_block_comment) {
+				if (double_char_tokentype(a, b) == Token_block_comment) {
 					++t.block_comment_depth;
 				} else if (a == '*' && b == '/') {
 					--t.block_comment_depth;
 					if (t.block_comment_depth <= 0)
-						commit_token(&t, tok_begin, cur - 1, TokenType_block_comment);
+						commit_token(&t, tok_begin, cur - 1, Token_block_comment);
 				}
 			} break;
 			default:;
@@ -270,114 +270,114 @@ Array(Token) tokenize(const char* src, int src_size)
 	return t.tokens;
 }
 
-const char* tokentype_str(TokenType type)
+const char* tokentype_str(Token_Type type)
 {
 	switch (type) {
-		case TokenType_eof: return "eof";
-		case TokenType_name: return "name";
-		case TokenType_number: return "number";
-		case TokenType_assign: return "assign";
-		case TokenType_semi: return "semi";
-		case TokenType_comma: return "comma";
-		case TokenType_open_paren: return "open_paren";
-		case TokenType_close_paren: return "close_paren";
-		case TokenType_open_brace: return "open_brace";
-		case TokenType_close_brace: return "close_brace";
-		case TokenType_open_square: return "open_square";
-		case TokenType_close_square: return "close_square";
-		case TokenType_right_arrow: return "right_arrow";
-		case TokenType_equals: return "equals";
-		case TokenType_nequals: return "nequals";
-		case TokenType_less: return "less";
-		case TokenType_greater: return "greater";
-		case TokenType_leq: return "leq";
-		case TokenType_geq: return "geq";
-		case TokenType_add_assign: return "add_assign";
-		case TokenType_sub_assign: return "sub_assign";
-		case TokenType_mul_assign: return "mul_assign";
-		case TokenType_div_assign: return "div_assign";
-		case TokenType_add: return "add";
-		case TokenType_sub: return "sub";
-		case TokenType_mul: return "mul";
-		case TokenType_div: return "div";
-		case TokenType_rdiv: return "rdiv";
-		case TokenType_mod: return "mod";
-		case TokenType_dot: return "dot";
-		case TokenType_amp: return "amp";
-		case TokenType_hat: return "hat";
-		case TokenType_question: return "question";
-		case TokenType_tilde: return "tilde";
-		case TokenType_squote: return "squote";
-		case TokenType_line_comment: return "line_comment";
-		case TokenType_block_comment: return "block_comment";
-		case TokenType_kw_struct: return "kw_struct";
-		case TokenType_kw_return: return "kw_return";
-		case TokenType_kw_goto: return "kw_goto";
-		case TokenType_kw_break: return "kw_break";
-		case TokenType_kw_continue: return "kw_continue";
-		case TokenType_kw_else: return "kw_else";
-		case TokenType_kw_null: return "kw_null";
-		case TokenType_kw_for: return "kw_for";
-		case TokenType_kw_if: return "kw_if";
-		case TokenType_kw_true: return "kw_true";
-		case TokenType_kw_false: return "kw_false";
-		case TokenType_unknown:
+		case Token_eof: return "eof";
+		case Token_name: return "name";
+		case Token_number: return "number";
+		case Token_assign: return "assign";
+		case Token_semi: return "semi";
+		case Token_comma: return "comma";
+		case Token_open_paren: return "open_paren";
+		case Token_close_paren: return "close_paren";
+		case Token_open_brace: return "open_brace";
+		case Token_close_brace: return "close_brace";
+		case Token_open_square: return "open_square";
+		case Token_close_square: return "close_square";
+		case Token_right_arrow: return "right_arrow";
+		case Token_equals: return "equals";
+		case Token_nequals: return "nequals";
+		case Token_less: return "less";
+		case Token_greater: return "greater";
+		case Token_leq: return "leq";
+		case Token_geq: return "geq";
+		case Token_add_assign: return "add_assign";
+		case Token_sub_assign: return "sub_assign";
+		case Token_mul_assign: return "mul_assign";
+		case Token_div_assign: return "div_assign";
+		case Token_add: return "add";
+		case Token_sub: return "sub";
+		case Token_mul: return "mul";
+		case Token_div: return "div";
+		case Token_rdiv: return "rdiv";
+		case Token_mod: return "mod";
+		case Token_dot: return "dot";
+		case Token_amp: return "amp";
+		case Token_hat: return "hat";
+		case Token_question: return "question";
+		case Token_tilde: return "tilde";
+		case Token_squote: return "squote";
+		case Token_line_comment: return "line_comment";
+		case Token_block_comment: return "block_comment";
+		case Token_kw_struct: return "kw_struct";
+		case Token_kw_return: return "kw_return";
+		case Token_kw_goto: return "kw_goto";
+		case Token_kw_break: return "kw_break";
+		case Token_kw_continue: return "kw_continue";
+		case Token_kw_else: return "kw_else";
+		case Token_kw_null: return "kw_null";
+		case Token_kw_for: return "kw_for";
+		case Token_kw_if: return "kw_if";
+		case Token_kw_true: return "kw_true";
+		case Token_kw_false: return "kw_false";
+		case Token_unknown:
 		default: return "unknown";
 	}
 }
 
-const char* tokentype_codestr(TokenType type)
+const char* tokentype_codestr(Token_Type type)
 {
 	switch (type) {
-		case TokenType_eof: return "";
-		case TokenType_name: return "";
-		case TokenType_number: return "";
-		case TokenType_assign: return "=";
-		case TokenType_semi: return ";";
-		case TokenType_comma: return ",";
-		case TokenType_open_paren: return "(";
-		case TokenType_close_paren: return ")";
-		case TokenType_open_brace: return "{";
-		case TokenType_close_brace: return "}";
-		case TokenType_open_square: return "[";
-		case TokenType_close_square: return "]";
-		case TokenType_right_arrow: return "->";
-		case TokenType_equals: return "==";
-		case TokenType_nequals: return "!=";
-		case TokenType_less: return "<";
-		case TokenType_greater: return ">";
-		case TokenType_leq: return "<=";
-		case TokenType_geq: return ">=";
-		case TokenType_add_assign: return "+=";
-		case TokenType_sub_assign: return "-=";
-		case TokenType_mul_assign: return "*=";
-		case TokenType_div_assign: return "/=";
-		case TokenType_add: return "+";
-		case TokenType_sub: return "-";
-		case TokenType_mul: return "*";
-		case TokenType_div: return "/";
-		case TokenType_rdiv: return "\\";
-		case TokenType_mod: return "%";
-		case TokenType_dot: return ".";
-		case TokenType_amp: return "&";
-		case TokenType_hat: return "^";
-		case TokenType_question: return "?";
-		case TokenType_tilde: return "~";
-		case TokenType_squote: return "'";
-		case TokenType_line_comment: return "// ...";
-		case TokenType_block_comment: return "/* ... */";
-		case TokenType_kw_struct: return "struct";
-		case TokenType_kw_return: return "return";
-		case TokenType_kw_goto: return "goto";
-		case TokenType_kw_break: return "break";
-		case TokenType_kw_continue: return "continue";
-		case TokenType_kw_else: return "else";
-		case TokenType_kw_null: return "NULL";
-		case TokenType_kw_for: return "for";
-		case TokenType_kw_if: return "if";
-		case TokenType_kw_true: return "true";
-		case TokenType_kw_false: return "false";
-		case TokenType_unknown:
+		case Token_eof: return "";
+		case Token_name: return "";
+		case Token_number: return "";
+		case Token_assign: return "=";
+		case Token_semi: return ";";
+		case Token_comma: return ",";
+		case Token_open_paren: return "(";
+		case Token_close_paren: return ")";
+		case Token_open_brace: return "{";
+		case Token_close_brace: return "}";
+		case Token_open_square: return "[";
+		case Token_close_square: return "]";
+		case Token_right_arrow: return "->";
+		case Token_equals: return "==";
+		case Token_nequals: return "!=";
+		case Token_less: return "<";
+		case Token_greater: return ">";
+		case Token_leq: return "<=";
+		case Token_geq: return ">=";
+		case Token_add_assign: return "+=";
+		case Token_sub_assign: return "-=";
+		case Token_mul_assign: return "*=";
+		case Token_div_assign: return "/=";
+		case Token_add: return "+";
+		case Token_sub: return "-";
+		case Token_mul: return "*";
+		case Token_div: return "/";
+		case Token_rdiv: return "\\";
+		case Token_mod: return "%";
+		case Token_dot: return ".";
+		case Token_amp: return "&";
+		case Token_hat: return "^";
+		case Token_question: return "?";
+		case Token_tilde: return "~";
+		case Token_squote: return "'";
+		case Token_line_comment: return "// ...";
+		case Token_block_comment: return "/* ... */";
+		case Token_kw_struct: return "struct";
+		case Token_kw_return: return "return";
+		case Token_kw_goto: return "goto";
+		case Token_kw_break: return "break";
+		case Token_kw_continue: return "continue";
+		case Token_kw_else: return "else";
+		case Token_kw_null: return "NULL";
+		case Token_kw_for: return "for";
+		case Token_kw_if: return "if";
+		case Token_kw_true: return "true";
+		case Token_kw_false: return "false";
+		case Token_unknown:
 		default: return "???";
 	}
 }

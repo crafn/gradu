@@ -1,12 +1,13 @@
 // These types are just placeholders
 struct int { }
 struct void { }
+struct char { }
 
-void printf();
+void printf(char *fmt);
 
-int main()
+int main(int argc, char **argv)
 {
-	//printf("Hello world!\n");
+	printf("Hello World!\n");
 	return 0;
 }
 

@@ -9,13 +9,12 @@ typedef enum {
 	AstNodeType_ident,
 	AstNodeType_decl,
 	AstNodeType_literal,
-	AstNodeType_biop
+	AstNodeType_biop,
+	AstNodeType_control
 		/*
 	AstNodeType_uop,
-	AstNodeType_ctrl_stmt,
 	AstNodeType_call,
 	AstNodeType_label,
-	AstNodeType_comment
 	*/
 } AstNodeType;
 
@@ -83,6 +82,13 @@ typedef struct BiopAstNode {
 	AstNode *rhs;
 } BiopAstNode;
 
+typedef struct ControlAstNode {
+	AstNode b;
+	TokenType type;
+	/* For return and goto */
+	AstNode *value;
+} ControlAstNode;
+
 /* Usage: CASTED_NODE(IdentAstNode, ident, generic_node); printf("%c", ident->text_buf[0]); */
 #define CASTED_NODE(type, name, assign) \
 	type *name = (type*)assign
@@ -105,6 +111,7 @@ IdentAstNode *copy_ident_node(IdentAstNode *ident);
 DeclAstNode *copy_decl_node(DeclAstNode *decl, AstNode *type, AstNode *ident, AstNode *value);
 LiteralAstNode *copy_literal_node(LiteralAstNode *literal);
 BiopAstNode *copy_biop_node(BiopAstNode *biop, AstNode *lhs, AstNode *rhs);
+ControlAstNode *copy_control_node(ControlAstNode *control, AstNode *value);
 
 void destroy_node(AstNode *node);
 

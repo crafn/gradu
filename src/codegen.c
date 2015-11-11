@@ -1,9 +1,12 @@
 #include "codegen.h"
 
+/* @todo Replace with generic linear traversal in dependency (innermost first) order */
 INTERNAL void find_subnodes_of_type_impl(Array(AstNodePtr) *result, AstNodeType type, AstNode *node, int depth)
 {
 	/* @todo Create linear (inner, or outermost first) search for AST and use that */
 	int i;
+	if (!node)
+		return;
 	switch (node->type) {
 	case AstNodeType_scope: {
 		CASTED_NODE(ScopeAstNode, scope, node);
@@ -14,12 +17,9 @@ INTERNAL void find_subnodes_of_type_impl(Array(AstNodePtr) *result, AstNodeType 
 	} break;
 	case AstNodeType_decl: {
 		CASTED_NODE(DeclAstNode, decl, node);
-		if (decl->type)
-			find_subnodes_of_type_impl(result, type, decl->type, depth + 1);
-		if (decl->ident)
-			find_subnodes_of_type_impl(result, type, AST_BASE(decl->ident), depth + 1);
-		if (decl->value)
-			find_subnodes_of_type_impl(result, type, decl->value, depth + 1);
+		find_subnodes_of_type_impl(result, type, decl->type, depth + 1);
+		find_subnodes_of_type_impl(result, type, AST_BASE(decl->ident), depth + 1);
+		find_subnodes_of_type_impl(result, type, decl->value, depth + 1);
 	} break;
 	case AstNodeType_literal: {
 	} break;
@@ -27,6 +27,10 @@ INTERNAL void find_subnodes_of_type_impl(Array(AstNodePtr) *result, AstNodeType 
 		CASTED_NODE(BiopAstNode, biop, node);
 		find_subnodes_of_type_impl(result, type, biop->lhs, depth + 1);
 		find_subnodes_of_type_impl(result, type, biop->rhs, depth + 1);
+	} break;
+	case AstNodeType_control: {
+		CASTED_NODE(ControlAstNode, control, node);
+		find_subnodes_of_type_impl(result, type, control->value, depth + 1);
 	} break;
 	default: FAIL(("find_subnodes_of_type: Unknown node type: %i", type));
 	}
@@ -43,6 +47,7 @@ INTERNAL Array(AstNodePtr) find_subnodes_of_type(AstNodeType type, AstNode *node
 	return decls;
 }
 
+/* @todo Replace with generic tree traversal macro */
 INTERNAL AstNode * copy_excluding_types_and_funcs_impl(AstNode *node, int depth)
 {
 	int i;
@@ -89,6 +94,11 @@ INTERNAL AstNode * copy_excluding_types_and_funcs_impl(AstNode *node, int depth)
 		ret = AST_BASE(copy_biop_node(	biop,
 										copy_excluding_types_and_funcs_impl(biop->lhs, depth + 1),
 										copy_excluding_types_and_funcs_impl(biop->rhs, depth + 1)));
+	} break;
+	case AstNodeType_control: {
+		CASTED_NODE(ControlAstNode, control, node);
+		ret = AST_BASE(copy_control_node(	control,
+											copy_excluding_types_and_funcs_impl(control->value, depth + 1)));
 	} break;
 	default: FAIL(("copy_excluding_types_and_funcs: Unknown node type: %i", node->type));
 	}
@@ -214,8 +224,13 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AstNode *node)
 		if (decl->is_type_decl) {
 			append_str(buf, " { /* @todo */ }");
 		} else if (decl->is_func_decl) {
-			append_str(buf, "( /* @todo */ )\n");
-			ast_to_c_str(buf, indent, decl->value);
+			append_str(buf, "( /* @todo */ )");
+			if (decl->value) {
+				append_str(buf, "\n");
+				ast_to_c_str(buf, indent, decl->value);
+			} else {
+				append_str(buf, ";");
+			}
 		}
 	} break;
 	case AstNodeType_literal: {
@@ -229,6 +244,14 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AstNode *node)
 		ast_to_c_str(buf, indent, biop->lhs);
 		append_str(buf, " %s ", tokentype_codestr(biop->type));
 		ast_to_c_str(buf, indent, biop->rhs);
+	} break;
+	case AstNodeType_control: {
+		CASTED_NODE(ControlAstNode, control, node);
+		append_str(buf, "%s", tokentype_codestr(control->type));
+		if (control->value) {
+			append_str(buf, " ");
+			ast_to_c_str(buf, indent, control->value);
+		}
 	} break;
 	default:;
 	}

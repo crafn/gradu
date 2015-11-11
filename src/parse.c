@@ -84,6 +84,13 @@ BiopAstNode *create_biop_node(TokenType type, AstNode *lhs, AstNode *rhs)
 	return biop;
 }
 
+ControlAstNode *create_control_node(TokenType type)
+{
+	ControlAstNode *control = CREATE_NODE(ControlAstNode, AstNodeType_control);
+	control->type = type;
+	return control;
+}
+
 /* Node copying */
 
 void copy_ast_node_base(AstNode *dst, AstNode *src)
@@ -147,6 +154,14 @@ BiopAstNode *copy_biop_node(BiopAstNode *biop, AstNode *lhs, AstNode *rhs)
 	return copy;
 }
 
+ControlAstNode *copy_control_node(ControlAstNode *control, AstNode *value)
+{
+	ControlAstNode *copy = create_control_node(control->type);
+	copy_ast_node_base(AST_BASE(copy), AST_BASE(control));
+	copy->value = value;
+	return copy;
+}
+
 /* Recursive */
 void destroy_node(AstNode *node)
 {
@@ -174,6 +189,10 @@ void destroy_node(AstNode *node)
 			CASTED_NODE(BiopAstNode, op, node);
 			destroy_node(op->lhs);
 			destroy_node(op->rhs);
+		} break;
+		case AstNodeType_control: {
+			CASTED_NODE(ControlAstNode, control, node);
+			destroy_node(control->value);
 		} break;
 		default: FAIL(("destroy_node: Unknown node type %i", node->type));
 	}
@@ -281,7 +300,6 @@ INTERNAL void cancel_node_parsing(ParseCtx *ctx)
 {
 	ParseStackFrame frame = pop_array(ParseStackFrame)(&ctx->parse_stack);
 	ASSERT(frame.node);
-	ASSERT(*frame.node);
 	destroy_node(*frame.node);
 
 	/* Backtrack */
@@ -353,7 +371,7 @@ INTERNAL bool parse_decl(ParseCtx *ctx, AstNode **ret);
 INTERNAL bool parse_block(ParseCtx *ctx, AstNode **ret);
 INTERNAL bool parse_literal(ParseCtx *ctx, AstNode **ret);
 INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec);
-INTERNAL AstNode *parse_element(ParseCtx *ctx);
+INTERNAL bool parse_element(ParseCtx *ctx, AstNode **ret);
 
 
 /* If decl is NULL, then declaration is searched. */
@@ -445,6 +463,7 @@ INTERNAL bool parse_decl(ParseCtx *ctx, AstNode **ret)
 
 			if (cur_tok(ctx)->type == TokenType_semi) {
 				/* No body */
+				accept_tok(ctx, TokenType_semi);
 			} else if (parse_block(ctx, &value)) {
 				/* Body parsed */
 				decl->value = value;
@@ -483,8 +502,8 @@ INTERNAL bool parse_block(ParseCtx *ctx, AstNode **ret)
 	}
 
 	while (!accept_tok(ctx, TokenType_close_brace)) {
-		AstNode *element = parse_element(ctx);
-		if (!element)
+		AstNode *element = NULL;
+		if (!parse_element(ctx, &element))
 			goto mismatch;
 		push_array(AstNodePtr)(&scope->nodes, element);
 	}
@@ -528,7 +547,7 @@ mismatch:
 	return false;
 }
 
-/* Parse example: var = 5 + 3 * 2 */
+/* Parse example: var = 5 + 3 * 2; */
 INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec)
 {
 	AstNode *expr = NULL;
@@ -577,18 +596,59 @@ INTERNAL bool parse_expr(ParseCtx *ctx, AstNode **ret, int min_prec)
 
 mismatch:
 	cancel_node_parsing(ctx);
-	destroy_node(expr);
+	return false;
+}
+
+/* Parse example: return 42; */
+INTERNAL bool parse_control(ParseCtx *ctx, AstNode **ret)
+{
+	Token *tok = cur_tok(ctx);
+	ControlAstNode *control = create_control_node(tok->type);
+
+	begin_node_parsing(ctx, (AstNode**)&control);
+	advance_tok(ctx);
+
+	switch (tok->type) {
+		case TokenType_kw_return: {
+			if (!parse_element(ctx, &control->value)) {
+				report_error(ctx, "Expected return value, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+				goto mismatch;
+			}
+		} break;
+		case TokenType_kw_goto: {
+			if (!parse_element(ctx, &control->value)) {
+				report_error(ctx, "Expected goto label, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+				goto mismatch;
+			}
+		} break;
+		case TokenType_kw_continue:
+		case TokenType_kw_break:
+		break;
+		default:
+			report_error(ctx, "Expected control statement, got '%.*s'", TOK_ARGS(tok));
+			goto mismatch;
+	}
+
+	end_node_parsing(ctx);
+
+	*ret = (AstNode*)control;
+	return true;
+
+mismatch:
+	cancel_node_parsing(ctx);
 	return false;
 }
 
 /* Parse the next self-contained thing - var decl, function decl, statement, expr... */
-INTERNAL AstNode *parse_element(ParseCtx *ctx)
+INTERNAL bool parse_element(ParseCtx *ctx, AstNode **ret)
 {
 	AstNode *result = NULL;
 
 	begin_node_parsing(ctx, &result);
 
-	if (parse_decl(ctx, &result))
+	if (parse_control(ctx, &result))
+		;
+	else if (parse_decl(ctx, &result))
 		;
 	else if (parse_expr(ctx, &result, 0))
 		;
@@ -596,11 +656,12 @@ INTERNAL AstNode *parse_element(ParseCtx *ctx)
 		goto mismatch;
 
 	end_node_parsing(ctx);
-	return result;
+	*ret = result;
+	return true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return NULL;
+	return false;
 }
 
 ScopeAstNode *parse_tokens(Token *toks)
@@ -618,8 +679,8 @@ ScopeAstNode *parse_tokens(Token *toks)
 	begin_node_parsing(&ctx, (AstNode**)&root);
 
 	while (ctx.tok->type != TokenType_eof) {
-		AstNode *elem = parse_element(&ctx);
-		if (!elem) {
+		AstNode *elem = NULL;
+		if (!parse_element(&ctx, &elem)) {
 			failure = true;
 			break;
 		}
@@ -699,6 +760,11 @@ void print_ast(AstNode *node, int indent)
 			printf("biop: %s\n", tokentype_str(op->type));
 			print_ast(op->lhs, indent + 2);
 			print_ast(op->rhs, indent + 2);
+		} break;
+		case AstNodeType_control: {
+			CASTED_NODE(ControlAstNode, control, node);
+			printf("control: %s\n", tokentype_str(control->type));
+			print_ast(control->value, indent + 2);
 		} break;
 		default: FAIL(("print_ast: Unknown node type %i", node->type));
 	};

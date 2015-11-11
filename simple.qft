@@ -1,70 +1,12 @@
 // These types are just placeholders
 struct int { }
-struct char { }
 struct void { }
 
-/**********************/
-/* BLOCK COMMENT TEST */
-/**********************/
+void printf();
 
-int aaaaa; /* Comment explaining 'aaaaa' */ // See how comments are preserved in the output
-char bbbbbb;
-
-// Documentation for 'func()'
-void func()
+int main()
 {
-	int temp_var;
-	int temp_var2;
-
-	// Testing expression parsing
-	temp_var = 1 + 2 * 3;
-	temp_var2 = temp_var * 5 + 2 * 3;
-
-	// These will be in global scope in the output code
-	struct LocalType { }
-	void local_func()
-	{
-		LocalType bug_test; // Just to test that identifier lookup works
-	}
+	//printf("Hello world!\n");
+	return 0;
 }
 
-
-
-
-
-
-/*
-Output from the compiler:
-
-
-/* These types are just placeholders */
-struct int { /* @todo */ };
-struct char { /* @todo */ };
-struct void { /* @todo */ };
-
-/**********************/
-/* BLOCK COMMENT TEST */
-/**********************/
-
-int aaaaa; /* Comment explaining 'aaaaa' */ /* See how comments are preserved in the output */
-char bbbbbb;
-
-/* These will be in global scope in the output code */
-struct LocalType { /* @todo */ };
-void local_func( /* @todo */ )
-{
-    LocalType bug_test; /* Just to test that identifier lookup works */
-}
-
-/* Documentation for 'func()' */
-void func( /* @todo */ )
-{
-    int temp_var;
-    int temp_var2;
-
-    /* Testing expression parsing */
-    temp_var = 1 + 2 * 3;
-    temp_var2 = temp_var * 5 + 2 * 3;
-}
-
-*/

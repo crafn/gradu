@@ -7,6 +7,7 @@
 typedef enum {
 	AST_scope,
 	AST_ident,
+	AST_type,
 	AST_type_decl,
 	AST_var_decl,
 	AST_func_decl,
@@ -53,24 +54,51 @@ typedef struct AST_Ident {
 	const char *text_buf;
 	int text_len;
 
-	struct AST_Node *decl; /* Pointer to node which declares this identifier */
+	struct AST_Node *decl; /* Not owned */
 } AST_Ident;
+
+struct AST_Type_Decl;
+
+typedef struct AST_Type {
+	AST_Node b;
+	/* Pointer to 'struct Foo { ... }' in type 'Foo **' */
+	/* Decided to use type decl directly instead of identifiers, because
+	 * type names can be multiple keywords long in source code (long int etc.)*/
+	struct AST_Type_Decl *base_type_decl; /* Not owned */
+	int ptr_depth;
+} AST_Type;
+
+typedef struct Builtin_Type {
+	bool is_void;
+	bool is_integer;
+	bool is_float;
+	int bit_count;
+
+	bool is_signed;
+
+	bool is_scalar;
+	/*
+	bool is_matrix;
+
+	bool is_field;
+	*/
+} Builtin_Type;
 
 /* Type declaration / definition */
 typedef struct AST_Type_Decl {
 	AST_Node b;
 	AST_Ident *ident;
 	AST_Scope *body;
+
+	bool is_builtin; /* void, int, char etc. */
+	Builtin_Type builtin_type;
 } AST_Type_Decl;
 
 /* Variable declaration / definition */
 typedef struct AST_Var_Decl {
 	AST_Node b;
 
-	/* @todo Figure out a good way to encapsulate type */
-	AST_Node *type;
-	int ptr_depth;
-
+	AST_Type *type;
 	AST_Ident *ident;
 	AST_Node *value;
 } AST_Var_Decl;
@@ -81,7 +109,7 @@ DECLARE_ARRAY(AST_Var_Decl_Ptr)
 /* Function declaration / definition */
 typedef struct AST_Func_Decl {
 	AST_Node b;
-	AST_Node *return_type;
+	AST_Type *return_type;
 	AST_Ident *ident;
 	Array(AST_Var_Decl_Ptr) params;
 	AST_Scope *body;
@@ -141,22 +169,26 @@ AST_Scope *create_ast_tree();
 void destroy_ast_tree(AST_Scope *node);
 
 AST_Scope *create_scope_node();
-AST_Ident *create_ident_node(Token *tok);
+AST_Ident *create_ident_node();
+AST_Type *create_type_node();
 AST_Type_Decl *create_type_decl_node();
 AST_Var_Decl *create_var_decl_node();
 AST_Func_Decl *create_func_decl_node();
 AST_Literal *create_literal_node();
-AST_Biop *create_biop_node(Token_Type type, AST_Node *lhs, AST_Node *rhs);
+AST_Biop *create_biop_node();
+AST_Control *create_control_node();
+AST_Call *create_call_node();
 
-AST_Scope *copy_scope_node(AST_Scope *scope, AST_Node **subnodes, int subnode_count);
-AST_Ident *copy_ident_node(AST_Ident *ident);
-AST_Type_Decl *copy_type_decl_node(AST_Type_Decl *decl, AST_Node *ident, AST_Node *body);
-AST_Var_Decl *copy_var_decl_node(AST_Var_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value);
-AST_Func_Decl *copy_func_decl_node(AST_Func_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node **params, int param_count, AST_Node *body);
-AST_Literal *copy_literal_node(AST_Literal *literal);
-AST_Biop *copy_biop_node(AST_Biop *biop, AST_Node *lhs, AST_Node *rhs);
-AST_Control *copy_control_node(AST_Control *control, AST_Node *value);
-AST_Call *copy_call_node(AST_Call *call, AST_Node *ident, AST_Node **args, int arg_count);
+void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int subnode_count);
+void copy_ident_node(AST_Ident *copy, AST_Ident *ident);
+void copy_type_node(AST_Type *copy, AST_Type *type);
+void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body);
+void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value);
+void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node **params, int param_count, AST_Node *body);
+void copy_literal_node(AST_Literal *copy, AST_Literal *literal);
+void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs);
+void copy_control_node(AST_Control *copy, AST_Control *control, AST_Node *value);
+void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **args, int arg_count);
 
 /* Recursive */
 void destroy_node(AST_Node *node);

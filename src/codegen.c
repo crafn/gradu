@@ -77,88 +77,120 @@ INTERNAL void find_subnodes_of_type(Array(AST_Node_Ptr) *decls, AST_Node_Type ty
 	find_subnodes_of_type_impl(decls, type, node, 0);
 }
 
+INTERNAL U32 hash(AST_Node_Ptr)(AST_Node_Ptr node) { return hash(Void_Ptr)(node); }
+DECLARE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
+DEFINE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
+
+typedef struct Trav_Ctx {
+	int depth;
+	/* Maps nodes from source AST tree to copied/modified AST tree */
+	Hash_Table(AST_Node_Ptr, AST_Node_Ptr) src_to_dst;
+} Trav_Ctx;
+
+/* Establish mapping */
+INTERNAL void map_nodes(Trav_Ctx *ctx, AST_Node *dst, AST_Node *src)
+{ set_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx->src_to_dst, src, dst); }
+
+/* Retrieve mapping */
+INTERNAL AST_Node *mapped_node(Trav_Ctx *ctx, AST_Node *src)
+{ return get_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx->src_to_dst, src); }
+
 /* @todo Replace with generic tree traversal macro */
-INTERNAL AST_Node * copy_excluding_types_and_funcs_impl(AST_Node *node, int depth)
+INTERNAL AST_Node * copy_excluding_types_and_funcs_impl(Trav_Ctx *ctx, AST_Node *node)
 {
 	int i;
 	AST_Node *ret = NULL;
 	if (!node)
 		return NULL;
 
+	++ctx->depth;
+
 	switch (node->type) {
 	case AST_scope: {
 		CASTED_NODE(AST_Scope, scope, node);
 		AST_Scope *copy = create_scope_node();
-
-		Array(AST_Node_Ptr) copied_subnodes = create_array(AST_Node_Ptr)(0);
-		for (i = 0; i < scope->nodes.size; ++i) {
-			AST_Node *subcopy = copy_excluding_types_and_funcs_impl(scope->nodes.data[i], depth + 1);
-			if (subcopy)
-				push_array(AST_Node_Ptr)(&copied_subnodes, subcopy);
+		map_nodes(ctx, AST_BASE(copy), node);
+		{
+			Array(AST_Node_Ptr) copied_subnodes = create_array(AST_Node_Ptr)(0);
+			for (i = 0; i < scope->nodes.size; ++i) {
+				AST_Node *subcopy = copy_excluding_types_and_funcs_impl(ctx, scope->nodes.data[i]);
+				if (subcopy)
+					push_array(AST_Node_Ptr)(&copied_subnodes, subcopy);
+			}
+			copy_scope_node(copy, scope, copied_subnodes.data, copied_subnodes.size);
+			destroy_array(AST_Node_Ptr)(&copied_subnodes);
 		}
-		copy_scope_node(copy, scope, copied_subnodes.data, copied_subnodes.size);
-		destroy_array(AST_Node_Ptr)(&copied_subnodes);
 		ret = AST_BASE(copy);
 	} break;
 
 	case AST_ident: {
 		CASTED_NODE(AST_Ident, ident, node);
 		AST_Ident *copy = create_ident_node();
-		/* Note: this doesn't copy resolved 'ident->decl'*/
-		copy_ident_node(copy, ident);
+		map_nodes(ctx, AST_BASE(copy), node);
+		copy_ident_node(copy, ident, mapped_node(ctx, ident->decl));
+		ASSERT(copy->decl);
 		ret = AST_BASE(copy);
 	} break;
 
 	case AST_type: {
 		CASTED_NODE(AST_Type, type, node);
 		AST_Type *copy = create_type_node();
-		/* Note: this doesn't copy resolved 'type->base_type_decl' */
-		copy_type_node(copy, type);
+		map_nodes(ctx, AST_BASE(copy), node);
+		copy_type_node(copy, type, mapped_node(ctx, AST_BASE(type->base_type_decl)));
 		ret = AST_BASE(copy);
 	} break;
 
 	case AST_type_decl: {
 		CASTED_NODE(AST_Type_Decl, decl, node);
-		if (depth > 0)
+		if (ctx->depth > 1)
 			break;
 		{
 			AST_Type_Decl *copy = create_type_decl_node();
-			AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(AST_BASE(decl->ident), depth + 1);
-			AST_Node *copied_body = copy_excluding_types_and_funcs_impl(AST_BASE(decl->body), depth + 1);
-			copy_type_decl_node(copy, decl, copied_ident, copied_body);
-			ret = AST_BASE(copy);
+			map_nodes(ctx, AST_BASE(copy), node);
+			{
+				AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->ident));
+				AST_Node *copied_body = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->body));
+				copy_type_decl_node(copy, decl, copied_ident, copied_body);
+				ret = AST_BASE(copy);
+			}
 		}
 	} break;
 
 	case AST_var_decl: {
 		CASTED_NODE(AST_Var_Decl, decl, node);
 		AST_Var_Decl *copy = create_var_decl_node();
-		AST_Node *copied_type = copy_excluding_types_and_funcs_impl(AST_BASE(decl->type), depth + 1);
-		AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(AST_BASE(decl->ident), depth + 1);
-		AST_Node *copied_value = copy_excluding_types_and_funcs_impl(decl->value, depth + 1);
-		copy_var_decl_node(copy, decl, copied_type, copied_ident, copied_value);
+		map_nodes(ctx, AST_BASE(copy), node);
+		{
+			AST_Node *copied_type = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->type));
+			AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->ident));
+			AST_Node *copied_value = copy_excluding_types_and_funcs_impl(ctx, decl->value);
+			copy_var_decl_node(copy, decl, copied_type, copied_ident, copied_value);
+		}
 		ret = AST_BASE(copy);
 	} break;
 
 	case AST_func_decl: {
 		CASTED_NODE(AST_Func_Decl, decl, node);
-		if (depth > 0)
+		if (ctx->depth > 1)
 			break;
 		{
 			AST_Func_Decl *copy = create_func_decl_node();
-			AST_Node *copied_ret_type = copy_excluding_types_and_funcs_impl(AST_BASE(decl->return_type), depth + 1);
-			AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(AST_BASE(decl->ident), depth + 1);
-			AST_Node *copied_body = copy_excluding_types_and_funcs_impl(AST_BASE(decl->body), depth + 1);
-			Array(AST_Node_Ptr) copied_params = create_array(AST_Node_Ptr)(decl->params.size);
-			for (i = 0; i < decl->params.size; ++i) {
-				AST_Node *paramcopy =
-					copy_excluding_types_and_funcs_impl(AST_BASE(decl->params.data[i]), depth + 1);
-				push_array(AST_Node_Ptr)(&copied_params, paramcopy);
+			map_nodes(ctx, AST_BASE(copy), node);
+			{
+				AST_Node *copied_ret_type = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->return_type));
+				AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->ident));
+				AST_Node *copied_body = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->body));
+				Array(AST_Node_Ptr) copied_params = create_array(AST_Node_Ptr)(decl->params.size);
+				for (i = 0; i < decl->params.size; ++i) {
+					AST_Node *paramcopy =
+						copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->params.data[i]));
+					push_array(AST_Node_Ptr)(&copied_params, paramcopy);
+				}
+				copy_func_decl_node(copy,	decl, copied_ret_type, copied_ident,
+											copied_params.data, copied_params.size,
+											copied_body);
+				destroy_array(AST_Node_Ptr)(&copied_params);
 			}
-			copy_func_decl_node(copy,	decl, copied_ret_type, copied_ident,
-										copied_params.data, copied_params.size,
-										copied_body);
-			destroy_array(AST_Node_Ptr)(&copied_params);
 			ret = AST_BASE(copy);
 		}
 	} break;
@@ -166,6 +198,7 @@ INTERNAL AST_Node * copy_excluding_types_and_funcs_impl(AST_Node *node, int dept
 	case AST_literal: {
 		CASTED_NODE(AST_Literal, literal, node);
 		AST_Literal *copy = create_literal_node();
+		map_nodes(ctx, AST_BASE(copy), node);
 		copy_literal_node(copy, literal);
 		ret = AST_BASE(copy);
 	} break;
@@ -173,72 +206,92 @@ INTERNAL AST_Node * copy_excluding_types_and_funcs_impl(AST_Node *node, int dept
 	case AST_biop: {
 		CASTED_NODE(AST_Biop, biop, node);
 		AST_Biop *copy = create_biop_node();
+		map_nodes(ctx, AST_BASE(copy), node);
 		copy_biop_node(copy,	biop,
-								copy_excluding_types_and_funcs_impl(biop->lhs, depth + 1),
-								copy_excluding_types_and_funcs_impl(biop->rhs, depth + 1));
+								copy_excluding_types_and_funcs_impl(ctx, biop->lhs),
+								copy_excluding_types_and_funcs_impl(ctx, biop->rhs));
 		ret = AST_BASE(copy);
 	} break;
 
 	case AST_control: {
 		CASTED_NODE(AST_Control, control, node);
 		AST_Control *copy = create_control_node();
+		map_nodes(ctx, AST_BASE(copy), node);
 		copy_control_node(copy, control,
-								copy_excluding_types_and_funcs_impl(control->value, depth + 1));
+								copy_excluding_types_and_funcs_impl(ctx, control->value));
 		ret = AST_BASE(copy);
 	} break;
 
 	case AST_call: {
 		CASTED_NODE(AST_Call, call, node);
 		AST_Call *copy = create_call_node();
-		AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(AST_BASE(call->ident), depth + 1);
-		Array(AST_Node_Ptr) copied_args = create_array(AST_Node_Ptr)(call->args.size);
-		for (i = 0; i < call->args.size; ++i) {
-			AST_Node *argcopy =
-				copy_excluding_types_and_funcs_impl(call->args.data[i], depth + 1);
-			push_array(AST_Node_Ptr)(&copied_args, argcopy);
+		map_nodes(ctx, AST_BASE(copy), node);
+		{
+			AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(call->ident));
+			Array(AST_Node_Ptr) copied_args = create_array(AST_Node_Ptr)(call->args.size);
+			for (i = 0; i < call->args.size; ++i) {
+				AST_Node *argcopy =
+					copy_excluding_types_and_funcs_impl(ctx, call->args.data[i]);
+				push_array(AST_Node_Ptr)(&copied_args, argcopy);
+			}
+			copy_call_node(copy, call, copied_ident, copied_args.data, copied_args.size);
+			destroy_array(AST_Node_Ptr)(&copied_args);
 		}
-		copy_call_node(copy, call, copied_ident, copied_args.data, copied_args.size);
-		destroy_array(AST_Node_Ptr)(&copied_args);
 		ret = AST_BASE(copy);
 	} break;
 
 	default: FAIL(("copy_excluding_types_and_funcs: Unknown node type: %i", node->type));
 	}
 
+	--ctx->depth;
 	return ret;
 }
 
 /* Creates copy of (partial) AST, dropping type and func decls */
-INTERNAL AST_Node * copy_excluding_types_and_funcs(AST_Node *node)
-{ return copy_excluding_types_and_funcs_impl(node, 0); }
+INTERNAL AST_Node * copy_excluding_types_and_funcs(Trav_Ctx *ctx, AST_Node *node)
+{
+	Trav_Ctx depth_reseted_ctx = *ctx;
+	depth_reseted_ctx.depth = 0;
+	return copy_excluding_types_and_funcs_impl(&depth_reseted_ctx, node);
+}
 
 /* Returns new AST */
 INTERNAL AST_Scope *lift_types_and_funcs_to_global_scope(AST_Scope *root)
 {
+	Trav_Ctx ctx = {0};
 	AST_Scope *dst = create_ast_tree();
 	int i, k;
+
+	/* @todo Size should be something like TOTAL_NODE_COUNT*2 */
+	ctx.src_to_dst = create_tbl(AST_Node_Ptr, AST_Node_Ptr)(NULL, NULL, 1024);
+
 	for (i = 0; i < root->nodes.size; ++i) {
 		AST_Node *sub = root->nodes.data[i];
 		Array(AST_Node_Ptr) decls = create_array(AST_Node_Ptr)(0);
 		find_subnodes_of_type(&decls, AST_type_decl, sub);
 		find_subnodes_of_type(&decls, AST_func_decl, sub);
 
-		/* Lift */
+		/* Lifted types and funcs */
 		for (k = 0; k < decls.size; ++k) {
 			/* @todo Rename the declarations to avoid name clashes */
-			AST_Node *dst_decl = copy_excluding_types_and_funcs(decls.data[k]);
+			AST_Node *dst_decl = copy_excluding_types_and_funcs(&ctx, decls.data[k]);
 			if (!dst_decl)
 				continue;
+			map_nodes(&ctx, dst_decl, decls.data[k]);
 			push_array(AST_Node_Ptr)(&dst->nodes, dst_decl);
 		}
 		destroy_array(AST_Node_Ptr)(&decls);
 
-		{
-			AST_Node *copy = copy_excluding_types_and_funcs(sub);
-			if (copy)
+		{ /* Copy bulk without inner types or funcs */
+			AST_Node *copy = copy_excluding_types_and_funcs(&ctx, sub);
+			if (copy) {
+				map_nodes(&ctx, copy, sub);
 				push_array(AST_Node_Ptr)(&dst->nodes, copy);
+			}
 		}
 	}
+
+	destroy_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx.src_to_dst);
 	return dst;
 }
 
@@ -302,6 +355,14 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		append_str(buf, "%.*s", TOK_ARGS(ident));
 	} break;
 
+	case AST_type: {
+		/* @todo This needs to be merged to decls, because type and identifier are mixed in C, like int (*foo)()*/
+		CASTED_NODE(AST_Type, type, node);
+		append_str(buf, "%.*s ", TOK_ARGS(type->base_type_decl->ident));
+		for (i = 0; i < type->ptr_depth; ++i)
+			append_str(buf, "*");
+	} break;
+
 	case AST_type_decl: {
 		CASTED_NODE(AST_Type_Decl, decl, node);
 		append_str(buf, "struct ");
@@ -311,10 +372,7 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_var_decl: {
 		CASTED_NODE(AST_Var_Decl, decl, node);
-		ast_to_c_str(buf, indent, AST_BASE(decl->type->base_type_decl->ident));
-		append_str(buf, " ");
-		for (i = 0; i < decl->type->ptr_depth; ++i)
-			append_str(buf, "*");
+		ast_to_c_str(buf, indent, AST_BASE(decl->type));
 		append_str(buf, "%.*s", TOK_ARGS(decl->ident));
 		if (decl->value) {
 			append_str(buf, " = ");
@@ -325,7 +383,6 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	case AST_func_decl: {
 		CASTED_NODE(AST_Func_Decl, decl, node);
 		ast_to_c_str(buf, indent, AST_BASE(decl->return_type));
-		append_str(buf, " ");
 		append_str(buf, "%.*s", TOK_ARGS(decl->ident));
 		append_str(buf, "(");
 		for (i = 0; i < decl->params.size; ++i) {

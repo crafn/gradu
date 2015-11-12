@@ -180,8 +180,8 @@ AST_Control *create_control_node();
 AST_Call *create_call_node();
 
 void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int subnode_count);
-void copy_ident_node(AST_Ident *copy, AST_Ident *ident);
-void copy_type_node(AST_Type *copy, AST_Type *type);
+void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl);
+void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_decl);
 void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body);
 void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value);
 void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node **params, int param_count, AST_Node *body);

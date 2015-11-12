@@ -116,18 +116,20 @@ void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int
 	copy->is_root = scope->is_root;
 }
 
-void copy_ident_node(AST_Ident *copy, AST_Ident *ident)
+void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl)
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(ident));
 	copy->text_buf = ident->text_buf;
 	copy->text_len = ident->text_len;
-	/* @todo ident->decl as param. Now it will be NULL in the copy. */
+	copy->decl = ref_to_decl;
 }
 
-void copy_type_node(AST_Type *copy, AST_Type *type)
+void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_decl)
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(type));
-	/* @todo type->base_type_decl as param. Now it will be NULL in the copy. */
+	ASSERT(ref_to_base_type_decl->type == AST_type_decl);
+	copy->base_type_decl = (AST_Type_Decl*)ref_to_base_type_decl;
+	copy->ptr_depth = type->ptr_depth;
 }
 
 void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body)
@@ -182,6 +184,7 @@ void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs
 void copy_control_node(AST_Control *copy, AST_Control *control, AST_Node *value)
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(control));
+	copy->type = control->type;
 	copy->value = value;
 }
 

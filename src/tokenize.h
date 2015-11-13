@@ -53,6 +53,12 @@ typedef enum {
 	Token_kw_if, /* if */
 	Token_kw_true, /* true */
 	Token_kw_false, /* false */
+	/* Type-related */
+	Token_kw_void,
+	Token_kw_int,
+	Token_kw_char,
+	Token_kw_float,
+	Token_kw_matrix,
 	Token_unknown
 } Token_Type;
 
@@ -61,8 +67,7 @@ const char* tokentype_codestr(Token_Type type);
 
 typedef struct Token {
 	Token_Type type;
-	const char *text_buf; /* Not terminated! */
-	int text_len;
+	Buf_Str text; /* Not terminated! */
 	int line;
 
 	bool empty_line_before;
@@ -72,9 +77,6 @@ typedef struct Token {
 	int comment_bound_to; /* -1 == prev token, 1 == next_token */
 } Token;
 
-/* String args */
-#define TOK_ARGS(tok) tok->text_len, tok->text_buf
-
 static bool is_comment_tok(Token_Type type) { return type == Token_line_comment || type == Token_block_comment; }
 
 DECLARE_ARRAY(Token)
@@ -82,7 +84,6 @@ DECLARE_ARRAY(Token)
 /* Tokens will be pointing to the 'src' string */
 Array(Token) tokenize(const char* src, int src_size);
 
-bool tok_text_equals(Token *tok, const char *str);
 void print_tokens(Token *tokens, int token_count);
 
 

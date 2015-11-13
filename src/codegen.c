@@ -1,5 +1,34 @@
 #include "codegen.h"
 
+INTERNAL void append_builtin_type_str(Array(char) *buf, Builtin_Type bt)
+{
+	int i;
+
+	if (bt.is_void) {
+		append_str(buf, "void", bt.bitness);
+	} else if (bt.is_integer) {
+		if (bt.is_unsigned)
+			append_str(buf, "u");
+		if (bt.bitness > 0)
+			append_str(buf, "int%i_t", bt.bitness);
+		else
+			append_str(buf, "int");
+	} else if (bt.is_char) {
+		append_str(buf, "char");
+	} else if (bt.is_float) {
+		append_str(buf, "%s", bt.bitness == 64 ? "double" : "float");
+	}
+
+	if (bt.is_matrix) {
+		append_str(buf, "_mat_");
+		for (i = 0; i < bt.matrix_rank; ++i) {
+			append_str(buf, "%i", bt.matrix_dim[i]);
+			if (i + 1 < bt.matrix_rank)
+				append_str(buf, "x");
+		}
+	}
+}
+
 /* @todo Replace with generic linear traversal in dependency (innermost first) order */
 INTERNAL void find_subnodes_of_type_impl(Array(AST_Node_Ptr) *result, AST_Node_Type type, AST_Node *node, int depth)
 {
@@ -297,9 +326,9 @@ INTERNAL AST_Scope *lift_types_and_funcs_to_global_scope(AST_Scope *root)
 INTERNAL void append_c_comment(Array(char) *buf, Token *comment)
 {
 	if (comment->type == Token_line_comment)
-		append_str(buf, "/*%.*s */", TOK_ARGS(comment));
+		append_str(buf, "/*%.*s */", BUF_STR_ARGS(comment->text));
 	else
-		append_str(buf, "/*%.*s*/", TOK_ARGS(comment));
+		append_str(buf, "/*%.*s*/", BUF_STR_ARGS(comment->text));
 }
 
 /* Almost 1-1 mapping between nodes and C constructs */
@@ -340,6 +369,9 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			if (!statement_omitted && sub->type != AST_func_decl)
 				append_str(buf, ";");
 
+			if (!statement_omitted && !sub->begin_tok)
+				append_str(buf, "\n"); /* Line break after builtin type decls */
+
 			for (k = 0; k < sub->post_comments.size; ++k) {
 				append_str(buf, " ");
 				append_c_comment(buf, sub->post_comments.data[k]);
@@ -354,13 +386,18 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_ident: {
 		CASTED_NODE(AST_Ident, ident, node);
-		append_str(buf, "%.*s", TOK_ARGS(ident));
+		append_str(buf, "%.*s", BUF_STR_ARGS(ident->text));
 	} break;
 
 	case AST_type: {
 		/* @todo This needs to be merged to decls, because type and identifier are mixed in C, like int (*foo)()*/
 		CASTED_NODE(AST_Type, type, node);
-		append_str(buf, "%.*s ", TOK_ARGS(type->base_type_decl->ident));
+		if (type->base_type_decl->is_builtin) {
+			append_builtin_type_str(buf, type->base_type_decl->builtin_type);
+			append_str(buf, " ");
+		} else {
+			append_str(buf, "%.*s ", BUF_STR_ARGS(type->base_type_decl->ident->text));
+		}
 		for (i = 0; i < type->ptr_depth; ++i)
 			append_str(buf, "*");
 	} break;
@@ -368,10 +405,32 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	case AST_type_decl: {
 		CASTED_NODE(AST_Type_Decl, decl, node);
 		if (decl->is_builtin) {
-			omitted = true;
+			Builtin_Type bt = decl->builtin_type;
+			if (bt.is_matrix) {
+				int elem_count = 1;
+
+				append_str(buf, "struct ");
+				append_builtin_type_str(buf, bt);
+				append_str(buf, "\n{\n");
+
+				{ /* Member array type */
+					Builtin_Type member = bt;
+					member.is_matrix = false;
+					append_str(buf , "    ");
+					append_builtin_type_str(buf, member);
+				}
+
+				for (i = 0; i < bt.matrix_rank; ++i)
+					elem_count *= bt.matrix_dim[i];
+				append_str(buf, " m[%i];\n", elem_count);
+
+				append_str(buf, "}");
+			} else {
+				omitted = true;
+			}
 		} else {
 			append_str(buf, "struct ");
-			append_str(buf, "%.*s\n", TOK_ARGS(decl->ident));
+			append_str(buf, "%.*s\n", BUF_STR_ARGS(decl->ident->text));
 			ast_to_c_str(buf, indent, AST_BASE(decl->body));
 		}
 	} break;
@@ -379,7 +438,7 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	case AST_var_decl: {
 		CASTED_NODE(AST_Var_Decl, decl, node);
 		ast_to_c_str(buf, indent, AST_BASE(decl->type));
-		append_str(buf, "%.*s", TOK_ARGS(decl->ident));
+		append_str(buf, "%.*s", BUF_STR_ARGS(decl->ident->text));
 		if (decl->value) {
 			append_str(buf, " = ");
 			ast_to_c_str(buf, indent, decl->value);
@@ -389,7 +448,7 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	case AST_func_decl: {
 		CASTED_NODE(AST_Func_Decl, decl, node);
 		ast_to_c_str(buf, indent, AST_BASE(decl->return_type));
-		append_str(buf, "%.*s", TOK_ARGS(decl->ident));
+		append_str(buf, "%.*s", BUF_STR_ARGS(decl->ident->text));
 		append_str(buf, "(");
 		for (i = 0; i < decl->params.size; ++i) {
 			ast_to_c_str(buf, indent, AST_BASE(decl->params.data[i]));

@@ -51,8 +51,7 @@ typedef struct AST_Scope {
 /* Identifier */
 typedef struct AST_Ident {
 	AST_Node b;
-	const char *text_buf;
-	int text_len;
+	Buf_Str text;
 
 	struct AST_Node *decl; /* Not owned */
 } AST_Ident;
@@ -73,16 +72,17 @@ typedef struct Builtin_Type {
 	bool is_integer;
 	bool is_char; /* int8_t != char */
 	bool is_float;
-	int bitness;
-
+	int bitness; /* Zero for "not explicitly specified" */
 	bool is_unsigned;
+
+	bool is_matrix;
+#define MAX_MATRIX_RANK 10 /* Could be made dynamic */
+	int matrix_rank;
+	int matrix_dim[MAX_MATRIX_RANK];
 
 	/* When adding members, remember to update parse_type_and_ident! */
 
 	/*
-	bool is_scalar : 1;
-	bool is_matrix;
-
 	bool is_field;
 	*/
 } Builtin_Type;
@@ -130,10 +130,7 @@ typedef struct AST_Literal {
 	union {
 		/* @todo Different integer sizes etc */
 		int integer;
-		struct {
-			const char *buf;
-			int len;
-		} string;
+		Buf_Str string;
 	} value;
 } AST_Literal;
 

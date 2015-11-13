@@ -67,34 +67,53 @@ INTERNAL Token_Type double_char_tokentype(char ch1, char ch2)
 	return Token_unknown;
 }
 
+/* Differs from strncmp by str_equals_buf("ab", "ab", 1) == false */
+INTERNAL bool str_equals_buf(const char *c_str, const char *buf, int buf_size)
+{
+	int i;
+	for (i = 0; i < buf_size && c_str[i] != '\0'; ++i) {
+		if (c_str[i] != buf[i])
+			return false;
+	}
+	return c_str[i] == '\0';
+}
+
 INTERNAL Token_Type kw_tokentype(const char *buf, int size)
 {
-	if (!strncmp(buf, "struct", size))
+	if (str_equals_buf("struct", buf, size))
 		return Token_kw_struct;
-	if (!strncmp(buf, "return", size))
+	if (str_equals_buf("return", buf, size))
 		return Token_kw_return;
-	if (!strncmp(buf, "goto", size))
+	if (str_equals_buf("goto", buf, size))
 		return Token_kw_goto;
-	if (!strncmp(buf, "break", size))
+	if (str_equals_buf("break", buf, size))
 		return Token_kw_break;
-	if (!strncmp(buf, "continue", size))
+	if (str_equals_buf("continue", buf, size))
 		return Token_kw_continue;
-	if (!strncmp(buf, "else", size))
+	if (str_equals_buf("else", buf, size))
 		return Token_kw_else;
-	if (!strncmp(buf, "NULL", size))
+	if (str_equals_buf("NULL", buf, size))
 		return Token_kw_null;
-	if (!strncmp(buf, "for", size))
+	if (str_equals_buf("for", buf, size))
 		return Token_kw_for;
-	if (!strncmp(buf, "if", size))
+	if (str_equals_buf("if", buf, size))
 		return Token_kw_if;
-	if (!strncmp(buf, "true", size))
+	if (str_equals_buf("true", buf, size))
 		return Token_kw_true;
-	if (!strncmp(buf, "false", size))
-		return Token_kw_false;
-	if (!strncmp(buf, "true", size))
+	if (str_equals_buf("true", buf, size))
 		return Token_kw_true;
-	if (!strncmp(buf, "false", size))
+	if (str_equals_buf("false", buf, size))
 		return Token_kw_false;
+	if (str_equals_buf("void", buf, size))
+		return Token_kw_void;
+	if (str_equals_buf("int", buf, size))
+		return Token_kw_int;
+	if (str_equals_buf("char", buf, size))
+		return Token_kw_char;
+	if (str_equals_buf("float", buf, size))
+		return Token_kw_float;
+	if (str_equals_buf("matrix", buf, size))
+		return Token_kw_matrix;
 	return Token_unknown;
 }
 
@@ -131,8 +150,8 @@ INTERNAL void commit_token(Tokenize_Ctx *t, const char *b, const char *e, Token_
 				type = kw;
 		}
 		tok.type = type;
-		tok.text_buf = b;
-		tok.text_len = e - b;
+		tok.text.buf = b;
+		tok.text.len = e - b;
 		tok.line = t->cur_line;
 		tok.empty_line_before = (t->tokens_on_line == 0 && t->last_line_was_empty);
 		tok.last_on_line = last_on_line;
@@ -261,8 +280,8 @@ Array(Token) tokenize(const char* src, int src_size)
 
 	{ /* Append eof */
 		Token eof = {0};
-		eof.text_buf = "eof";
-		eof.text_len = strlen(eof.text_buf);
+		eof.text.buf = "eof";
+		eof.text.len = strlen(eof.text.buf);
 		eof.line = t.cur_line;
 		eof.last_on_line = true;
 		push_array(Token)(&t.tokens, eof);
@@ -382,23 +401,13 @@ const char* tokentype_codestr(Token_Type type)
 	}
 }
 
-bool tok_text_equals(Token *tok, const char *str)
-{
-	int i;
-	for (i = 0; str[i] && i < tok->text_len; ++i) {
-		if (str[i] != tok->text_buf[i])
-			return false;
-	}
-	return true;
-}
-
 void print_tokens(Token *tokens, int token_count)
 {
 	int i;
 	for (i = 0; i < token_count; ++i) {
 		Token tok = tokens[i];
-		int text_len = MIN(tok.text_len, 20);
+		int text_len = MIN(tok.text.len, 20);
 		printf("%14s: %20.*s %8i last_on_line: %i empty_line_before: %i\n",
-				tokentype_str(tok.type), text_len, tok.text_buf, tok.line, tok.last_on_line, tok.empty_line_before);
+				tokentype_str(tok.type), text_len, tok.text.buf, tok.line, tok.last_on_line, tok.empty_line_before);
 	}
 }

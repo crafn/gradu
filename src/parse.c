@@ -1,8 +1,9 @@
 #include "parse.h"
 
-int str_to_int(const char *c, int len)
+int str_to_int(Buf_Str text)
 {
-	const char *end = c + len;
+	const char *c = text.buf;
+	const char *end = c + text.len;
 	int value = 0;
 	int sign = 1;
 	if (*c == '+' || *c == '-') {
@@ -119,8 +120,7 @@ void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int
 void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl)
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(ident));
-	copy->text_buf = ident->text_buf;
-	copy->text_len = ident->text_len;
+	copy->text = ident->text;
 	copy->decl = ref_to_decl;
 }
 
@@ -134,7 +134,7 @@ void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_d
 
 void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body)
 {
-	ASSERT(ident->type == AST_ident);
+	ASSERT(!ident || ident->type == AST_ident);
 	ASSERT(!body || body->type == AST_scope);
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(decl));
 	copy->ident = (AST_Ident*)ident;
@@ -428,7 +428,7 @@ INTERNAL AST_Ident *decl_ident(AST_Node *node)
 }
 
 /* Find declaration visible in current parse scope */
-INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, const char *buf, int buf_len)
+INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, Buf_Str name)
 {
 	int f, i;
 	AST_Node *found_decl = NULL;
@@ -447,15 +447,15 @@ INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, const char *buf, int buf_len
 				{
 					AST_Ident *ident = decl_ident(node);
 /*					printf("trying to match decl %.*s <=> %.*s\n",
-							buf_len, buf,
-							TOK_ARGS(ident));
+							BUF_STR_ARGS(buf),
+							BUF_STR_ARGS(ident->text));
 							*/
-					if (ident->text_len != buf_len)
+					if (ident->text.len != name.len)
 						continue;
-					if (strncmp(buf, ident->text_buf, buf_len))
+					if (strncmp(name.buf, ident->text.buf, name.len))
 						continue;
 
-					/* Found declaration for identifier named 'buf' */
+					/* Found declaration for the name */
 					found_decl = node;
 					break;
 				}
@@ -488,22 +488,21 @@ INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl)
 {
 	Token *tok = cur_tok(ctx);
 	AST_Ident *ident = create_ident_node();
-	ident->text_buf = tok->text_buf;
-	ident->text_len = tok->text_len;
+	ident->text = tok->text;
 
 	begin_node_parsing(ctx, (AST_Node**)&ident);
 
 	if (tok->type != Token_name) {
-		report_error(ctx, "'%.*s' is not an identifier", TOK_ARGS(tok));
+		report_error(ctx, "'%.*s' is not an identifier", BUF_STR_ARGS(tok->text));
 		goto mismatch;
 	}
 
 	if (decl) {
 		ident->decl = decl;
 	} else {
-		ident->decl = find_decl_scoped(ctx, tok->text_buf, tok->text_len);
+		ident->decl = find_decl_scoped(ctx, tok->text);
 		if (!ident->decl) {
-			report_error(ctx, "'%.*s' is not declared in this scope", TOK_ARGS(tok));
+			report_error(ctx, "'%.*s' is not declared in this scope", BUF_STR_ARGS(tok->text));
 			goto mismatch;
 		}
 	}
@@ -529,14 +528,14 @@ INTERNAL bool parse_type_decl(Parse_Ctx *ctx, AST_Node **ret)
 		goto mismatch;
 
 	if (!parse_ident(ctx, (AST_Node**)&decl->ident, AST_BASE(decl))) {
-		report_error(ctx, "Expected type name, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+		report_error(ctx, "Expected type name, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
 	if (parse_block(ctx, &decl->body))
 		;
 	else {
-		report_error(ctx, "Expected '{', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+		report_error(ctx, "Expected '{', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
@@ -558,31 +557,71 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 
 	/* @todo ptr-to-funcs, const (?), types with multiple identifiers... */
 
-	{ /* Type name */
+	{ /* Type */
 		AST_Node *found_decl = NULL;
-		Token *tok = cur_tok(ctx);
 		bool is_builtin = false;
 		Builtin_Type bt = {0};
+		bool recognized = true;
 
-		if (tok->type != Token_name) {
-			report_error(ctx, "'%.*s' is not a type name", TOK_ARGS(tok));
-			goto mismatch;
-		}
-		advance_tok(ctx);
+		/* Gather all builtin type specifiers (like int, matrix(), field()) */
+		while (recognized) {
+			Token *tok = cur_tok(ctx);
 
-		/* Builtin type generation */
-		/* @todo Rest */
-		if (tok_text_equals(tok, "void")) {
-			bt.is_void = true;
-			is_builtin = true;
-		} else if (tok_text_equals(tok, "char")) {
-			bt.is_char = true;
-			bt.bitness = 8;
-			is_builtin = true;
-		} else if (tok_text_equals(tok, "int")) {
-			bt.is_integer = true;
-			bt.bitness = 32;
-			is_builtin = true;
+			switch (tok->type) {
+			case Token_kw_void:
+				bt.is_void = true;
+				advance_tok(ctx);
+			break;
+			case Token_kw_int:
+				bt.is_integer = true;
+				bt.bitness = 0; /* Not specified */
+				advance_tok(ctx);
+			break;
+			case Token_kw_char:
+				bt.is_char = true;
+				bt.bitness = 8;
+				advance_tok(ctx);
+			break;
+			case Token_kw_float:
+				bt.is_float = true;
+				bt.bitness = 32;
+				advance_tok(ctx);
+			break;
+			case Token_kw_matrix: {
+				bt.is_matrix = true;
+				advance_tok(ctx);
+
+				if (!accept_tok(ctx, Token_open_paren)) {
+					report_error(ctx, "Expected '(', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+					goto mismatch;
+				}
+
+				{ /* Parse dimension list */
+					/* @todo Support constant expressions */
+					while (cur_tok(ctx)->type == Token_number) {
+						int dim = str_to_int(cur_tok(ctx)->text);
+						bt.matrix_dim[bt.matrix_rank++] = dim;
+						advance_tok(ctx);
+
+						if (bt.matrix_rank > MAX_MATRIX_RANK) {
+							report_error(ctx, "Too high rank for a matrix. Max is %i", MAX_MATRIX_RANK);
+							goto mismatch;
+						}
+
+						if (!accept_tok(ctx, Token_comma))
+							break;
+					}
+				}
+
+				if (!accept_tok(ctx, Token_close_paren)) {
+					report_error(ctx, "Expected ')', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+					goto mismatch;
+				}
+			} break;
+			default: recognized = false;
+			}
+			if (recognized)
+				is_builtin = true;
 		}
 
 		if (is_builtin) {
@@ -595,7 +634,8 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 						t.is_integer == bt.is_integer &&
 						t.is_float == bt.is_float &&
 						t.bitness == bt.bitness &&
-						t.is_unsigned == bt.is_unsigned) {
+						t.is_unsigned == bt.is_unsigned &&
+						t.is_matrix == bt.is_matrix) {
 					found_decl = (AST_Node*)decl;
 					break;
 				}
@@ -603,21 +643,19 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 			/* Create new builtin decl if not found */
 			if (!found_decl) {
 				AST_Type_Decl *decl = create_type_decl_node();
+				/* Note that the declaration doesn't have ident -- it's up to backend to generate it */
 				decl->is_builtin = true;
 				decl->builtin_type = bt;
-				decl->ident = create_ident_node();
-				decl->ident->decl = found_decl;
-				decl->ident->text_buf = tok->text_buf;
-				decl->ident->text_len = tok->text_len;
 				push_array(AST_Type_Decl_Ptr)(&ctx->builtin_decls, decl);
 
 				found_decl = AST_BASE(decl);
 			}
 		} else {
-			found_decl = find_decl_scoped(ctx, tok->text_buf, tok->text_len);
+			found_decl = find_decl_scoped(ctx, cur_tok(ctx)->text);
+			advance_tok(ctx);
 		}
 		if (!found_decl || found_decl->type != AST_type_decl) {
-			report_error(ctx, "'%.*s' is not declared in this scope", TOK_ARGS(tok));
+			report_error(ctx, "'%.*s' is not declared in this scope", BUF_STR_ARGS(cur_tok(ctx)->text));
 			goto mismatch;
 		}
 		type->base_type_decl = (AST_Type_Decl*)found_decl;
@@ -629,7 +667,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 
 	/* Variable name */
 	if (!parse_ident(ctx, (AST_Node**)ret_ident, enclosing_decl)) {
-		report_error(ctx, "Expected identifier, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+		report_error(ctx, "Expected identifier, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
@@ -653,7 +691,7 @@ INTERNAL bool parse_var_decl(Parse_Ctx *ctx, AST_Node **ret, bool is_param_decl)
 
 	if (!is_param_decl) {
 		if (!accept_tok(ctx, Token_semi)) {
-			report_error(ctx, "Expected ';' before '%.*s'", TOK_ARGS(cur_tok(ctx)));
+			report_error(ctx, "Expected ';' before '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 			goto mismatch;
 		}
 	}
@@ -677,7 +715,7 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret)
 		goto mismatch;
 
 	if (!accept_tok(ctx, Token_open_paren)) {
-		report_error(ctx, "Expected '(', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+		report_error(ctx, "Expected '(', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
@@ -695,7 +733,7 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret)
 	}
 
 	if (!accept_tok(ctx, Token_close_paren)) {
-		report_error(ctx, "Expected ')', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+		report_error(ctx, "Expected ')', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
@@ -726,7 +764,7 @@ INTERNAL bool parse_block(Parse_Ctx *ctx, AST_Scope **ret)
 	begin_node_parsing(ctx, (AST_Node**)&scope);
 
 	if (!accept_tok(ctx, Token_open_brace)) {
-		report_error(ctx, "Expected '{', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+		report_error(ctx, "Expected '{', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
@@ -758,15 +796,14 @@ INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret)
 	switch (tok->type) {
 		case Token_number:
 			literal->type = Literal_int;
-			literal->value.integer = str_to_int(tok->text_buf, tok->text_len);
+			literal->value.integer = str_to_int(tok->text);
 		break;
 		case Token_string:
 			literal->type = Literal_string;
-			literal->value.string.buf = tok->text_buf;
-			literal->value.string.len = tok->text_len;
+			literal->value.string= tok->text;
 		break;
 		default:
-			report_error(ctx, "Expected literal, got '%.*s'", TOK_ARGS(tok));
+			report_error(ctx, "Expected literal, got '%.*s'", BUF_STR_ARGS(tok->text));
 			goto mismatch;
 	}
 	advance_tok(ctx);
@@ -793,7 +830,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 	} else if (parse_ident(ctx, &expr, NULL)) {
 		CASTED_NODE(AST_Ident, ident, expr);
 		if (ident->decl->type == AST_type_decl) {
-			report_error(ctx, "Expression can't start with a type name (%.*s)", TOK_ARGS(ident));
+			report_error(ctx, "Expression can't start with a type name (%.*s)", BUF_STR_ARGS(ident->text));
 			goto mismatch;
 		} else if (ident->decl->type == AST_func_decl) {
 			/* This is a function call */
@@ -802,7 +839,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			expr = AST_BASE(call);
 
 			if (!accept_tok(ctx, Token_open_paren)) {
-				report_error(ctx, "Expected '(', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+				report_error(ctx, "Expected '(', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 				goto mismatch;
 			}
 
@@ -820,12 +857,12 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			}
 
 			if (!accept_tok(ctx, Token_close_paren)) {
-				report_error(ctx, "Expected ')', got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+				report_error(ctx, "Expected ')', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 				goto mismatch;
 			}
 		}
 	} else {
-		report_error(ctx, "Expected identifier or literal, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+		report_error(ctx, "Expected identifier or literal, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 	/* @todo ^ parse parens */
@@ -880,14 +917,14 @@ INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret)
 		case Token_kw_return: {
 			advance_tok(ctx);
 			if (!parse_element(ctx, &control->value)) {
-				report_error(ctx, "Expected return value, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+				report_error(ctx, "Expected return value, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 				goto mismatch;
 			}
 		} break;
 		case Token_kw_goto: {
 			advance_tok(ctx);
 			if (!parse_element(ctx, &control->value)) {
-				report_error(ctx, "Expected goto label, got '%.*s'", TOK_ARGS(cur_tok(ctx)));
+				report_error(ctx, "Expected goto label, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 				goto mismatch;
 			}
 		} break;
@@ -896,7 +933,7 @@ INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret)
 			advance_tok(ctx);
 		break;
 		default:
-			report_error(ctx, "Expected control statement, got '%.*s'", TOK_ARGS(tok));
+			report_error(ctx, "Expected control statement, got '%.*s'", BUF_STR_ARGS(tok->text));
 			goto mismatch;
 	}
 
@@ -983,7 +1020,7 @@ AST_Scope *parse_tokens(Token *toks)
 		const char *msg = ctx.error_msg.data;
 		if (tok && msg) {
 			printf("Error at line %i near token '%.*s':\n   %s\n",
-					tok->line, TOK_ARGS(tok), msg);
+					tok->line, BUF_STR_ARGS(tok->text), msg);
 		} else {
 			printf("Internal parser error (excuse)\n");
 		}
@@ -1030,17 +1067,23 @@ void print_ast(AST_Node *node, int indent)
 
 	case AST_ident: {
 		CASTED_NODE(AST_Ident, ident, node);
-		printf("ident: %.*s\n", TOK_ARGS(ident));
+		printf("ident: %.*s\n", BUF_STR_ARGS(ident->text));
 	} break;
 
 	case AST_type: {
 		CASTED_NODE(AST_Type, type, node);
-		printf("type %.*s %i\n", TOK_ARGS(type->base_type_decl->ident), type->ptr_depth);
+		if (type->base_type_decl->is_builtin)
+			printf("builtin_type\n");
+		else
+			printf("type %.*s %i\n", BUF_STR_ARGS(type->base_type_decl->ident->text), type->ptr_depth);
 	} break;
 
 	case AST_type_decl: {
 		CASTED_NODE(AST_Type_Decl, decl, node);
-		printf("type_decl\n");
+		if (decl->is_builtin)
+			printf("builtin_type_decl\n");
+		else
+			printf("type_decl\n");
 		print_ast(AST_BASE(decl->ident), indent + 2);
 		print_ast(AST_BASE(decl->body), indent + 2);
 	} break;

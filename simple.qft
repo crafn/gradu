@@ -2,7 +2,11 @@ void printf(char *fmt);
 
 int main(int argc, char **argv)
 {
+	int matrix(2, 4) mat;
+	float matrix(2, 2) mat;
+
 	printf("Hello World!\n");
+
 	return 0;
 }
 

@@ -35,6 +35,16 @@ typedef enum { false, true } bool;
 #define JOIN3_IMPL(A, B, C) A##B##C
 #define JOIN3(A, B, C) JOIN3_IMPL(A, B, C)
 
+/* Not terminated by NULL! */
+typedef struct Buf_Str {
+	const char *buf;
+	int len;
+} Buf_Str;
+
+/* Args for printf %.*s specifier */
+#define BUF_STR_ARGS(str) str.len, str.buf
+
+
 /* Dynamic array */
 
 #define Array(V) JOIN2(V, _Array)

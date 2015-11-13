@@ -82,6 +82,7 @@ DECLARE_ARRAY(Token)
 /* Tokens will be pointing to the 'src' string */
 Array(Token) tokenize(const char* src, int src_size);
 
+bool tok_text_equals(Token *tok, const char *str);
 void print_tokens(Token *tokens, int token_count);
 
 

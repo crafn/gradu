@@ -135,10 +135,12 @@ void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_d
 void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body)
 {
 	ASSERT(ident->type == AST_ident);
-	ASSERT(body->type == AST_scope);
+	ASSERT(!body || body->type == AST_scope);
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(decl));
 	copy->ident = (AST_Ident*)ident;
 	copy->body = (AST_Scope*)body;
+	copy->is_builtin = decl->is_builtin;
+	copy->builtin_type = decl->builtin_type;
 }
 
 void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value)
@@ -277,22 +279,29 @@ DEFINE_ARRAY(Token_Ptr)
 
 /* Mirrors call stack in parsing */
 /* Used in searching, setting parent nodes, and backtracking */
-typedef struct ParseStackFrame {
+typedef struct Parse_Stack_Frame {
 	Token *begin_tok;
 	AST_Node **node; /* Ptr to node ptr */
-} ParseStackFrame;
+} Parse_Stack_Frame;
 
-DECLARE_ARRAY(ParseStackFrame)
-DEFINE_ARRAY(ParseStackFrame)
+DECLARE_ARRAY(Parse_Stack_Frame)
+DEFINE_ARRAY(Parse_Stack_Frame)
+
+typedef AST_Type_Decl* AST_Type_Decl_Ptr;
+DECLARE_ARRAY(AST_Type_Decl_Ptr)
+DEFINE_ARRAY(AST_Type_Decl_Ptr)
 
 typedef struct Parse_Ctx {
 	AST_Scope *root;
 	Token *first_tok; /* @todo Consider having some Token_sof, corresponding to Token_eof*/
 	Token *tok; /* Access with cur_tok */
 
+	/* Builtin types are generated while parsing */
+	Array(AST_Type_Decl_Ptr) builtin_decls;
+
 	Array(char) error_msg;
 	Token *error_tok;
-	Array(ParseStackFrame) parse_stack;
+	Array(Parse_Stack_Frame) parse_stack;
 } Parse_Ctx;
 
 
@@ -323,16 +332,16 @@ INTERNAL bool accept_tok(Parse_Ctx *ctx, Token_Type type)
 
 INTERNAL void begin_node_parsing(Parse_Ctx *ctx, AST_Node **node)
 {
-	ParseStackFrame frame = {0};
+	Parse_Stack_Frame frame = {0};
 	ASSERT(node);
 	frame.begin_tok = cur_tok(ctx);
 	frame.node = node;
-	push_array(ParseStackFrame)(&ctx->parse_stack, frame);
+	push_array(Parse_Stack_Frame)(&ctx->parse_stack, frame);
 }
 
 INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 {
-	ParseStackFrame frame = pop_array(ParseStackFrame)(&ctx->parse_stack);
+	Parse_Stack_Frame frame = pop_array(Parse_Stack_Frame)(&ctx->parse_stack);
 	ASSERT(frame.node);
 	ASSERT(*frame.node);
 
@@ -369,7 +378,7 @@ INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 
 INTERNAL void cancel_node_parsing(Parse_Ctx *ctx)
 {
-	ParseStackFrame frame = pop_array(ParseStackFrame)(&ctx->parse_stack);
+	Parse_Stack_Frame frame = pop_array(Parse_Stack_Frame)(&ctx->parse_stack);
 	ASSERT(frame.node);
 	destroy_node(*frame.node);
 
@@ -460,6 +469,7 @@ INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, const char *buf, int buf_len
 
 
 /* Parsing */
+
 /* @todo AST_Node -> specific node type */
 INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl);
 INTERNAL bool parse_type_decl(Parse_Ctx *ctx, AST_Node **ret);
@@ -540,26 +550,72 @@ mismatch:
 	return false;
 }
 
-/* Type and ident in same function, because cases like 'int (*foo)()' */
+/* Type and ident in same function because of cases like 'int (*foo)()' */
 INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Ident **ret_ident, AST_Node *enclosing_decl)
 {
 	AST_Type *type = create_type_node();
 	begin_node_parsing(ctx, (AST_Node**)&type);
 
-	/* @todo ptrs, ptr-to-funcs, const, types with multiple identifiers... */
+	/* @todo ptr-to-funcs, const (?), types with multiple identifiers... */
 
 	{ /* Type name */
 		AST_Node *found_decl = NULL;
 		Token *tok = cur_tok(ctx);
+		bool is_builtin = false;
+		Builtin_Type bt = {0};
+
 		if (tok->type != Token_name) {
 			report_error(ctx, "'%.*s' is not a type name", TOK_ARGS(tok));
 			goto mismatch;
 		}
 		advance_tok(ctx);
 
-		/* @todo Builtin type generation */
+		/* Builtin type generation */
+		/* @todo Rest */
+		if (tok_text_equals(tok, "void")) {
+			bt.is_void = true;
+			is_builtin = true;
+		} else if (tok_text_equals(tok, "char")) {
+			bt.is_char = true;
+			bt.bitness = 8;
+			is_builtin = true;
+		} else if (tok_text_equals(tok, "int")) {
+			bt.is_integer = true;
+			bt.bitness = 32;
+			is_builtin = true;
+		}
 
-		found_decl = find_decl_scoped(ctx, tok->text_buf, tok->text_len);
+		if (is_builtin) {
+			int i;
+			/* Search for builtin declaration from existing decls */
+			for (i = 0; i < ctx->builtin_decls.size; ++i) {
+				AST_Type_Decl *decl = ctx->builtin_decls.data[i];
+				Builtin_Type t = decl->builtin_type;
+				if (	t.is_void == bt.is_void &&
+						t.is_integer == bt.is_integer &&
+						t.is_float == bt.is_float &&
+						t.bitness == bt.bitness &&
+						t.is_unsigned == bt.is_unsigned) {
+					found_decl = (AST_Node*)decl;
+					break;
+				}
+			}
+			/* Create new builtin decl if not found */
+			if (!found_decl) {
+				AST_Type_Decl *decl = create_type_decl_node();
+				decl->is_builtin = true;
+				decl->builtin_type = bt;
+				decl->ident = create_ident_node();
+				decl->ident->decl = found_decl;
+				decl->ident->text_buf = tok->text_buf;
+				decl->ident->text_len = tok->text_len;
+				push_array(AST_Type_Decl_Ptr)(&ctx->builtin_decls, decl);
+
+				found_decl = AST_BASE(decl);
+			}
+		} else {
+			found_decl = find_decl_scoped(ctx, tok->text_buf, tok->text_len);
+		}
 		if (!found_decl || found_decl->type != AST_type_decl) {
 			report_error(ctx, "'%.*s' is not declared in this scope", TOK_ARGS(tok));
 			goto mismatch;
@@ -861,6 +917,7 @@ INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret)
 
 	begin_node_parsing(ctx, &result);
 
+	/* @todo Heuristic */
 	if (parse_type_decl(ctx, &result))
 		;
 	else if (parse_var_decl(ctx, &result, false))
@@ -890,13 +947,13 @@ AST_Scope *parse_tokens(Token *toks)
 	AST_Scope *root = create_ast_tree();
 
 	ctx.root = root;
-	ctx.parse_stack = create_array(ParseStackFrame)(32);
+	ctx.builtin_decls = create_array(AST_Type_Decl_Ptr)(32);
+	ctx.parse_stack = create_array(Parse_Stack_Frame)(32);
 	ctx.tok = ctx.first_tok = toks;
 	if (is_comment_tok(ctx.tok->type))
 		advance_tok(&ctx);
 
 	begin_node_parsing(&ctx, (AST_Node**)&root);
-
 	while (ctx.tok->type != Token_eof) {
 		AST_Node *elem = NULL;
 		if (!parse_element(&ctx, &elem)) {
@@ -906,6 +963,20 @@ AST_Scope *parse_tokens(Token *toks)
 		push_array(AST_Node_Ptr)(&root->nodes, elem); 
 	}
 	end_node_parsing(&ctx);
+
+	{ /* Insert builtin declarations to beginning of root node */
+		Array(AST_Node_Ptr) new_nodes = create_array(AST_Node_Ptr)(ctx.builtin_decls.size + root->nodes.size);
+		int i;
+		/* @todo Array insert function */
+		for (i = 0; i < ctx.builtin_decls.size; ++i) {
+			push_array(AST_Node_Ptr)(&new_nodes, AST_BASE(ctx.builtin_decls.data[i]));
+		}
+		for (i = 0; i < root->nodes.size; ++i) {
+			push_array(AST_Node_Ptr)(&new_nodes, root->nodes.data[i]);
+		}
+		destroy_array(AST_Node_Ptr)(&root->nodes);
+		root->nodes = new_nodes;
+	}
 
 	if (failure) {
 		Token *tok = ctx.error_tok;
@@ -922,7 +993,8 @@ AST_Scope *parse_tokens(Token *toks)
 	}
 
 	destroy_array(char)(&ctx.error_msg);
-	destroy_array(ParseStackFrame)(&ctx.parse_stack);
+	destroy_array(Parse_Stack_Frame)(&ctx.parse_stack);
+	destroy_array(AST_Type_Decl_Ptr)(&ctx.builtin_decls);
 
 	return root;
 }

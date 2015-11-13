@@ -71,13 +71,16 @@ typedef struct AST_Type {
 typedef struct Builtin_Type {
 	bool is_void;
 	bool is_integer;
+	bool is_char; /* int8_t != char */
 	bool is_float;
-	int bit_count;
+	int bitness;
 
-	bool is_signed;
+	bool is_unsigned;
 
-	bool is_scalar;
+	/* When adding members, remember to update parse_type_and_ident! */
+
 	/*
+	bool is_scalar : 1;
 	bool is_matrix;
 
 	bool is_field;

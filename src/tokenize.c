@@ -382,6 +382,16 @@ const char* tokentype_codestr(Token_Type type)
 	}
 }
 
+bool tok_text_equals(Token *tok, const char *str)
+{
+	int i;
+	for (i = 0; str[i] && i < tok->text_len; ++i) {
+		if (str[i] != tok->text_buf[i])
+			return false;
+	}
+	return true;
+}
+
 void print_tokens(Token *tokens, int token_count)
 {
 	int i;

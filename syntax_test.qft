@@ -1,8 +1,3 @@
-// These types are just placeholders
-struct int { }
-struct char { }
-struct void { }
-
 /**********************/
 /* BLOCK COMMENT TEST */
 /**********************/
@@ -37,11 +32,6 @@ void func()
 Output from the compiler:
 
 
-/* These types are just placeholders */
-struct int { /* @todo */ };
-struct char { /* @todo */ };
-struct void { /* @todo */ };
-
 /**********************/
 /* BLOCK COMMENT TEST */
 /**********************/
@@ -50,14 +40,16 @@ int aaaaa; /* Comment explaining 'aaaaa' */ /* See how comments are preserved in
 char bbbbbb;
 
 /* These will be in global scope in the output code */
-struct LocalType { /* @todo */ };
-void local_func( /* @todo */ )
+struct LocalType
+{
+};
+void local_func()
 {
     LocalType bug_test; /* Just to test that identifier lookup works */
 }
 
 /* Documentation for 'func()' */
-void func( /* @todo */ )
+void func()
 {
     int temp_var;
     int temp_var2;

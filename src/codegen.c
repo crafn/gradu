@@ -95,7 +95,7 @@ INTERNAL void map_nodes(Trav_Ctx *ctx, AST_Node *dst, AST_Node *src)
 INTERNAL AST_Node *mapped_node(Trav_Ctx *ctx, AST_Node *src)
 { return get_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx->src_to_dst, src); }
 
-/* @todo Replace with generic tree traversal macro */
+/* @todo Replace with generic tree traversal and/or transform macro */
 INTERNAL AST_Node * copy_excluding_types_and_funcs_impl(Trav_Ctx *ctx, AST_Node *node)
 {
 	int i;
@@ -128,7 +128,6 @@ INTERNAL AST_Node * copy_excluding_types_and_funcs_impl(Trav_Ctx *ctx, AST_Node 
 		AST_Ident *copy = create_ident_node();
 		map_nodes(ctx, AST_BASE(copy), node);
 		copy_ident_node(copy, ident, mapped_node(ctx, ident->decl));
-		ASSERT(copy->decl);
 		ret = AST_BASE(copy);
 	} break;
 
@@ -304,9 +303,10 @@ INTERNAL void append_c_comment(Array(char) *buf, Token *comment)
 }
 
 /* Almost 1-1 mapping between nodes and C constructs */
-INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
+INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 {
 	int i, k;
+	bool omitted = false;
 
 	switch (node->type) {
 	case AST_scope: {
@@ -319,6 +319,7 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			append_str(buf, "%*s{\n", indent, "");
 		for (i = 0; i < scope->nodes.size; ++i) {
 			AST_Node *sub = scope->nodes.data[i];
+			bool statement_omitted;
 
 			/* Comments are enabled only for scope nodes for now */
 			for (k = 0; k < sub->pre_comments.size; ++k) {
@@ -334,9 +335,9 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 				append_str(buf, "\n"); /* Retain some vertical spacing from original code */
 
 			append_str(buf, "%*s", new_indent, "");
-			ast_to_c_str(buf, new_indent, sub);
+			statement_omitted = ast_to_c_str(buf, new_indent, sub);
 
-			if (sub->type != AST_func_decl)
+			if (!statement_omitted && sub->type != AST_func_decl)
 				append_str(buf, ";");
 
 			for (k = 0; k < sub->post_comments.size; ++k) {
@@ -344,7 +345,8 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 				append_c_comment(buf, sub->post_comments.data[k]);
 			}
 
-			append_str(buf, "\n");
+			if (!statement_omitted || sub->post_comments.size > 0)
+				append_str(buf, "\n");
 		}
 		if (!scope->is_root)
 			append_str(buf, "%*s}", indent, "");
@@ -365,9 +367,13 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_type_decl: {
 		CASTED_NODE(AST_Type_Decl, decl, node);
-		append_str(buf, "struct ");
-		append_str(buf, "%.*s\n", TOK_ARGS(decl->ident));
-		ast_to_c_str(buf, indent, AST_BASE(decl->body));
+		if (decl->is_builtin) {
+			omitted = true;
+		} else {
+			append_str(buf, "struct ");
+			append_str(buf, "%.*s\n", TOK_ARGS(decl->ident));
+			ast_to_c_str(buf, indent, AST_BASE(decl->body));
+		}
 	} break;
 
 	case AST_var_decl: {
@@ -441,6 +447,8 @@ INTERNAL void ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	} break;
 	default:;
 	}
+
+	return omitted;
 }
 
 Array(char) gen_c_code(AST_Scope *root)

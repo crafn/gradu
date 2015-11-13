@@ -108,6 +108,8 @@ INTERNAL Token_Type kw_tokentype(const char *buf, int size)
 		return Token_kw_void;
 	if (str_equals_buf("int", buf, size))
 		return Token_kw_int;
+	if (str_equals_buf("size_t", buf, size))
+		return Token_kw_size_t;
 	if (str_equals_buf("char", buf, size))
 		return Token_kw_char;
 	if (str_equals_buf("float", buf, size))

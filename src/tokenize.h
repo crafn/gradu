@@ -56,6 +56,7 @@ typedef enum {
 	/* Type-related */
 	Token_kw_void,
 	Token_kw_int,
+	Token_kw_size_t,
 	Token_kw_char,
 	Token_kw_float,
 	Token_kw_matrix,

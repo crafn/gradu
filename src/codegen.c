@@ -29,81 +29,19 @@ INTERNAL void append_builtin_type_str(Array(char) *buf, Builtin_Type bt)
 	}
 }
 
-/* @todo Replace with generic linear traversal in dependency (innermost first) order */
-INTERNAL void find_subnodes_of_type_impl(Array(AST_Node_Ptr) *result, AST_Node_Type type, AST_Node *node, int depth)
+/* Innermost first */
+INTERNAL void find_subnodes_of_type(Array(AST_Node_Ptr) *ret, AST_Node_Type type, AST_Node *node)
 {
-	/* @todo Create linear (inner, or outermost first) search for AST and use that */
 	int i;
-	if (!node)
-		return;
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	push_subnodes(&subnodes, node, false);
 
-	switch (node->type) {
-	case AST_scope: {
-		CASTED_NODE(AST_Scope, scope, node);
-		for (i = 0; i < scope->nodes.size; ++i)
-			find_subnodes_of_type_impl(result, type, scope->nodes.data[i], depth + 1);
-	} break;
-
-	case AST_ident: {
-	} break;
-
-	case AST_type: {
-	} break;
-
-	case AST_type_decl: {
-		CASTED_NODE(AST_Type_Decl, decl, node);
-		find_subnodes_of_type_impl(result, type, AST_BASE(decl->ident), depth + 1);
-		find_subnodes_of_type_impl(result, type, AST_BASE(decl->body), depth + 1);
-	} break;
-
-	case AST_var_decl: {
-		CASTED_NODE(AST_Var_Decl, decl, node);
-		find_subnodes_of_type_impl(result, type, AST_BASE(decl->type), depth + 1);
-		find_subnodes_of_type_impl(result, type, AST_BASE(decl->ident), depth + 1);
-		find_subnodes_of_type_impl(result, type, decl->value, depth + 1);
-	} break;
-
-	case AST_func_decl: {
-		CASTED_NODE(AST_Func_Decl, decl, node);
-		find_subnodes_of_type_impl(result, type, AST_BASE(decl->return_type), depth + 1);
-		find_subnodes_of_type_impl(result, type, AST_BASE(decl->ident), depth + 1);
-		for (i = 0; i < decl->params.size; ++i)
-			find_subnodes_of_type_impl(result, type, AST_BASE(decl->params.data[i]), depth +1);
-		find_subnodes_of_type_impl(result, type, AST_BASE(decl->body), depth + 1);
-	} break;
-
-	case AST_literal: {
-	} break;
-
-	case AST_biop: {
-		CASTED_NODE(AST_Biop, biop, node);
-		find_subnodes_of_type_impl(result, type, biop->lhs, depth + 1);
-		find_subnodes_of_type_impl(result, type, biop->rhs, depth + 1);
-	} break;
-
-	case AST_control: {
-		CASTED_NODE(AST_Control, control, node);
-		find_subnodes_of_type_impl(result, type, control->value, depth + 1);
-	} break;
-
-	case AST_call: {
-		CASTED_NODE(AST_Call, call, node);
-		find_subnodes_of_type_impl(result, type, AST_BASE(call->ident), depth + 1);
-		for (i = 0; i < call->args.size; ++i)
-			find_subnodes_of_type_impl(result, type, call->args.data[i], depth +1);
-	} break;
-
-	default: FAIL(("find_subnodes_of_type: Unknown node type: %i", type));
+	for (i = 0; i < subnodes.size; ++i) {
+		if (subnodes.data[i]->type == type)
+			push_array(AST_Node_Ptr)(ret, subnodes.data[i]);
 	}
 
-	if (depth > 0 && node->type == type)
-		push_array(AST_Node_Ptr)(result, node);
-}
-
-/* Innermost first */
-INTERNAL void find_subnodes_of_type(Array(AST_Node_Ptr) *decls, AST_Node_Type type, AST_Node *node)
-{
-	find_subnodes_of_type_impl(decls, type, node, 0);
+	destroy_array(AST_Node_Ptr)(&subnodes);
 }
 
 INTERNAL U32 hash(AST_Node_Ptr)(AST_Node_Ptr node) { return hash(Void_Ptr)(node); }
@@ -124,163 +62,65 @@ INTERNAL void map_nodes(Trav_Ctx *ctx, AST_Node *dst, AST_Node *src)
 INTERNAL AST_Node *mapped_node(Trav_Ctx *ctx, AST_Node *src)
 { return get_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx->src_to_dst, src); }
 
-/* @todo Replace with generic tree traversal and/or transform macro */
-INTERNAL AST_Node * copy_excluding_types_and_funcs_impl(Trav_Ctx *ctx, AST_Node *node)
+
+/* Creates copy of (partial) AST, dropping type and func decls */
+/* @todo Generalize */
+INTERNAL AST_Node * copy_excluding_types_and_funcs(Trav_Ctx *ctx, AST_Node *node)
 {
+	AST_Node *copy = NULL;
+	Array(AST_Node_Ptr) subnodes;
+	Array(AST_Node_Ptr) refnodes;
+	Array(AST_Node_Ptr) copied_subnodes;
+	Array(AST_Node_Ptr) remapped_refnodes;
 	int i;
-	AST_Node *ret = NULL;
+
 	if (!node)
+		return NULL;
+	if (ctx->depth > 0 && (node->type == AST_type_decl || node->type == AST_func_decl))
 		return NULL;
 
 	++ctx->depth;
 
-	switch (node->type) {
-	case AST_scope: {
-		CASTED_NODE(AST_Scope, scope, node);
-		AST_Scope *copy = create_scope_node();
-		map_nodes(ctx, AST_BASE(copy), node);
-		{
-			Array(AST_Node_Ptr) copied_subnodes = create_array(AST_Node_Ptr)(0);
-			for (i = 0; i < scope->nodes.size; ++i) {
-				AST_Node *subcopy = copy_excluding_types_and_funcs_impl(ctx, scope->nodes.data[i]);
-				if (subcopy)
-					push_array(AST_Node_Ptr)(&copied_subnodes, subcopy);
-			}
-			copy_scope_node(copy, scope, copied_subnodes.data, copied_subnodes.size);
-			destroy_array(AST_Node_Ptr)(&copied_subnodes);
+	{
+		copy = create_ast_node(node->type);
+		/* Map nodes before recursing -- dependencies are always to previous nodes */
+		map_nodes(ctx, copy, node);
+
+		/* @todo Do something for the massive number of allocations */
+		subnodes = create_array(AST_Node_Ptr)(0);
+		refnodes = create_array(AST_Node_Ptr)(0);
+
+		push_immediate_subnodes(&subnodes, node);
+		push_immediate_refnodes(&refnodes, node);
+
+		copied_subnodes = create_array(AST_Node_Ptr)(subnodes.size);
+		remapped_refnodes = create_array(AST_Node_Ptr)(refnodes.size);
+
+		/* Copy subnodes */
+		for (i = 0; i < subnodes.size; ++i) {
+			AST_Node *copied_sub = copy_excluding_types_and_funcs(ctx, subnodes.data[i]);
+			push_array(AST_Node_Ptr)(&copied_subnodes, copied_sub);
 		}
-		ret = AST_BASE(copy);
-	} break;
-
-	case AST_ident: {
-		CASTED_NODE(AST_Ident, ident, node);
-		AST_Ident *copy = create_ident_node();
-		map_nodes(ctx, AST_BASE(copy), node);
-		copy_ident_node(copy, ident, mapped_node(ctx, ident->decl));
-		ret = AST_BASE(copy);
-	} break;
-
-	case AST_type: {
-		CASTED_NODE(AST_Type, type, node);
-		AST_Type *copy = create_type_node();
-		map_nodes(ctx, AST_BASE(copy), node);
-		copy_type_node(copy, type, mapped_node(ctx, AST_BASE(type->base_type_decl)));
-		ret = AST_BASE(copy);
-	} break;
-
-	case AST_type_decl: {
-		CASTED_NODE(AST_Type_Decl, decl, node);
-		if (ctx->depth > 1)
-			break;
-		{
-			AST_Type_Decl *copy = create_type_decl_node();
-			map_nodes(ctx, AST_BASE(copy), node);
-			{
-				AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->ident));
-				AST_Node *copied_body = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->body));
-				copy_type_decl_node(copy, decl, copied_ident, copied_body);
-				ret = AST_BASE(copy);
-			}
+		/* Remap referenced nodes */
+		for (i = 0; i < refnodes.size; ++i) {
+			AST_Node *remapped = mapped_node(ctx, refnodes.data[i]);
+			push_array(AST_Node_Ptr)(&remapped_refnodes, remapped);
 		}
-	} break;
 
-	case AST_var_decl: {
-		CASTED_NODE(AST_Var_Decl, decl, node);
-		AST_Var_Decl *copy = create_var_decl_node();
-		map_nodes(ctx, AST_BASE(copy), node);
-		{
-			AST_Node *copied_type = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->type));
-			AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->ident));
-			AST_Node *copied_value = copy_excluding_types_and_funcs_impl(ctx, decl->value);
-			copy_var_decl_node(copy, decl, copied_type, copied_ident, copied_value);
-		}
-		ret = AST_BASE(copy);
-	} break;
+		/* Fill created node with nodes of the destination tree and settings of the original node */
+		copy_ast_node(	copy, node,
+						copied_subnodes.data, copied_subnodes.size,
+						remapped_refnodes.data, remapped_refnodes.size);
 
-	case AST_func_decl: {
-		CASTED_NODE(AST_Func_Decl, decl, node);
-		if (ctx->depth > 1)
-			break;
-		{
-			AST_Func_Decl *copy = create_func_decl_node();
-			map_nodes(ctx, AST_BASE(copy), node);
-			{
-				AST_Node *copied_ret_type = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->return_type));
-				AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->ident));
-				AST_Node *copied_body = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->body));
-				Array(AST_Node_Ptr) copied_params = create_array(AST_Node_Ptr)(decl->params.size);
-				for (i = 0; i < decl->params.size; ++i) {
-					AST_Node *paramcopy =
-						copy_excluding_types_and_funcs_impl(ctx, AST_BASE(decl->params.data[i]));
-					push_array(AST_Node_Ptr)(&copied_params, paramcopy);
-				}
-				copy_func_decl_node(copy,	decl, copied_ret_type, copied_ident,
-											copied_params.data, copied_params.size,
-											copied_body);
-				destroy_array(AST_Node_Ptr)(&copied_params);
-			}
-			ret = AST_BASE(copy);
-		}
-	} break;
-
-	case AST_literal: {
-		CASTED_NODE(AST_Literal, literal, node);
-		AST_Literal *copy = create_literal_node();
-		map_nodes(ctx, AST_BASE(copy), node);
-		copy_literal_node(copy, literal);
-		ret = AST_BASE(copy);
-	} break;
-
-	case AST_biop: {
-		CASTED_NODE(AST_Biop, biop, node);
-		AST_Biop *copy = create_biop_node();
-		map_nodes(ctx, AST_BASE(copy), node);
-		copy_biop_node(copy,	biop,
-								copy_excluding_types_and_funcs_impl(ctx, biop->lhs),
-								copy_excluding_types_and_funcs_impl(ctx, biop->rhs));
-		ret = AST_BASE(copy);
-	} break;
-
-	case AST_control: {
-		CASTED_NODE(AST_Control, control, node);
-		AST_Control *copy = create_control_node();
-		map_nodes(ctx, AST_BASE(copy), node);
-		copy_control_node(copy, control,
-								copy_excluding_types_and_funcs_impl(ctx, control->value));
-		ret = AST_BASE(copy);
-	} break;
-
-	case AST_call: {
-		CASTED_NODE(AST_Call, call, node);
-		AST_Call *copy = create_call_node();
-		map_nodes(ctx, AST_BASE(copy), node);
-		{
-			AST_Node *copied_ident = copy_excluding_types_and_funcs_impl(ctx, AST_BASE(call->ident));
-			Array(AST_Node_Ptr) copied_args = create_array(AST_Node_Ptr)(call->args.size);
-			for (i = 0; i < call->args.size; ++i) {
-				AST_Node *argcopy =
-					copy_excluding_types_and_funcs_impl(ctx, call->args.data[i]);
-				push_array(AST_Node_Ptr)(&copied_args, argcopy);
-			}
-			copy_call_node(copy, call, copied_ident, copied_args.data, copied_args.size);
-			destroy_array(AST_Node_Ptr)(&copied_args);
-		}
-		ret = AST_BASE(copy);
-	} break;
-
-	default: FAIL(("copy_excluding_types_and_funcs: Unknown node type: %i", node->type));
+		destroy_array(AST_Node_Ptr)(&copied_subnodes);
+		destroy_array(AST_Node_Ptr)(&remapped_refnodes);
+		destroy_array(AST_Node_Ptr)(&subnodes);
+		destroy_array(AST_Node_Ptr)(&refnodes);
 	}
 
 	--ctx->depth;
-	return ret;
-}
 
-/* Creates copy of (partial) AST, dropping type and func decls */
-INTERNAL AST_Node * copy_excluding_types_and_funcs(Trav_Ctx *ctx, AST_Node *node)
-{
-	Trav_Ctx depth_reseted_ctx = *ctx;
-	depth_reseted_ctx.depth = 0;
-	return copy_excluding_types_and_funcs_impl(&depth_reseted_ctx, node);
+	return copy;
 }
 
 /* Returns new AST */
@@ -500,7 +340,7 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		for (i = 0; i < call->args.size; ++i) {
 			ast_to_c_str(buf, indent, call->args.data[i]);
 			if (i + 1 < call->args.size)
-				append_str(buf, ",");
+				append_str(buf, ", ");
 		}
 		append_str(buf, ")");
 	} break;

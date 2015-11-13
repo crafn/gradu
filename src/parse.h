@@ -168,6 +168,7 @@ AST_Scope *parse_tokens(Token *toks);
 AST_Scope *create_ast_tree();
 void destroy_ast_tree(AST_Scope *node);
 
+AST_Node *create_ast_node(AST_Node_Type type);
 AST_Scope *create_scope_node();
 AST_Ident *create_ident_node();
 AST_Type *create_type_node();
@@ -179,12 +180,18 @@ AST_Biop *create_biop_node();
 AST_Control *create_control_node();
 AST_Call *create_call_node();
 
+/* 'subnodes' and 'refnodes' should contain same nodes as a specific copy_*_node */
+void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subnode_count, AST_Node **refnodes, int refnode_count);
+/* First param: destination
+ * Second param: source
+ * Subnode params: new subnodes for destination
+ * Refnode params: new refnodes for destination */
 void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int subnode_count);
 void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl);
 void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_decl);
 void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body);
 void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value);
-void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node **params, int param_count, AST_Node *body);
+void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *body, AST_Node **params, int param_count);
 void copy_literal_node(AST_Literal *copy, AST_Literal *literal);
 void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs);
 void copy_control_node(AST_Control *copy, AST_Control *control, AST_Node *value);
@@ -193,6 +200,16 @@ void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **
 /* Recursive */
 void destroy_node(AST_Node *node);
 
+
+/* AST traversing utils */
+
+void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
+/* Gathers immediate referenced (not owned) nodes */
+void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
+/* Gathers the whole subnode tree to array */
+void push_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_recursing);
+
+/* Debug */
 void print_ast(AST_Node *node, int indent);
 
 #endif

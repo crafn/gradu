@@ -53,6 +53,23 @@ INTERNAL AST_Node *create_node_impl(AST_Node_Type type, int size)
 }
 #define CREATE_NODE(type, type_enum) ((type*)create_node_impl(type_enum, sizeof(type)))
 
+AST_Node *create_ast_node(AST_Node_Type type)
+{
+	switch (type) {
+		case AST_scope: return AST_BASE(create_scope_node());
+		case AST_ident: return AST_BASE(create_ident_node());
+		case AST_type: return AST_BASE(create_type_node());
+		case AST_type_decl: return AST_BASE(create_type_decl_node());
+		case AST_var_decl: return AST_BASE(create_var_decl_node());
+		case AST_func_decl: return AST_BASE(create_func_decl_node());
+		case AST_literal: return AST_BASE(create_literal_node());
+		case AST_biop: return AST_BASE(create_biop_node());
+		case AST_control: return AST_BASE(create_control_node());
+		case AST_call: return AST_BASE(create_call_node());
+		default: FAIL(("create_ast_node: Unknown node type %i", type));
+	}
+}
+
 AST_Scope *create_scope_node()
 {
 	AST_Scope *scope = CREATE_NODE(AST_Scope, AST_scope);
@@ -108,12 +125,63 @@ void copy_ast_node_base(AST_Node *dst, AST_Node *src)
 		push_array(Token_Ptr)(&dst->post_comments, src->post_comments.data[i]);
 }
 
+void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subnode_count, AST_Node **refnodes, int refnode_count)
+{
+	ASSERT(copy->type == node->type);
+	switch (node->type) {
+		case AST_scope:
+			ASSERT(refnode_count == 0);
+			copy_scope_node((AST_Scope*)copy, (AST_Scope*)node, subnodes, subnode_count);
+		break;
+		case AST_ident: {
+			ASSERT(subnode_count == 0 && refnode_count == 1);
+			copy_ident_node((AST_Ident*)copy, (AST_Ident*)node, refnodes[0]);
+		} break;
+		case AST_type: {
+			ASSERT(subnode_count == 0 && refnode_count == 1);
+			copy_type_node((AST_Type*)copy, (AST_Type*)node, refnodes[0]);
+		} break;
+		case AST_type_decl: {
+			ASSERT(subnode_count == 2 && refnode_count == 0);
+			copy_type_decl_node((AST_Type_Decl*)copy, (AST_Type_Decl*)node, subnodes[0], subnodes[1]);
+		} break;
+		case AST_var_decl: {
+			ASSERT(subnode_count == 3 && refnode_count == 0);
+			copy_var_decl_node((AST_Var_Decl*)copy, (AST_Var_Decl*)node, subnodes[0], subnodes[1], subnodes[2]);
+		} break;
+		case AST_func_decl: {
+			ASSERT(subnode_count >= 3 && refnode_count == 0);
+			copy_func_decl_node((AST_Func_Decl*)copy, (AST_Func_Decl*)node, subnodes[0], subnodes[1], subnodes[2], &subnodes[3], subnode_count - 3);
+		} break;
+		case AST_literal: {
+			ASSERT(subnode_count == 0 && refnode_count == 0);
+			copy_literal_node((AST_Literal*)copy, (AST_Literal*)node);
+		} break;
+		case AST_biop: {
+			ASSERT(subnode_count == 2 && refnode_count == 0);
+			copy_biop_node((AST_Biop*)copy, (AST_Biop*)node, subnodes[0], subnodes[1]);
+		} break;
+		case AST_control: {
+			ASSERT(subnode_count == 1 && refnode_count == 0);
+			copy_control_node((AST_Control*)copy, (AST_Control*)node, subnodes[0]);
+		} break;
+		case AST_call: {
+			ASSERT(subnode_count >= 1 && refnode_count == 0);
+			copy_call_node((AST_Call*)copy, (AST_Call*)node, subnodes[0], &subnodes[1], subnode_count - 1);
+		} break;
+		default: FAIL(("copy_ast_node: Unknown node type %i", node->type));
+	}
+}
+
 void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int subnode_count)
 {
 	int i;
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(scope));
-	for (i = 0; i < subnode_count; ++i)
+	for (i = 0; i < subnode_count; ++i) {
+		if (!subnodes[i])
+			continue;
 		push_array(AST_Node_Ptr)(&copy->nodes, subnodes[i]);
+	}
 	copy->is_root = scope->is_root;
 }
 
@@ -153,7 +221,7 @@ void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, 
 	copy->value = value;
 }
 
-void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *return_type, AST_Node *ident, AST_Node **params, int param_count, AST_Node *body)
+void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *return_type, AST_Node *ident, AST_Node *body, AST_Node **params, int param_count)
 {
 	int i;
 	ASSERT(ident->type == AST_ident);
@@ -162,11 +230,11 @@ void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *ret
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(decl));
 	copy->return_type = (AST_Type*)return_type;
 	copy->ident = (AST_Ident*)ident;
+	copy->body = (AST_Scope*)body;
 	for (i = 0; i < param_count; ++i) {
 		ASSERT(params[i]->type == AST_var_decl);
 		push_array(AST_Var_Decl_Ptr)(&copy->params, (AST_Var_Decl_Ptr)params[i]);
 	}
-	copy->body = (AST_Scope*)body;
 }
 
 void copy_literal_node(AST_Literal *copy, AST_Literal *literal)
@@ -577,6 +645,12 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 				bt.bitness = 0; /* Not specified */
 				advance_tok(ctx);
 			break;
+			case Token_kw_size_t:
+				bt.is_integer = true;
+				bt.bitness = sizeof(size_t)*8; /* @todo Assuming target is same architecture than host */
+				bt.is_unsigned = true;
+				advance_tok(ctx);
+			break;
 			case Token_kw_char:
 				bt.is_char = true;
 				bt.bitness = 8;
@@ -652,7 +726,8 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 			}
 		} else {
 			found_decl = find_decl_scoped(ctx, cur_tok(ctx)->text);
-			advance_tok(ctx);
+			if (found_decl)
+				advance_tok(ctx);
 		}
 		if (!found_decl || found_decl->type != AST_type_decl) {
 			report_error(ctx, "'%.*s' is not declared in this scope", BUF_STR_ARGS(cur_tok(ctx)->text));
@@ -965,6 +1040,8 @@ INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret)
 		;
 	else if (parse_control(ctx, &result))
 		;
+	else if (parse_block(ctx, (AST_Scope**)&result))
+		;
 	else 
 		goto mismatch;
 
@@ -1048,6 +1125,124 @@ void destroy_ast_tree(AST_Scope *node)
 
 INTERNAL void print_indent(int indent)
 { printf("%*s", indent, ""); }
+
+void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
+{
+	int i;
+	if (!node)
+		return;
+
+	switch (node->type) {
+	case AST_scope: {
+		CASTED_NODE(AST_Scope, scope, node);
+		for (i = 0; i < scope->nodes.size; ++i)
+			push_array(AST_Node_Ptr)(ret, scope->nodes.data[i]);
+	} break;
+
+	case AST_ident: {
+	} break;
+
+	case AST_type: {
+	} break;
+
+	case AST_type_decl: {
+		CASTED_NODE(AST_Type_Decl, decl, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->ident));
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->body));
+	} break;
+
+	case AST_var_decl: {
+		CASTED_NODE(AST_Var_Decl, decl, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->type));
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->ident));
+		push_array(AST_Node_Ptr)(ret, decl->value);
+	} break;
+
+	case AST_func_decl: {
+		CASTED_NODE(AST_Func_Decl, decl, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->return_type));
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->ident));
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->body));
+		for (i = 0; i < decl->params.size; ++i)
+			push_array(AST_Node_Ptr)(ret, AST_BASE(decl->params.data[i]));
+	} break;
+
+	case AST_literal: {
+	} break;
+
+	case AST_biop: {
+		CASTED_NODE(AST_Biop, biop, node);
+		push_array(AST_Node_Ptr)(ret, biop->lhs);
+		push_array(AST_Node_Ptr)(ret, biop->rhs);
+	} break;
+
+	case AST_control: {
+		CASTED_NODE(AST_Control, control, node);
+		push_array(AST_Node_Ptr)(ret, control->value);
+	} break;
+
+	case AST_call: {
+		CASTED_NODE(AST_Call, call, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(call->ident));
+		for (i = 0; i < call->args.size; ++i)
+			push_array(AST_Node_Ptr)(ret, call->args.data[i]);
+	} break;
+
+	default: FAIL(("push_immediate_sub: Unknown node type: %i", node->type));
+	}
+}
+
+void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
+{
+	if (!node)
+		return;
+
+	switch (node->type) {
+	case AST_scope: break;
+
+	case AST_ident: {
+		CASTED_NODE(AST_Ident, ident, node);
+		push_array(AST_Node_Ptr)(ret, ident->decl);
+	} break;
+
+	case AST_type: {
+		CASTED_NODE(AST_Type, type, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(type->base_type_decl));
+	} break;
+
+	case AST_type_decl: break;
+	case AST_var_decl: break;
+	case AST_func_decl: break;
+	case AST_literal: break;
+	case AST_biop: break;
+	case AST_control: break;
+	case AST_call: break;
+
+	default: FAIL(("push_immediate_refnodes: Unknown node type: %i", node->type));
+	}
+}
+
+void push_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_recursing)
+{
+	int i;
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	push_immediate_subnodes(&subnodes, node);
+
+	for (i = 0; i < subnodes.size; ++i) {
+		if (!subnodes.data[i])
+			continue;
+
+		if (push_before_recursing)
+			push_array(AST_Node_Ptr)(ret, subnodes.data[i]);
+
+		push_subnodes(ret, subnodes.data[i], push_before_recursing);
+
+		if (!push_before_recursing)
+			push_array(AST_Node_Ptr)(ret, subnodes.data[i]);
+	}
+
+	destroy_array(AST_Node_Ptr)(&subnodes);
+}
 
 void print_ast(AST_Node *node, int indent)
 {

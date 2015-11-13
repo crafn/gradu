@@ -14,7 +14,8 @@ typedef enum {
 	AST_literal,
 	AST_biop,
 	AST_control,
-	AST_call
+	AST_call,
+	AST_access
 		/*
 	AST_uop,
 	AST_label,
@@ -157,6 +158,21 @@ typedef struct AST_Call {
 	Array(AST_Node_Ptr) args;
 } AST_Call;
 
+/* Variable/array/member access */
+typedef struct AST_Access {
+	AST_Node b;
+
+	/* base -- base.sub -- base->sub -- base[sub] */
+	AST_Ident *base; /* @todo Should support expressions like (a * b).x or foo().member */
+	AST_Node *sub;
+
+	bool is_plain_access;
+	bool is_member_access;
+	bool is_array_access;
+
+	/* @todo Field access etc. */
+} AST_Access;
+
 /* Usage: CASTED_NODE(AST_Ident, ident, generic_node); printf("%c", ident->text_buf[0]); */
 #define CASTED_NODE(type, name, assign) \
 	type *name = (type*)assign
@@ -179,6 +195,7 @@ AST_Literal *create_literal_node();
 AST_Biop *create_biop_node();
 AST_Control *create_control_node();
 AST_Call *create_call_node();
+AST_Access *create_access_node();
 
 /* 'subnodes' and 'refnodes' should contain same nodes as a specific copy_*_node */
 void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subnode_count, AST_Node **refnodes, int refnode_count);
@@ -196,6 +213,7 @@ void copy_literal_node(AST_Literal *copy, AST_Literal *literal);
 void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs);
 void copy_control_node(AST_Control *copy, AST_Control *control, AST_Node *value);
 void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **args, int arg_count);
+void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node *sub);
 
 /* Recursive */
 void destroy_node(AST_Node *node);

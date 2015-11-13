@@ -66,6 +66,7 @@ AST_Node *create_ast_node(AST_Node_Type type)
 		case AST_biop: return AST_BASE(create_biop_node());
 		case AST_control: return AST_BASE(create_control_node());
 		case AST_call: return AST_BASE(create_call_node());
+		case AST_access: return AST_BASE(create_access_node());
 		default: FAIL(("create_ast_node: Unknown node type %i", type));
 	}
 }
@@ -110,6 +111,9 @@ AST_Call *create_call_node()
 	call->args = create_array(AST_Node_Ptr)(0);
 	return call;
 }
+
+AST_Access *create_access_node()
+{ return CREATE_NODE(AST_Access, AST_access); }
 
 
 /* Node copying */
@@ -168,6 +172,10 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 		case AST_call: {
 			ASSERT(subnode_count >= 1 && refnode_count == 0);
 			copy_call_node((AST_Call*)copy, (AST_Call*)node, subnodes[0], &subnodes[1], subnode_count - 1);
+		} break;
+		case AST_access: {
+			ASSERT(subnode_count >= 2 && refnode_count == 0);
+			copy_access_node((AST_Access*)copy, (AST_Access*)node, subnodes[0], subnodes[1]);
 		} break;
 		default: FAIL(("copy_ast_node: Unknown node type %i", node->type));
 	}
@@ -269,6 +277,16 @@ void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **
 	}
 }
 
+void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node *sub)
+{
+	copy_ast_node_base(AST_BASE(copy), AST_BASE(access));
+	ASSERT(base->type == AST_ident);
+	copy->base = (AST_Ident*)base;
+	copy->sub = sub;
+	copy->is_plain_access = access->is_plain_access;
+	copy->is_member_access = access->is_member_access;
+	copy->is_array_access = access->is_array_access;
+}
 
 void destroy_node(AST_Node *node)
 {
@@ -334,6 +352,13 @@ void destroy_node(AST_Node *node)
 			destroy_node(call->args.data[i]);
 		destroy_array(AST_Node_Ptr)(&call->args);
 	} break;
+
+	case AST_access: {
+		CASTED_NODE(AST_Access, access, node);
+		destroy_node(AST_BASE(access->base));
+		destroy_node(access->sub);
+	} break;
+	
 	default: FAIL(("destroy_node: Unknown node type %i", node->type));
 	}
 	destroy_array(Token_Ptr)(&node->pre_comments);
@@ -518,9 +543,7 @@ INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, Buf_Str name)
 							BUF_STR_ARGS(buf),
 							BUF_STR_ARGS(ident->text));
 							*/
-					if (ident->text.len != name.len)
-						continue;
-					if (strncmp(name.buf, ident->text.buf, name.len))
+					if (!buf_str_equals(ident->text, name))
 						continue;
 
 					/* Found declaration for the name */
@@ -539,7 +562,7 @@ INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, Buf_Str name)
 /* Parsing */
 
 /* @todo AST_Node -> specific node type */
-INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl);
+INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl, AST_Scope *search_scope);
 INTERNAL bool parse_type_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_var_decl(Parse_Ctx *ctx, AST_Node **ret, bool is_param_decl);
 INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Ident **ret_ident, AST_Node *enclosing_decl);
@@ -547,12 +570,13 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_block(Parse_Ctx *ctx, AST_Scope **ret);
 INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec);
+INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret);
 
 
 /* If decl is NULL, then declaration is searched. */
 /* Parse example: foo */
-INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl)
+INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl, AST_Scope *search_scope)
 {
 	Token *tok = cur_tok(ctx);
 	AST_Ident *ident = create_ident_node();
@@ -568,11 +592,33 @@ INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl)
 	if (decl) {
 		ident->decl = decl;
 	} else {
-		ident->decl = find_decl_scoped(ctx, tok->text);
-		if (!ident->decl) {
-			report_error(ctx, "'%.*s' is not declared in this scope", BUF_STR_ARGS(tok->text));
-			goto mismatch;
+		if (search_scope) {
+			/* Search from given scope */
+			/* @todo Proper identifier lookup (this doesn't look from subscopes) */
+			int i;
+			Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+			push_immediate_subnodes(&subnodes, AST_BASE(search_scope));
+			for (i = 0; i < subnodes.size; ++i) {
+				AST_Node *subnode = subnodes.data[i];
+				if (!is_decl(subnode))
+					continue;
+				if (!buf_str_equals(decl_ident(subnode)->text, ident->text))
+					continue;
+
+				ident->decl = subnode;
+				break;
+			}
+			destroy_array(AST_Node_Ptr)(&subnodes);
+
+
+		} else {
+			/* Search from current scope */
+			ident->decl = find_decl_scoped(ctx, tok->text);
 		}
+	}
+	if (!ident->decl) {
+		report_error(ctx, "'%.*s' is not declared in this scope", BUF_STR_ARGS(tok->text));
+		goto mismatch;
 	}
 	advance_tok(ctx);
 
@@ -595,7 +641,7 @@ INTERNAL bool parse_type_decl(Parse_Ctx *ctx, AST_Node **ret)
 	if (!accept_tok(ctx, Token_kw_struct))
 		goto mismatch;
 
-	if (!parse_ident(ctx, (AST_Node**)&decl->ident, AST_BASE(decl))) {
+	if (!parse_ident(ctx, (AST_Node**)&decl->ident, AST_BASE(decl), NULL)) {
 		report_error(ctx, "Expected type name, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
@@ -741,7 +787,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 		++type->ptr_depth;
 
 	/* Variable name */
-	if (!parse_ident(ctx, (AST_Node**)ret_ident, enclosing_decl)) {
+	if (!parse_ident(ctx, (AST_Node**)ret_ident, enclosing_decl, NULL)) {
 		report_error(ctx, "Expected identifier, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
@@ -902,7 +948,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 
 	if (parse_literal(ctx, &expr)) {
 		;
-	} else if (parse_ident(ctx, &expr, NULL)) {
+	} else if (parse_ident(ctx, &expr, NULL, NULL)) {
 		CASTED_NODE(AST_Ident, ident, expr);
 		if (ident->decl->type == AST_type_decl) {
 			report_error(ctx, "Expression can't start with a type name (%.*s)", BUF_STR_ARGS(ident->text));
@@ -934,6 +980,39 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			if (!accept_tok(ctx, Token_close_paren)) {
 				report_error(ctx, "Expected ')', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 				goto mismatch;
+			}
+		} else if (ident->decl->type == AST_var_decl) {
+			/* This is variable access */
+			/* @todo This might have to be moved to main expr loop below as '.' operator
+			 * with correct associativity and precedence. Think 'a.b.c'. */
+
+			AST_Access *access = create_access_node();
+			access->base = ident;
+			expr = AST_BASE(access);
+
+			if (accept_tok(ctx, Token_dot)) {
+				access->is_member_access = true;
+			} else if (accept_tok(ctx, Token_right_arrow)) {
+				access->is_member_access = true;
+			} else {
+				access->is_plain_access = true;
+			}
+
+			if (access->is_member_access) {
+				AST_Ident *sub = NULL;
+				AST_Node *base_decl = access->base->decl;
+				if (base_decl->type != AST_var_decl) {
+					report_error(ctx, "@todo: good message for this error");
+					goto mismatch;
+				}
+
+				{
+					CASTED_NODE(AST_Var_Decl, base_var_decl, base_decl);
+					AST_Scope *base_type_scope = base_var_decl->type->base_type_decl->body;
+					if (!parse_ident(ctx, (AST_Node**)&sub, NULL, base_type_scope))
+						goto mismatch;
+					access->sub = AST_BASE(sub);
+				}
 			}
 		}
 	} else {
@@ -1030,7 +1109,10 @@ INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret)
 	begin_node_parsing(ctx, &result);
 
 	/* @todo Heuristic */
-	if (parse_type_decl(ctx, &result))
+	if (accept_tok(ctx, Token_semi)) {
+		report_error(ctx, "Unexpected ';'");
+		goto mismatch;
+	} else if (parse_type_decl(ctx, &result))
 		;
 	else if (parse_var_decl(ctx, &result, false))
 		;
@@ -1188,7 +1270,13 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 			push_array(AST_Node_Ptr)(ret, call->args.data[i]);
 	} break;
 
-	default: FAIL(("push_immediate_sub: Unknown node type: %i", node->type));
+	case AST_access: {
+		CASTED_NODE(AST_Access, access, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(access->base));
+		push_array(AST_Node_Ptr)(ret, access->sub);
+	} break;
+
+	default: FAIL(("push_immediate_subnodes: Unknown node type: %i", node->type));
 	}
 }
 
@@ -1217,6 +1305,7 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 	case AST_biop: break;
 	case AST_control: break;
 	case AST_call: break;
+	case AST_access: break;
 
 	default: FAIL(("push_immediate_refnodes: Unknown node type: %i", node->type));
 	}
@@ -1328,6 +1417,13 @@ void print_ast(AST_Node *node, int indent)
 		print_ast(AST_BASE(call->ident), indent + 2);
 		for (i = 0; i < call->args.size; ++i)
 			print_ast(call->args.data[i], indent + 2);
+	} break;
+
+	case AST_access: {
+		CASTED_NODE(AST_Access, access, node);
+		printf("access\n");
+		print_ast(AST_BASE(access->base), indent + 2);
+		print_ast(access->sub, indent + 2);
 	} break;
 
 	default: FAIL(("print_ast: Unknown node type %i", node->type));

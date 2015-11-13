@@ -41,6 +41,8 @@ typedef struct Buf_Str {
 	int len;
 } Buf_Str;
 
+bool buf_str_equals(Buf_Str a, Buf_Str b);
+
 /* Args for printf %.*s specifier */
 #define BUF_STR_ARGS(str) str.len, str.buf
 

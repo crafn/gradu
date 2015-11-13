@@ -344,6 +344,18 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		}
 		append_str(buf, ")");
 	} break;
+
+	case AST_access: {
+		CASTED_NODE(AST_Access, access, node);
+		ast_to_c_str(buf, indent, AST_BASE(access->base));
+		if (access->is_plain_access) {
+			;
+		} else if (access->is_member_access) {
+			append_str(buf, ".");
+			ast_to_c_str(buf, indent, access->sub);
+		}
+	} break;
+
 	default:;
 	}
 

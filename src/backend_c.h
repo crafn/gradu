@@ -1,5 +1,5 @@
-#ifndef CODEGEN_H
-#define CODEGEN_H
+#ifndef BACKEND_C_H
+#define BACKEND_C_H
 
 #include "core.h"
 #include "parse.h"

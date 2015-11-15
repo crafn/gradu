@@ -1,5 +1,5 @@
 #include "core.h"
-#include "codegen.h"
+#include "backend_c.h"
 #include "tokenize.h"
 #include "parse.h"
 

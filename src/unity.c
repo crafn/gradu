@@ -1,4 +1,5 @@
-#include "codegen.c"
+#include "ast.c"
+#include "backend_c.c"
 #include "core.c"
 #include "main.c"
 #include "parse.c"

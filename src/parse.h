@@ -5,6 +5,7 @@
 #include "tokenize.h"
 
 typedef enum {
+	AST_none,
 	AST_scope,
 	AST_ident,
 	AST_type,
@@ -241,7 +242,7 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
 void push_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_recursing);
 /* Rewrites nodes in tree, old_nodes[i] -> new_nodes[i]
  * Doesn't free or allocate any nodes.
- * Doesn't recurse into old_nodes. They can (and should) be dangling.
+ * Doesn't recurse into old_nodes. They can be dangling.
  * Is recursive, so if some new_nodes[i] contain old_nodes[k], it will also be replaced. */
 AST_Node *replace_nodes_in_ast(AST_Node *node, AST_Node **old_nodes, AST_Node **new_nodes, int node_count);
 

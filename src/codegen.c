@@ -404,6 +404,7 @@ INTERNAL void expand_matrices(AST_Scope *root)
 			CASTED_NODE(AST_Biop, biop, subnodes.data[i]);
 			AST_Type type;
 			Builtin_Type bt;
+
 			if (!expr_type(&type, AST_BASE(biop)))
 				continue;
 
@@ -428,9 +429,6 @@ INTERNAL void expand_matrices(AST_Scope *root)
 					push_array(AST_Node_Ptr)(&call->args, biop->rhs);
 				}
 
-				/* This leaves dangling pointers to the original tree! */
-				shallow_destroy_node(AST_BASE(biop));
-
 				/* Mark biop to be replaced with the function call */
 				push_array(AST_Node_Ptr)(&replace_list_old, AST_BASE(biop));
 				push_array(AST_Node_Ptr)(&replace_list_new, AST_BASE(call));
@@ -438,9 +436,12 @@ INTERNAL void expand_matrices(AST_Scope *root)
 		}
 	}
 
-	{ /* Replace old (dangling) nodes with new nodes */
+	{ /* Replace old nodes with new nodes */
 		ASSERT(replace_list_new.size == replace_list_old.size);
 		replace_nodes_in_ast(AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
+
+		for (i = 0; i < replace_list_old.size; ++i)
+			shallow_destroy_node(replace_list_old.data[i]);
 	}
 
 	{ /* Add C-compatible matrices and operations on top of the source */

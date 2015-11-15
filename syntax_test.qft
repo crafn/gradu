@@ -1,7 +1,6 @@
 /**********************/
 /* BLOCK COMMENT TEST */
 /**********************/
-
 int aaaaa; /* Comment explaining 'aaaaa' */ // See how comments are preserved in the output
 char bbbbbb;
 
@@ -16,10 +15,13 @@ void func()
 	temp_var2 = temp_var * 5 + 2 * 3;
 
 	// These will be in global scope in the output code
-	struct LocalType { }
+	struct LocalType {
+		int foo;
+	}
 	void local_func()
 	{
 		LocalType bug_test; // Just to test that identifier lookup works
+		bug_test.foo = 123;
 	}
 }
 
@@ -28,24 +30,24 @@ void func()
 
 
 
-/*
-Output from the compiler:
+/*  Output from the compiler:
 
 
 /**********************/
 /* BLOCK COMMENT TEST */
 /**********************/
-
 int aaaaa; /* Comment explaining 'aaaaa' */ /* See how comments are preserved in the output */
 char bbbbbb;
 
 /* These will be in global scope in the output code */
 struct LocalType
 {
+    int foo;
 };
 void local_func()
 {
     LocalType bug_test; /* Just to test that identifier lookup works */
+    bug_test.foo = 123;
 }
 
 /* Documentation for 'func()' */
@@ -58,5 +60,6 @@ void func()
     temp_var = 1 + 2 * 3;
     temp_var2 = temp_var * 5 + 2 * 3;
 }
+
 
 */

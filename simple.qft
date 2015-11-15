@@ -1,16 +1,12 @@
 void printf(char *fmt);
 
-struct Foo {
-	int bar;
-}
-
 int main(int argc, char **argv)
 {
 	int matrix(2, 2) mat1;
 	int matrix(2, 2) mat2;
+	int matrix(2, 2) result;
 
-	Foo foo;
-	foo.bar = 1;
+	result = mat1 * mat2;
 
 /*
 	{ /* Init matrices */

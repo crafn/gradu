@@ -1,12 +1,21 @@
 #include "core.h"
 
 DEFINE_ARRAY(char)
+DEFINE_ARRAY(int)
 
 bool buf_str_equals(Buf_Str a, Buf_Str b)
 {
 	if (a.len != b.len)
 		return false;
 	return !strncmp(a.buf, b.buf, a.len);
+}
+
+Buf_Str c_str_to_buf_str(const char* str)
+{
+	Buf_Str b = {0};
+	b.buf = str;
+	b.len = strlen(str);
+	return b;
 }
 
 void safe_vsprintf(Array(char) *buf, const char *fmt, va_list args)

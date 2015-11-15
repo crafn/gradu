@@ -1,5 +1,15 @@
 #include "codegen.h"
 
+INTERNAL bool is_builtin_decl(AST_Node *node)
+{
+	if (node->type != AST_type_decl)
+		return false;
+	{
+		CASTED_NODE(AST_Type_Decl, decl, node);
+		return decl->is_builtin;
+	}
+}
+
 INTERNAL void append_builtin_type_str(Array(char) *buf, Builtin_Type bt)
 {
 	int i;
@@ -27,6 +37,36 @@ INTERNAL void append_builtin_type_str(Array(char) *buf, Builtin_Type bt)
 				append_str(buf, "x");
 		}
 	}
+}
+
+INTERNAL void append_type_and_ident_str(Array(char) *buf, AST_Type *type, AST_Ident *ident)
+{
+	int i;
+	if (type->base_type_decl->is_builtin) {
+		append_builtin_type_str(buf, type->base_type_decl->builtin_type);
+		append_str(buf, " ");
+	} else {
+		append_str(buf, "%s ", type->base_type_decl->ident->text.data);
+	}
+	for (i = 0; i < type->ptr_depth; ++i)
+		append_str(buf, "*");
+	append_str(buf, "%s", ident->text.data);
+	if (type->array_size > 0)
+		append_str(buf, "[%i]", type->array_size);
+}
+
+INTERNAL AST_Ident *create_ident_node_for_builtin(Builtin_Type bt)
+{
+	AST_Ident *ident = create_ident_node();
+	append_builtin_type_str(&ident->text, bt);
+	return ident;
+}
+
+INTERNAL AST_Ident *create_ident_node_with_text(const char *str)
+{
+	AST_Ident *ident = create_ident_node();
+	append_str(&ident->text, "%s", str);
+	return ident;
 }
 
 /* Innermost first */
@@ -163,6 +203,73 @@ INTERNAL AST_Scope *lift_types_and_funcs_to_global_scope(AST_Scope *root)
 	return dst;
 }
 
+/* Modifies the AST */
+INTERNAL void expand_matrices(AST_Scope *root)
+{
+	int i, k;
+	/* Create matrix type declarations and functions */
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) matrix_type_decls = create_array(AST_Node_Ptr)(0);
+	push_subnodes(&subnodes, AST_BASE(root), false);
+
+	for (i = 0; i < subnodes.size; ++i) {
+		if (subnodes.data[i]->type != AST_type_decl)
+			continue;
+		{
+			CASTED_NODE(AST_Type_Decl, decl, subnodes.data[i]);
+			int elem_count = 1;
+
+			if (!decl->is_builtin)
+				continue;
+
+			if (!decl->builtin_type.is_matrix)
+				continue;
+
+			for (k = 0; k < decl->builtin_type.matrix_rank; ++k)
+				elem_count *= decl->builtin_type.matrix_dim[k];
+
+	 		{ /* struct specific_matrix_type { ... }; */
+				AST_Type_Decl * mat_decl = create_type_decl_node();
+				mat_decl->ident = create_ident_node_for_builtin(decl->builtin_type);
+				mat_decl->body = create_scope_node();
+
+				{ /* struct members */
+					AST_Type_Decl *m_type_decl = create_type_decl_node(); /* Could use existing type decl */
+					AST_Var_Decl *m = create_var_decl_node();
+
+					/* Copy base type from matrix type for the struct member */
+					m_type_decl->is_builtin = true;
+					m_type_decl->builtin_type = decl->builtin_type;
+					m_type_decl->builtin_type.is_matrix = false;
+
+					m->type = create_type_node();
+					m->type->base_type_decl = m_type_decl;
+					m->type->array_size = elem_count;
+					m->ident = create_ident_node_with_text("m");
+					ASSERT(m);
+					push_array(AST_Node_Ptr)(&mat_decl->body->nodes, AST_BASE(m));
+
+					ASSERT(m_type_decl);
+					push_array(AST_Node_Ptr)(&matrix_type_decls, AST_BASE(m_type_decl));
+				}
+
+				ASSERT(mat_decl);
+				push_array(AST_Node_Ptr)(&matrix_type_decls, AST_BASE(mat_decl));
+			}
+			/* @todo Matrix functions */
+		}
+	}
+
+	{ /* Add/substitute matrix stuff with C-compatible matrices and operations */
+		int place = 0;
+		while (place < root->nodes.size && is_builtin_decl(root->nodes.data[place]))
+			++place;
+		insert_array(AST_Node_Ptr)(&root->nodes, place, matrix_type_decls.data, matrix_type_decls.size);
+	}
+	destroy_array(AST_Node_Ptr)(&matrix_type_decls);
+	destroy_array(AST_Node_Ptr)(&subnodes);
+}
+
 INTERNAL void append_c_comment(Array(char) *buf, Token *comment)
 {
 	if (comment->type == Token_line_comment)
@@ -209,7 +316,7 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			if (!statement_omitted && sub->type != AST_func_decl)
 				append_str(buf, ";");
 
-			if (!statement_omitted && !sub->begin_tok)
+			if (!statement_omitted && !sub->begin_tok && scope->is_root)
 				append_str(buf, "\n"); /* Line break after builtin type decls */
 
 			for (k = 0; k < sub->post_comments.size; ++k) {
@@ -226,59 +333,27 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_ident: {
 		CASTED_NODE(AST_Ident, ident, node);
-		append_str(buf, "%.*s", BUF_STR_ARGS(ident->text));
+		append_str(buf, "%s", ident->text.data);
 	} break;
 
 	case AST_type: {
-		/* @todo This needs to be merged to decls, because type and identifier are mixed in C, like int (*foo)()*/
-		CASTED_NODE(AST_Type, type, node);
-		if (type->base_type_decl->is_builtin) {
-			append_builtin_type_str(buf, type->base_type_decl->builtin_type);
-			append_str(buf, " ");
-		} else {
-			append_str(buf, "%.*s ", BUF_STR_ARGS(type->base_type_decl->ident->text));
-		}
-		for (i = 0; i < type->ptr_depth; ++i)
-			append_str(buf, "*");
+		FAIL(("Type should be handled in declaration, because type and identifier are mixed in C"));
 	} break;
 
 	case AST_type_decl: {
 		CASTED_NODE(AST_Type_Decl, decl, node);
 		if (decl->is_builtin) {
-			Builtin_Type bt = decl->builtin_type;
-			if (bt.is_matrix) {
-				int elem_count = 1;
-
-				append_str(buf, "struct ");
-				append_builtin_type_str(buf, bt);
-				append_str(buf, "\n{\n");
-
-				{ /* Member array type */
-					Builtin_Type member = bt;
-					member.is_matrix = false;
-					append_str(buf , "    ");
-					append_builtin_type_str(buf, member);
-				}
-
-				for (i = 0; i < bt.matrix_rank; ++i)
-					elem_count *= bt.matrix_dim[i];
-				append_str(buf, " m[%i];\n", elem_count);
-
-				append_str(buf, "}");
-			} else {
-				omitted = true;
-			}
+			omitted = true;
 		} else {
 			append_str(buf, "struct ");
-			append_str(buf, "%.*s\n", BUF_STR_ARGS(decl->ident->text));
+			append_str(buf, "%s\n", decl->ident->text.data);
 			ast_to_c_str(buf, indent, AST_BASE(decl->body));
 		}
 	} break;
 
 	case AST_var_decl: {
 		CASTED_NODE(AST_Var_Decl, decl, node);
-		ast_to_c_str(buf, indent, AST_BASE(decl->type));
-		append_str(buf, "%.*s", BUF_STR_ARGS(decl->ident->text));
+		append_type_and_ident_str(buf, decl->type, decl->ident);
 		if (decl->value) {
 			append_str(buf, " = ");
 			ast_to_c_str(buf, indent, decl->value);
@@ -287,8 +362,7 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_func_decl: {
 		CASTED_NODE(AST_Func_Decl, decl, node);
-		ast_to_c_str(buf, indent, AST_BASE(decl->return_type));
-		append_str(buf, "%.*s", BUF_STR_ARGS(decl->ident->text));
+		append_type_and_ident_str(buf, decl->return_type, decl->ident);
 		append_str(buf, "(");
 		for (i = 0; i < decl->params.size; ++i) {
 			ast_to_c_str(buf, indent, AST_BASE(decl->params.data[i]));
@@ -356,7 +430,7 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		}
 	} break;
 
-	default:;
+	default: FAIL(("ast_to_c_str: Unknown node type: %i", node->type));
 	}
 
 	return omitted;
@@ -364,10 +438,16 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 Array(char) gen_c_code(AST_Scope *root)
 {
-	Array(char) buf = create_array(char)(1024);
-	AST_Scope *c_ast = lift_types_and_funcs_to_global_scope(root);
-	ast_to_c_str(&buf, 0, AST_BASE(c_ast));
-	destroy_ast_tree(c_ast);
-	return buf;
+	Array(char) gen_src = create_array(char)(1024);
+
+	AST_Scope *modified_ast = lift_types_and_funcs_to_global_scope(root);
+	expand_matrices(modified_ast);
+
+	print_ast(AST_BASE(modified_ast), 0);
+
+	ast_to_c_str(&gen_src, 0, AST_BASE(modified_ast));
+
+	destroy_ast_tree(modified_ast);
+	return gen_src;
 }
 

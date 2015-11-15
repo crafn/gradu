@@ -52,7 +52,8 @@ typedef struct AST_Scope {
 /* Identifier */
 typedef struct AST_Ident {
 	AST_Node b;
-	Buf_Str text;
+	/* @todo Change to Array(char) */
+	Array(char) text; /* NULL-terminated */
 
 	struct AST_Node *decl; /* Not owned */
 } AST_Ident;
@@ -66,6 +67,8 @@ typedef struct AST_Type {
 	 * type names can be multiple keywords long in source code (long int etc.)*/
 	struct AST_Type_Decl *base_type_decl; /* Not owned */
 	int ptr_depth;
+	/* @todo 2-dimensional arrays, pointers to arrays, ... (?) */
+	int array_size; /* 0 for no array */
 } AST_Type;
 
 typedef struct Builtin_Type {
@@ -94,6 +97,7 @@ typedef struct AST_Type_Decl {
 	AST_Ident *ident;
 	AST_Scope *body;
 
+	/* 'body' and 'ident' are NULL for builtin types */
 	bool is_builtin; /* void, int, char etc. */
 	Builtin_Type builtin_type;
 } AST_Type_Decl;

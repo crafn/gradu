@@ -81,6 +81,8 @@ AST_Scope *create_scope_node()
 AST_Ident *create_ident_node()
 {
 	AST_Ident * ident = CREATE_NODE(AST_Ident, AST_ident);
+	ident->text = create_array(char)(1);
+	append_str(&ident->text, "");
 	return ident;
 }
 
@@ -196,7 +198,8 @@ void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int
 void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl)
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(ident));
-	copy->text = ident->text;
+	destroy_array(char)(&copy->text);
+	copy->text = copy_array(char)(&ident->text);
 	copy->decl = ref_to_decl;
 }
 
@@ -303,6 +306,8 @@ void destroy_node(AST_Node *node)
 	} break;
 
 	case AST_ident: {
+		CASTED_NODE(AST_Ident, ident, node);
+		destroy_array(char)(&ident->text);
 	} break;
 
 	case AST_type: {
@@ -539,11 +544,11 @@ INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, Buf_Str name)
 
 				{
 					AST_Ident *ident = decl_ident(node);
-/*					printf("trying to match decl %.*s <=> %.*s\n",
+/*					printf("trying to match decl %.*s <=> %s\n",
 							BUF_STR_ARGS(buf),
-							BUF_STR_ARGS(ident->text));
+							ident->text.data);
 							*/
-					if (!buf_str_equals(ident->text, name))
+					if (!buf_str_equals(c_str_to_buf_str(ident->text.data), name))
 						continue;
 
 					/* Found declaration for the name */
@@ -580,7 +585,7 @@ INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl, AST_Sc
 {
 	Token *tok = cur_tok(ctx);
 	AST_Ident *ident = create_ident_node();
-	ident->text = tok->text;
+	append_str(&ident->text, "%.*s", BUF_STR_ARGS(tok->text));
 
 	begin_node_parsing(ctx, (AST_Node**)&ident);
 
@@ -594,23 +599,17 @@ INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl, AST_Sc
 	} else {
 		if (search_scope) {
 			/* Search from given scope */
-			/* @todo Proper identifier lookup (this doesn't look from subscopes) */
 			int i;
-			Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
-			push_immediate_subnodes(&subnodes, AST_BASE(search_scope));
-			for (i = 0; i < subnodes.size; ++i) {
-				AST_Node *subnode = subnodes.data[i];
+			for (i = 0; i < search_scope->nodes.size; ++i) {
+				AST_Node *subnode = search_scope->nodes.data[i];
 				if (!is_decl(subnode))
 					continue;
-				if (!buf_str_equals(decl_ident(subnode)->text, ident->text))
+				if (strcmp(decl_ident(subnode)->text.data, ident->text.data))
 					continue;
 
 				ident->decl = subnode;
 				break;
 			}
-			destroy_array(AST_Node_Ptr)(&subnodes);
-
-
 		} else {
 			/* Search from current scope */
 			ident->decl = find_decl_scoped(ctx, tok->text);
@@ -951,7 +950,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 	} else if (parse_ident(ctx, &expr, NULL, NULL)) {
 		CASTED_NODE(AST_Ident, ident, expr);
 		if (ident->decl->type == AST_type_decl) {
-			report_error(ctx, "Expression can't start with a type name (%.*s)", BUF_STR_ARGS(ident->text));
+			report_error(ctx, "Expression can't start with a type name (%s)", ident->text.data);
 			goto mismatch;
 		} else if (ident->decl->type == AST_func_decl) {
 			/* This is a function call */
@@ -1009,6 +1008,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 				{
 					CASTED_NODE(AST_Var_Decl, base_var_decl, base_decl);
 					AST_Scope *base_type_scope = base_var_decl->type->base_type_decl->body;
+					ASSERT(base_type_scope);
 					if (!parse_ident(ctx, (AST_Node**)&sub, NULL, base_type_scope))
 						goto mismatch;
 					access->sub = AST_BASE(sub);
@@ -1038,6 +1038,8 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			goto mismatch;
 
 		{
+			/* @todo Type checking */
+			/* @todo Operator overloading */
 			AST_Biop *biop = create_biop_node();
 			biop->type = tok->type;
 			biop->lhs = expr;
@@ -1344,14 +1346,14 @@ void print_ast(AST_Node *node, int indent)
 	switch (node->type) {
 	case AST_scope: {
 		CASTED_NODE(AST_Scope, scope, node);
-		printf("scope\n");
+		printf("scope %i\n", scope->nodes.size);
 		for (i = 0; i < scope->nodes.size; ++i)
 			print_ast(scope->nodes.data[i], indent + 2);
 	} break;
 
 	case AST_ident: {
 		CASTED_NODE(AST_Ident, ident, node);
-		printf("ident: %.*s\n", BUF_STR_ARGS(ident->text));
+		printf("ident: %s\n", ident->text.data);
 	} break;
 
 	case AST_type: {
@@ -1359,7 +1361,7 @@ void print_ast(AST_Node *node, int indent)
 		if (type->base_type_decl->is_builtin)
 			printf("builtin_type\n");
 		else
-			printf("type %.*s %i\n", BUF_STR_ARGS(type->base_type_decl->ident->text), type->ptr_depth);
+			printf("type %s %i\n", type->base_type_decl->ident->text.data, type->ptr_depth);
 	} break;
 
 	case AST_type_decl: {

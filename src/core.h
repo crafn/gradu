@@ -42,6 +42,7 @@ typedef struct Buf_Str {
 } Buf_Str;
 
 bool buf_str_equals(Buf_Str a, Buf_Str b);
+Buf_Str c_str_to_buf_str(const char* str);
 
 /* Args for printf %.*s specifier */
 #define BUF_STR_ARGS(str) str.len, str.buf
@@ -52,9 +53,13 @@ bool buf_str_equals(Buf_Str a, Buf_Str b);
 #define Array(V) JOIN2(V, _Array)
 #define create_array(V) JOIN3(create_, V, _array)
 #define destroy_array(V) JOIN3(destroy_, V, _array)
+#define release_array(V) JOIN3(release_, V, _array)
 #define push_array(V) JOIN3(push_, V, _array)
 #define pop_array(V) JOIN3(pop_, V, _array)
+#define insert_array(V) JOIN3(insert_, V, _array)
 #define copy_array(V) JOIN3(copy_, V, _array)
+/* Internal */
+#define increase_array_capacity(V) JOIN3(increase_array_capacity, V, _array)
 
 #define DECLARE_ARRAY(V)\
 typedef struct Array(V) {\
@@ -65,8 +70,10 @@ typedef struct Array(V) {\
 \
 Array(V) create_array(V)(int init_capacity);\
 void destroy_array(V)(Array(V) *arr);\
+V *release_array(V)(Array(V) *arr);\
 void push_array(V)(Array(V) *arr, V value);\
 V pop_array(V)(Array(V) *arr);\
+void insert_array(V)(Array(V) *arr, int at_place, V *values, int value_count);\
 Array(V) copy_array(V)(Array(V) *arr);\
 
 #define DEFINE_ARRAY(V)\
@@ -81,25 +88,48 @@ Array(V) create_array(V)(int init_capacity)\
 }\
 void destroy_array(V)(Array(V) *arr)\
 {\
-	assert(arr);\
+	ASSERT(arr);\
 	free(arr->data);\
+}\
+V *release_array(V)(Array(V) *arr)\
+{\
+	V *data = arr->data;\
+	arr->data = NULL;\
+	arr->size = 0;\
+	arr->capacity = 0;\
+	return data;\
+}\
+INTERNAL void increase_array_capacity(V)(Array(V) *arr, int min_size)\
+{\
+	if (min_size <= arr->capacity)\
+		return;\
+	if (arr->capacity == 0)\
+		arr->capacity = MAX(min_size, 1);\
+	else\
+		arr->capacity = MAX(min_size, arr->capacity*2);\
+	arr->data = (V*)realloc(arr->data, arr->capacity*sizeof(*arr->data));\
 }\
 void push_array(V)(Array(V) *arr, V value)\
 {\
-	assert(arr);\
-	if (arr->size >= arr->capacity) {\
-		if (arr->capacity == 0)\
-			arr->capacity = 1;\
-		else\
-			arr->capacity *= 2;\
-		arr->data = (V*)realloc(arr->data, arr->capacity*sizeof(*arr->data));\
-	}\
+	ASSERT(arr);\
+	increase_array_capacity(V)(arr, arr->size + 1);\
 	arr->data[arr->size++] = value;\
+}\
+void insert_array(V)(Array(V) *arr, int at_place, V *values, int value_count)\
+{\
+	int move_count = arr->size - at_place;\
+	ASSERT(arr);\
+	ASSERT(at_place >= 0 && at_place <= arr->size);\
+	ASSERT(move_count >= 0);\
+	increase_array_capacity(V)(arr, arr->size + value_count);\
+	memmove(arr->data + at_place + value_count, arr->data + at_place, sizeof(*arr->data)*move_count);\
+	memcpy(arr->data + at_place, values, sizeof(*arr->data)*value_count);\
+	arr->size += value_count;\
 }\
 V pop_array(V)(Array(V) *arr)\
 {\
-	assert(arr);\
-	assert(arr->size > 0);\
+	ASSERT(arr);\
+	ASSERT(arr->size > 0);\
 	--arr->size;\
 	return arr->data[arr->size];\
 }\
@@ -250,6 +280,7 @@ void set_tbl(K, V)(Hash_Table(K, V) *tbl, K key, V value)\
 }\
 
 DECLARE_ARRAY(char)
+DECLARE_ARRAY(int)
 
 /* @todo Make this safe.. */
 void safe_vsprintf(Array(char) *buf, const char *fmt, va_list args);

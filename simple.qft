@@ -2,23 +2,11 @@ void printf(char *fmt);
 
 int main(int argc, char **argv)
 {
-	int matrix(2, 2) mat1;
-	int matrix(2, 2) mat2;
-	int matrix(2, 2) result;
+	int matrix(3, 3) mat1;
+	int matrix(3, 3) mat2;
+	int matrix(3, 3) result;
 
 	result = mat1 * mat2;
-
-/*
-	{ /* Init matrices */
-		mat1.m[0] = 1;
-		mat1.m[1] = 2;
-		mat1.m[2] = 3;
-		mat1.m[3] = 4;
-
-		mat2.m[0] = 1; mat2.m[1] = 0;
-		mat2.m[2] = 0; mat2.m[3] = 1;
-	}
-*/
 
 	printf("Hello World!\n");
 

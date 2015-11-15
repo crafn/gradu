@@ -55,18 +55,105 @@ INTERNAL void append_type_and_ident_str(Array(char) *buf, AST_Type *type, AST_Id
 		append_str(buf, "[%i]", type->array_size);
 }
 
-INTERNAL AST_Ident *create_ident_node_for_builtin(Builtin_Type bt)
+INTERNAL AST_Ident *create_ident_for_builtin(Builtin_Type bt)
 {
 	AST_Ident *ident = create_ident_node();
 	append_builtin_type_str(&ident->text, bt);
 	return ident;
 }
 
-INTERNAL AST_Ident *create_ident_node_with_text(const char *str)
+INTERNAL AST_Ident *create_ident_with_text(const char *str)
 {
 	AST_Ident *ident = create_ident_node();
 	append_str(&ident->text, "%s", str);
 	return ident;
+}
+
+INTERNAL AST_Var_Decl *create_simple_var_decl(AST_Type_Decl *type_decl, const char *ident)
+{
+	AST_Var_Decl *decl = create_var_decl_node();
+	decl->type = create_type_node();
+	decl->type->base_type_decl = type_decl;
+	decl->ident = create_ident_with_text(ident);
+	return decl;
+}
+
+INTERNAL AST_Access *create_access_for_var(AST_Var_Decl *var_decl)
+{
+	AST_Access *access = create_access_node();
+	AST_Ident *ident = create_ident_with_text(var_decl->ident->text.data);
+	ident->decl = AST_BASE(var_decl);
+	access->base = AST_BASE(ident);
+	return access;
+}
+
+INTERNAL AST_Access *create_access_for_array(AST_Node *expr, int index)
+{
+	AST_Access *access = create_access_node();
+	AST_Literal *literal = create_literal_node();
+
+	literal->type = Literal_int;
+	literal->value.integer = index;
+
+	access->base = expr;
+	access->sub = AST_BASE(literal);
+	access->is_array_access = true;
+
+	return access;
+}
+
+INTERNAL AST_Access *create_access_for_member(AST_Var_Decl *base_decl, AST_Var_Decl *member_decl)
+{
+	AST_Access *access = create_access_node();
+	AST_Ident *base_ident = create_ident_node();
+	AST_Ident *member_ident = create_ident_node();
+
+	shallow_copy_ast_node(AST_BASE(base_ident), AST_BASE(base_decl->ident));
+	shallow_copy_ast_node(AST_BASE(member_ident), AST_BASE(member_decl->ident));
+
+	access->base = AST_BASE(base_ident);
+	access->sub = AST_BASE(member_ident);
+	access->is_member_access = true;
+
+	return access;
+}
+
+/* @todo Generalize for n-rank matrices */
+INTERNAL AST_Node *create_matrix_mul_expr(AST_Var_Decl *lhs, AST_Var_Decl *rhs, AST_Var_Decl *m_decl, Builtin_Type bt, int i, int j)
+{
+	AST_Node *expr = NULL;
+	int k;
+	int dimx = bt.matrix_dim[0];
+	int dimy = bt.matrix_dim[1];
+	ASSERT(lhs->type->base_type_decl == rhs->type->base_type_decl); /* @todo Handle different matrix types (m_decl for both, different dimensions) */
+
+	/* lhs[0, j] * rhs[i, 0] + ... */
+	for (k = 0; k < dimx; ++k) {
+		int lhs_index = k + j*dimy;
+		int rhs_index = i + k*dimy;
+		AST_Access *lhs_m_access = create_access_for_member(lhs, m_decl);
+		AST_Access *lhs_arr_access = create_access_for_array(AST_BASE(lhs_m_access), lhs_index);
+		AST_Access *rhs_m_access = create_access_for_member(rhs, m_decl);
+		AST_Access *rhs_arr_access = create_access_for_array(AST_BASE(rhs_m_access), rhs_index);
+		AST_Biop *mul = create_biop_node();
+
+		mul->type = Token_mul;
+		mul->lhs = AST_BASE(lhs_arr_access);
+		mul->rhs = AST_BASE(rhs_arr_access);
+
+		if (!expr) {
+			expr = AST_BASE(mul);
+		} else {
+			AST_Biop *sum = create_biop_node();
+			sum->type = Token_add;
+			sum->lhs = expr;
+			sum->rhs = AST_BASE(mul);
+
+			expr = AST_BASE(sum);
+		}
+	}
+	ASSERT(expr);
+	return expr;
 }
 
 /* Innermost first */
@@ -207,67 +294,166 @@ INTERNAL AST_Scope *lift_types_and_funcs_to_global_scope(AST_Scope *root)
 INTERNAL void expand_matrices(AST_Scope *root)
 {
 	int i, k;
-	/* Create matrix type declarations and functions */
+	/* Create matrix types, functions and calls */
 	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) matrix_type_decls = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) generated_decls = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
 	push_subnodes(&subnodes, AST_BASE(root), false);
 
 	for (i = 0; i < subnodes.size; ++i) {
-		if (subnodes.data[i]->type != AST_type_decl)
-			continue;
-		{
+		/* Matrix type processing */
+		if (subnodes.data[i]->type == AST_type_decl) {
 			CASTED_NODE(AST_Type_Decl, decl, subnodes.data[i]);
 			int elem_count = 1;
+			AST_Type_Decl *mat_decl = NULL; /* Created C matrix type decl */
+			AST_Var_Decl *member_decl = NULL; /* Member array decl of matrix */
+			Builtin_Type bt;
 
 			if (!decl->is_builtin)
 				continue;
 
-			if (!decl->builtin_type.is_matrix)
+			bt = decl->builtin_type;
+			if (!bt.is_matrix)
 				continue;
 
-			for (k = 0; k < decl->builtin_type.matrix_rank; ++k)
-				elem_count *= decl->builtin_type.matrix_dim[k];
+			for (k = 0; k < bt.matrix_rank; ++k)
+				elem_count *= bt.matrix_dim[k];
 
-	 		{ /* struct specific_matrix_type { ... }; */
-				AST_Type_Decl * mat_decl = create_type_decl_node();
-				mat_decl->ident = create_ident_node_for_builtin(decl->builtin_type);
+	 		{ /* Create matrix type decl */
+				mat_decl = create_type_decl_node();
+				mat_decl->ident = create_ident_for_builtin(bt);
 				mat_decl->body = create_scope_node();
 
-				{ /* struct members */
-					AST_Type_Decl *m_type_decl = create_type_decl_node(); /* Could use existing type decl */
-					AST_Var_Decl *m = create_var_decl_node();
+				{ /* struct member */
+					AST_Type_Decl *m_type_decl = create_type_decl_node(); /* @todo Use existing type decl */
 
 					/* Copy base type from matrix type for the struct member */
 					m_type_decl->is_builtin = true;
-					m_type_decl->builtin_type = decl->builtin_type;
+					m_type_decl->builtin_type = bt;
 					m_type_decl->builtin_type.is_matrix = false;
 
-					m->type = create_type_node();
-					m->type->base_type_decl = m_type_decl;
-					m->type->array_size = elem_count;
-					m->ident = create_ident_node_with_text("m");
-					ASSERT(m);
-					push_array(AST_Node_Ptr)(&mat_decl->body->nodes, AST_BASE(m));
+					member_decl = create_simple_var_decl(m_type_decl, "m");
+					member_decl->type->array_size = elem_count;
+					push_array(AST_Node_Ptr)(&mat_decl->body->nodes, AST_BASE(member_decl));
 
 					ASSERT(m_type_decl);
-					push_array(AST_Node_Ptr)(&matrix_type_decls, AST_BASE(m_type_decl));
+					push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(m_type_decl));
 				}
 
 				ASSERT(mat_decl);
-				push_array(AST_Node_Ptr)(&matrix_type_decls, AST_BASE(mat_decl));
+				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(mat_decl));
 			}
-			/* @todo Matrix functions */
+
+			{ /* Create matrix multiplication func */
+				AST_Func_Decl *mul_decl = create_func_decl_node();
+				AST_Var_Decl *lhs_decl = NULL;
+				AST_Var_Decl *rhs_decl = NULL;
+				mul_decl->ident = create_ident_for_builtin(bt);
+				append_str(&mul_decl->ident->text, "_mul");
+
+				mul_decl->return_type = create_type_node();
+				mul_decl->return_type->base_type_decl = mat_decl;
+
+				{ /* Params */
+					lhs_decl = create_simple_var_decl(mat_decl, "lhs");
+					rhs_decl = create_simple_var_decl(mat_decl, "rhs");
+
+					push_array(AST_Var_Decl_Ptr)(&mul_decl->params, lhs_decl);
+					push_array(AST_Var_Decl_Ptr)(&mul_decl->params, rhs_decl);
+				}
+
+				{ /* Body */
+					int x, y;
+					AST_Var_Decl *ret_decl = create_simple_var_decl(mat_decl, "ret");
+					AST_Control *return_stmt = create_control_node();
+
+					mul_decl->body = create_scope_node();
+					push_array(AST_Node_Ptr)(&mul_decl->body->nodes, AST_BASE(ret_decl));
+
+					ASSERT(bt.matrix_rank == 2); /* @todo General algo */
+					/* Expression for matrix multiplication */
+					for (x = 0; x < bt.matrix_dim[0]; ++x) {
+						for (y = 0; y < bt.matrix_dim[1]; ++y) {
+							int index = x + y*bt.matrix_dim[1];
+
+							AST_Biop *assign = create_biop_node();
+							AST_Access *member_access = create_access_for_member(ret_decl, member_decl);
+							AST_Access *array_access = create_access_for_array(AST_BASE(member_access), index);
+
+							assign->type = Token_assign;
+							assign->lhs = AST_BASE(array_access);
+							assign->rhs = create_matrix_mul_expr(lhs_decl, rhs_decl, member_decl, bt, x, y);
+							push_array(AST_Node_Ptr)(&mul_decl->body->nodes, AST_BASE(assign));
+						}
+					}
+
+					return_stmt->type = Token_kw_return;
+					return_stmt->value = AST_BASE(create_access_for_var(ret_decl));
+					push_array(AST_Node_Ptr)(&mul_decl->body->nodes, AST_BASE(return_stmt));
+				}
+
+				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(mul_decl));
+			}
+
+			/* @todo Detect larger matrix expressions and create unrolled functions for them */
+		}
+
+		/* Handle matrix "operator overloading" */
+		if (subnodes.data[i]->type == AST_biop) {
+			CASTED_NODE(AST_Biop, biop, subnodes.data[i]);
+			AST_Type type;
+			Builtin_Type bt;
+			if (!expr_type(&type, AST_BASE(biop)))
+				continue;
+
+			if (biop->type == Token_assign)
+				continue;
+			if (!type.base_type_decl->is_builtin)
+				continue;
+			
+			bt = type.base_type_decl->builtin_type;
+			if (!bt.is_matrix)
+				continue;
+
+			{
+				AST_Call *call = create_call_node();
+
+				/* @todo Link ident to matrix type */
+				call->ident = create_ident_node();
+				append_builtin_type_str(&call->ident->text, bt);
+
+				{ /* Args */
+					push_array(AST_Node_Ptr)(&call->args, biop->lhs);
+					push_array(AST_Node_Ptr)(&call->args, biop->rhs);
+				}
+
+				/* This leaves dangling pointers to the original tree! */
+				shallow_destroy_node(AST_BASE(biop));
+
+				/* Mark biop to be replaced with the function call */
+				push_array(AST_Node_Ptr)(&replace_list_old, AST_BASE(biop));
+				push_array(AST_Node_Ptr)(&replace_list_new, AST_BASE(call));
+			}
 		}
 	}
 
-	{ /* Add/substitute matrix stuff with C-compatible matrices and operations */
+	{ /* Replace old (dangling) nodes with new nodes */
+		ASSERT(replace_list_new.size == replace_list_old.size);
+		replace_nodes_in_ast(AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
+	}
+
+	{ /* Add C-compatible matrices and operations on top of the source */
 		int place = 0;
 		while (place < root->nodes.size && is_builtin_decl(root->nodes.data[place]))
 			++place;
-		insert_array(AST_Node_Ptr)(&root->nodes, place, matrix_type_decls.data, matrix_type_decls.size);
+		insert_array(AST_Node_Ptr)(&root->nodes, place, generated_decls.data, generated_decls.size);
 	}
-	destroy_array(AST_Node_Ptr)(&matrix_type_decls);
+
+	destroy_array(AST_Node_Ptr)(&generated_decls);
 	destroy_array(AST_Node_Ptr)(&subnodes);
+	destroy_array(AST_Node_Ptr)(&replace_list_old);
+	destroy_array(AST_Node_Ptr)(&replace_list_new);
 }
 
 INTERNAL void append_c_comment(Array(char) *buf, Token *comment)
@@ -421,12 +607,14 @@ INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
-		ast_to_c_str(buf, indent, AST_BASE(access->base));
-		if (access->is_plain_access) {
-			;
-		} else if (access->is_member_access) {
+		ast_to_c_str(buf, indent, access->base);
+		if (access->is_member_access) {
 			append_str(buf, ".");
 			ast_to_c_str(buf, indent, access->sub);
+		} else if (access->is_array_access) {
+			append_str(buf, "[");
+			ast_to_c_str(buf, indent, access->sub);
+			append_str(buf, "]");
 		}
 	} break;
 
@@ -442,8 +630,6 @@ Array(char) gen_c_code(AST_Scope *root)
 
 	AST_Scope *modified_ast = lift_types_and_funcs_to_global_scope(root);
 	expand_matrices(modified_ast);
-
-	print_ast(AST_BASE(modified_ast), 0);
 
 	ast_to_c_str(&gen_src, 0, AST_BASE(modified_ast));
 

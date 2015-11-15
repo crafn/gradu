@@ -167,10 +167,11 @@ typedef struct AST_Access {
 	AST_Node b;
 
 	/* base -- base.sub -- base->sub -- base[sub] */
-	AST_Ident *base; /* @todo Should support expressions like (a * b).x or foo().member */
+	AST_Node *base;
 	AST_Node *sub;
+	/* @todo Decide if base.sub == Access(Access(Ident(base)).Ident(sub)) or not.
+	 * Currently it's Access(Ident(base).Ident(sub)) */
 
-	bool is_plain_access;
 	bool is_member_access;
 	bool is_array_access;
 
@@ -203,6 +204,8 @@ AST_Access *create_access_node();
 
 /* 'subnodes' and 'refnodes' should contain same nodes as a specific copy_*_node */
 void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subnode_count, AST_Node **refnodes, int refnode_count);
+void shallow_copy_ast_node(AST_Node *copy, AST_Node* node);
+/* Copy and source nodes can be the same in copying functions. This just updates the subnodes. */
 /* First param: destination
  * Second param: source
  * Subnode params: new subnodes for destination
@@ -221,7 +224,13 @@ void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_
 
 /* Recursive */
 void destroy_node(AST_Node *node);
+/* Use this to destroy the original node after shallow_copy_ast_node.
+ * Doesn't destroy any owned nodes. */
+void shallow_destroy_node(AST_Node *node);
 
+/* @todo Move to ast.h */
+
+bool expr_type(AST_Type *ret, AST_Node *expr);
 
 /* AST traversing utils */
 
@@ -230,6 +239,11 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
 void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
 /* Gathers the whole subnode tree to array */
 void push_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_recursing);
+/* Rewrites nodes in tree, old_nodes[i] -> new_nodes[i]
+ * Doesn't free or allocate any nodes.
+ * Doesn't recurse into old_nodes. They can (and should) be dangling.
+ * Is recursive, so if some new_nodes[i] contain old_nodes[k], it will also be replaced. */
+AST_Node *replace_nodes_in_ast(AST_Node *node, AST_Node **old_nodes, AST_Node **new_nodes, int node_count);
 
 /* Debug */
 void print_ast(AST_Node *node, int indent);

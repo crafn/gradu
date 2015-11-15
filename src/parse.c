@@ -183,10 +183,25 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 	}
 }
 
+void shallow_copy_ast_node(AST_Node *copy, AST_Node* node)
+{
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) refnodes = create_array(AST_Node_Ptr)(0);
+
+	push_immediate_subnodes(&subnodes, node);
+	push_immediate_refnodes(&refnodes, node);
+	copy_ast_node(copy, node, subnodes.data, subnodes.size, refnodes.data, refnodes.size);
+
+	destroy_array(AST_Node_Ptr)(&subnodes);
+	destroy_array(AST_Node_Ptr)(&refnodes);
+}
+
 void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int subnode_count)
 {
 	int i;
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(scope));
+
+	clear_array(AST_Node_Ptr)(&copy->nodes);
 	for (i = 0; i < subnode_count; ++i) {
 		if (!subnodes[i])
 			continue;
@@ -198,8 +213,10 @@ void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int
 void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl)
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(ident));
-	destroy_array(char)(&copy->text);
-	copy->text = copy_array(char)(&ident->text);
+	if (copy != ident) {
+		destroy_array(char)(&copy->text);
+		copy->text = copy_array(char)(&ident->text);
+	}
 	copy->decl = ref_to_decl;
 }
 
@@ -242,6 +259,8 @@ void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *ret
 	copy->return_type = (AST_Type*)return_type;
 	copy->ident = (AST_Ident*)ident;
 	copy->body = (AST_Scope*)body;
+
+	clear_array(AST_Var_Decl_Ptr)(&copy->params);
 	for (i = 0; i < param_count; ++i) {
 		ASSERT(params[i]->type == AST_var_decl);
 		push_array(AST_Var_Decl_Ptr)(&copy->params, (AST_Var_Decl_Ptr)params[i]);
@@ -275,6 +294,7 @@ void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **
 	ASSERT(ident->type == AST_ident);
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(call));
 	copy->ident = (AST_Ident*)ident;
+	clear_array(AST_Node_Ptr)(&copy->args);
 	for (i = 0; i < arg_count; ++i) {
 		push_array(AST_Node_Ptr)(&copy->args, args[i]);
 	}
@@ -283,10 +303,8 @@ void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **
 void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node *sub)
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(access));
-	ASSERT(base->type == AST_ident);
-	copy->base = (AST_Ident*)base;
+	copy->base = base;
 	copy->sub = sub;
-	copy->is_plain_access = access->is_plain_access;
 	copy->is_member_access = access->is_member_access;
 	copy->is_array_access = access->is_array_access;
 }
@@ -302,12 +320,9 @@ void destroy_node(AST_Node *node)
 		CASTED_NODE(AST_Scope, scope, node);
 		for (i = 0; i < scope->nodes.size; ++i)
 			destroy_node(scope->nodes.data[i]);
-		destroy_array(AST_Node_Ptr)(&scope->nodes);
 	} break;
 
 	case AST_ident: {
-		CASTED_NODE(AST_Ident, ident, node);
-		destroy_array(char)(&ident->text);
 	} break;
 
 	case AST_type: {
@@ -332,7 +347,6 @@ void destroy_node(AST_Node *node)
 		destroy_node(AST_BASE(decl->ident));
 		for (i = 0; i < decl->params.size; ++i)
 			destroy_node(AST_BASE(decl->params.data[i]));
-		destroy_array(AST_Var_Decl_Ptr)(&decl->params);
 		destroy_node(AST_BASE(decl->body));
 	} break;
 
@@ -355,20 +369,113 @@ void destroy_node(AST_Node *node)
 		destroy_node(AST_BASE(call->ident));
 		for (i = 0; i < call->args.size; ++i)
 			destroy_node(call->args.data[i]);
-		destroy_array(AST_Node_Ptr)(&call->args);
 	} break;
 
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
-		destroy_node(AST_BASE(access->base));
+		destroy_node(access->base);
 		destroy_node(access->sub);
 	} break;
 	
 	default: FAIL(("destroy_node: Unknown node type %i", node->type));
 	}
+	shallow_destroy_node(node);
+}
+
+void shallow_destroy_node(AST_Node *node)
+{
+	switch (node->type) {
+	case AST_scope: {
+		CASTED_NODE(AST_Scope, scope, node);
+		destroy_array(AST_Node_Ptr)(&scope->nodes);
+	} break;
+
+	case AST_ident: {
+		CASTED_NODE(AST_Ident, ident, node);
+		destroy_array(char)(&ident->text);
+	} break;
+
+	case AST_type: {
+	} break;
+
+	case AST_type_decl: {
+	} break;
+
+	case AST_var_decl: {
+	} break;
+
+	case AST_func_decl: {
+		CASTED_NODE(AST_Func_Decl, decl, node);
+		destroy_array(AST_Var_Decl_Ptr)(&decl->params);
+	} break;
+
+	case AST_literal: {
+	} break;
+
+	case AST_biop: {
+	} break;
+
+	case AST_control: {
+	} break;
+
+	case AST_call: {
+		CASTED_NODE(AST_Call, call, node);
+		destroy_array(AST_Node_Ptr)(&call->args);
+	} break;
+
+	case AST_access: {
+	} break;
+
+	default: FAIL(("shallow_destroy_node: Unknown node type %i", node->type));
+	};
+
 	destroy_array(Token_Ptr)(&node->pre_comments);
 	destroy_array(Token_Ptr)(&node->post_comments);
 	free(node);
+}
+
+bool expr_type(AST_Type *ret, AST_Node *expr)
+{
+	bool success = false;
+	memset(ret, 0, sizeof(*ret));
+
+	switch (expr->type) {
+	case AST_ident: {
+		CASTED_NODE(AST_Ident, ident, expr);
+		ASSERT(ident->decl->type == AST_var_decl);
+		{
+			CASTED_NODE(AST_Var_Decl, decl, ident->decl);
+			*ret = *decl->type;
+			success = true;
+		}
+	} break;
+
+	case AST_literal: {
+		/* @todo */
+	} break;
+
+	case AST_access: {
+		CASTED_NODE(AST_Access, access, expr);
+		if (access->is_member_access) {
+			success = expr_type(ret, access->sub);
+		} else if (access->is_array_access) {
+			success = expr_type(ret, access->base);
+			--ret->ptr_depth;
+		} else {
+			success = expr_type(ret, access->base);
+		}
+	} break;
+
+	case AST_biop: {
+		CASTED_NODE(AST_Biop, biop, expr);
+		/* @todo Operation can yield different types than either of operands (2x1 * 1x2 matrices for example) */
+		success = expr_type(ret, biop->lhs);
+	} break;
+
+	default: FAIL(("expr_type: Unknown node type %i", expr->type));
+	}
+
+	return success;
 }
 
 DEFINE_ARRAY(AST_Node_Ptr)
@@ -986,7 +1093,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			 * with correct associativity and precedence. Think 'a.b.c'. */
 
 			AST_Access *access = create_access_node();
-			access->base = ident;
+			access->base = AST_BASE(ident);
 			expr = AST_BASE(access);
 
 			if (accept_tok(ctx, Token_dot)) {
@@ -994,12 +1101,12 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			} else if (accept_tok(ctx, Token_right_arrow)) {
 				access->is_member_access = true;
 			} else {
-				access->is_plain_access = true;
+				;
 			}
 
 			if (access->is_member_access) {
 				AST_Ident *sub = NULL;
-				AST_Node *base_decl = access->base->decl;
+				AST_Node *base_decl = ident->decl;
 				if (base_decl->type != AST_var_decl) {
 					report_error(ctx, "@todo: good message for this error");
 					goto mismatch;
@@ -1274,7 +1381,7 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
-		push_array(AST_Node_Ptr)(ret, AST_BASE(access->base));
+		push_array(AST_Node_Ptr)(ret, access->base);
 		push_array(AST_Node_Ptr)(ret, access->sub);
 	} break;
 
@@ -1333,6 +1440,56 @@ void push_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_re
 	}
 
 	destroy_array(AST_Node_Ptr)(&subnodes);
+}
+
+AST_Node *replace_nodes_in_ast(AST_Node *node, AST_Node **old_nodes, AST_Node **new_nodes, int node_count)
+{
+	int i, k;
+
+	if (!node || node_count == 0)
+		return node;
+
+	/* @todo Use Hash_Table to eliminate O(n^2) */
+	/* Replacing happens before recursing, so that old_nodes in contained new_nodes are also replaced */
+	for (i = 0; i < node_count; ++i) {
+		if (node == old_nodes[i]) {
+			node = new_nodes[i];
+			break;
+		}
+	}
+
+	{
+		/* @todo Do something for the massive number of allocations */
+		Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+		Array(AST_Node_Ptr) refnodes = create_array(AST_Node_Ptr)(0);
+
+		push_immediate_subnodes(&subnodes, node);
+		push_immediate_refnodes(&refnodes, node);
+
+		/* Replace subnodes */
+		for (i = 0; i < subnodes.size; ++i) {
+			subnodes.data[i] = replace_nodes_in_ast(subnodes.data[i], old_nodes, new_nodes, node_count);
+		}
+		/* Replace referenced nodes */
+		for (i = 0; i < refnodes.size; ++i) {
+			for (k = 0; k < node_count; ++k) {
+				if (refnodes.data[i] == old_nodes[k]) {
+					refnodes.data[i] = new_nodes[k];
+					break;
+				}
+			}
+		}
+
+		/* Update replaced pointers to node */
+		copy_ast_node(	node, node,
+						subnodes.data, subnodes.size,
+						refnodes.data, refnodes.size);
+
+		destroy_array(AST_Node_Ptr)(&subnodes);
+		destroy_array(AST_Node_Ptr)(&refnodes);
+	}
+
+	return node;
 }
 
 void print_ast(AST_Node *node, int indent)
@@ -1424,7 +1581,7 @@ void print_ast(AST_Node *node, int indent)
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
 		printf("access\n");
-		print_ast(AST_BASE(access->base), indent + 2);
+		print_ast(access->base, indent + 2);
 		print_ast(access->sub, indent + 2);
 	} break;
 

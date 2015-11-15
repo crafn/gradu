@@ -58,6 +58,7 @@ Buf_Str c_str_to_buf_str(const char* str);
 #define pop_array(V) JOIN3(pop_, V, _array)
 #define insert_array(V) JOIN3(insert_, V, _array)
 #define copy_array(V) JOIN3(copy_, V, _array)
+#define clear_array(V) JOIN3(clear_, V, _array)
 /* Internal */
 #define increase_array_capacity(V) JOIN3(increase_array_capacity, V, _array)
 
@@ -75,6 +76,7 @@ void push_array(V)(Array(V) *arr, V value);\
 V pop_array(V)(Array(V) *arr);\
 void insert_array(V)(Array(V) *arr, int at_place, V *values, int value_count);\
 Array(V) copy_array(V)(Array(V) *arr);\
+void clear_array(V)(Array(V) *arr);\
 
 #define DEFINE_ARRAY(V)\
 Array(V) create_array(V)(int init_capacity)\
@@ -141,6 +143,11 @@ Array(V) copy_array(V)(Array(V) *arr)\
 	copy.size = arr->size;\
 	copy.capacity = arr->capacity;\
 	return copy;\
+}\
+void clear_array(V)(Array(V) *arr)\
+{\
+	ASSERT(arr);\
+	arr->size = 0;\
 }\
 
 

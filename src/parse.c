@@ -419,12 +419,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 			for (i = 0; i < ctx->builtin_decls.size; ++i) {
 				AST_Type_Decl *decl = ctx->builtin_decls.data[i];
 				Builtin_Type t = decl->builtin_type;
-				if (	t.is_void == bt.is_void &&
-						t.is_integer == bt.is_integer &&
-						t.is_float == bt.is_float &&
-						t.bitness == bt.bitness &&
-						t.is_unsigned == bt.is_unsigned &&
-						t.is_matrix == bt.is_matrix) {
+				if (builtin_type_equals(t, bt)) {
 					found_decl = (AST_Node*)decl;
 					break;
 				}

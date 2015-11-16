@@ -5,6 +5,16 @@ DEFINE_ARRAY(AST_Var_Decl_Ptr)
 DEFINE_ARRAY(Token_Ptr)
 DEFINE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
 
+bool builtin_type_equals(Builtin_Type a, Builtin_Type b)
+{
+	return	a.is_void == b.is_void &&
+			a.is_integer == b.is_integer &&
+			a.is_float == b.is_float &&
+			a.bitness == b.bitness &&
+			a.is_unsigned == b.is_unsigned &&
+			a.is_matrix == b.is_matrix;
+}
+
 INTERNAL AST_Node *create_node_impl(AST_Node_Type type, int size)
 {
 	AST_Node *n = calloc(1, size);
@@ -188,7 +198,7 @@ void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl)
 void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_decl)
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(type));
-	ASSERT(ref_to_base_type_decl->type == AST_type_decl);
+	ASSERT(!ref_to_base_type_decl || ref_to_base_type_decl->type == AST_type_decl);
 	copy->base_type_decl = (AST_Type_Decl*)ref_to_base_type_decl;
 	copy->ptr_depth = type->ptr_depth;
 }
@@ -481,6 +491,9 @@ AST_Node *copy_ast_impl(Copy_Ctx *ctx, AST_Node *node)
 		}
 		for (i = 0; i < refnodes.size; ++i) {
 			AST_Node *remapped = get_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx->src_to_dst, refnodes.data[i]);
+			/* If referenced node is outside branch we're copying, don't change it */
+			if (!remapped)
+				remapped = refnodes.data[i]; 
 			refnodes.data[i] = remapped;
 		}
 
@@ -830,4 +843,36 @@ AST_Var_Decl *create_simple_var_decl(AST_Type_Decl *type_decl, const char *ident
 	return decl;
 }
 
+AST_Type_Decl *find_builtin_type_decl(Builtin_Type bt, AST_Scope *root)
+{
+	int i;
+	for (i = 0; i < root->nodes.size; ++i) {
+		AST_Node *node = root->nodes.data[i];
+		if (node->type != AST_type_decl)
+			continue;
+		{
+			CASTED_NODE(AST_Type_Decl, type_decl, node);
+			if (!type_decl->is_builtin)
+				continue;
 
+			if (builtin_type_equals(type_decl->builtin_type, bt))
+				return type_decl;
+		}
+	}
+	FAIL(("Builtin type not found"));
+	return NULL;
+}
+
+Builtin_Type void_builtin_type()
+{
+	Builtin_Type bt = {0};
+	bt.is_void = true;
+	return bt;
+}
+
+Builtin_Type int_builtin_type()
+{
+	Builtin_Type bt = {0};
+	bt.is_integer = true;
+	return bt;
+}

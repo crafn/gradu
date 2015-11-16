@@ -60,7 +60,7 @@ Buf_Str c_str_to_buf_str(const char* str);
 #define copy_array(V) JOIN3(copy_, V, _array)
 #define clear_array(V) JOIN3(clear_, V, _array)
 /* Internal */
-#define increase_array_capacity(V) JOIN3(increase_array_capacity, V, _array)
+#define increase_array_capacity(V) JOIN3(increase_array_capacity_, V, _array)
 
 #define DECLARE_ARRAY(V)\
 typedef struct Array(V) {\

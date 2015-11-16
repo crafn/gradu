@@ -89,12 +89,13 @@ typedef struct Builtin_Type {
 	int matrix_rank;
 	int matrix_dim[MAX_MATRIX_RANK];
 
-	/* When adding members, remember to update parse_type_and_ident! */
+	/* When adding members, remember to update builtin_type_equals! */
 
 	/*
 	bool is_field;
 	*/
 } Builtin_Type;
+bool builtin_type_equals(Builtin_Type a, Builtin_Type b);
 
 /* Type declaration / definition */
 typedef struct AST_Type_Decl {
@@ -263,5 +264,9 @@ void print_ast(AST_Node *node, int indent);
 /* Convenience functions */
 AST_Ident *create_ident_with_text(const char *fmt, ...);
 AST_Var_Decl *create_simple_var_decl(AST_Type_Decl *type_decl, const char *ident);
+AST_Type_Decl *find_builtin_type_decl(Builtin_Type bt, AST_Scope *root);
+
+Builtin_Type void_builtin_type();
+Builtin_Type int_builtin_type();
 
 #endif

@@ -4,6 +4,15 @@
 #include "tokenize.h"
 #include "parse.h"
 
+/* General todo list
+	- output to file
+	- if and loops
+	- handle (ignore but preserve) C preprocessor
+	- handle (ignore but preserve) other C stuff
+	- attributes to AST (like __global__ in cuda)
+	- unit tests
+*/
+
 const char *backends = "[c|cuda]";
 
 const char *get_arg(const char **argv, int argc, const char *flag)

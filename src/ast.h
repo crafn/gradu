@@ -39,7 +39,9 @@ typedef struct AST_Node {
 
 	/* Information for human-readable output */
 
+	/* @todo Inline struct with needed info. Then generated code can have vertical spacing etc. */
 	Token *begin_tok;
+
 	/* Comments on the previous line(s) (like this comment) */
 	Array(Token_Ptr) pre_comments;
 	Array(Token_Ptr) post_comments; /* On the same line (like this comment) */
@@ -148,6 +150,8 @@ typedef struct AST_Biop {
 	Token_Type type;
 	AST_Node *lhs;
 	AST_Node *rhs;
+
+	bool is_top_level; /* This is not part of another expression */
 } AST_Biop;
 
 /* return, goto, continue, break */
@@ -172,7 +176,7 @@ typedef struct AST_Access {
 	/* base -- base.sub -- base->sub -- base[sub] */
 	AST_Node *base;
 	AST_Node *sub;
-	/* @todo Decide if base.sub == Access(Access(Ident(base)).Ident(sub)) or not.
+	/* @todo Decide if 'base.sub' -> Access(Access(Ident(base)).Ident(sub)) or not.
 	 * Currently it's Access(Ident(base).Ident(sub)) */
 
 	bool is_member_access;
@@ -186,10 +190,10 @@ typedef struct AST_Access {
 	type *name = (type*)assign
 #define AST_BASE(node) (&(node)->b)
 
-AST_Scope *create_ast_tree();
-void destroy_ast_tree(AST_Scope *node);
-AST_Node *copy_ast_tree(AST_Node *node);
-void move_ast_tree(AST_Scope *dst, AST_Scope *src);
+AST_Scope *create_ast();
+void destroy_ast(AST_Scope *node);
+AST_Node *copy_ast(AST_Node *node);
+void move_ast(AST_Scope *dst, AST_Scope *src);
 
 AST_Node *create_ast_node(AST_Node_Type type);
 AST_Scope *create_scope_node();
@@ -204,6 +208,9 @@ AST_Control *create_control_node();
 AST_Call *create_call_node();
 AST_Access *create_access_node();
 
+/* Copies only stuff in AST_Node structure. Useful for copying comments to another node, for example. */
+void copy_ast_node_base(AST_Node *dst, AST_Node *src);
+/* Calls a specific copy_*_node */
 /* 'subnodes' and 'refnodes' should contain same nodes as a specific copy_*_node */
 void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subnode_count, AST_Node **refnodes, int refnode_count);
 void shallow_copy_ast_node(AST_Node *copy, AST_Node* node);
@@ -225,6 +232,7 @@ void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **
 void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node *sub);
 
 /* Recursive */
+/* @todo Use destroy_ast for this */
 void destroy_node(AST_Node *node);
 /* Use this to destroy the original node after shallow_copy_ast_node.
  * Doesn't destroy any owned nodes. */
@@ -246,7 +254,14 @@ void push_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_re
  * Is recursive, so if some new_nodes[i] contain old_nodes[k], it will also be replaced. */
 AST_Node *replace_nodes_in_ast(AST_Node *node, AST_Node **old_nodes, AST_Node **new_nodes, int node_count);
 
+/* Innermost first */
+void find_subnodes_of_type(Array(AST_Node_Ptr) *ret, AST_Node_Type type, AST_Node *node);
+
 /* Debug */
 void print_ast(AST_Node *node, int indent);
+
+/* Convenience functions */
+AST_Ident *create_ident_with_text(const char *fmt, ...);
+AST_Var_Decl *create_simple_var_decl(AST_Type_Decl *type_decl, const char *ident);
 
 #endif

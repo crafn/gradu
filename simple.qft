@@ -7,8 +7,9 @@ int main(int argc, char **argv)
 	int matrix(3, 3) mat3;
 	int matrix(3, 3) result;
 
+	// This comment should survive to the generated code
+	result = mat1 * mat2
 	result = mat1 * mat2 * mat3;
-	result = result * result;
 
 	printf("Hello World!\n");
 

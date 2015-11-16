@@ -62,6 +62,7 @@ typedef struct Parse_Ctx {
 	AST_Scope *root;
 	Token *first_tok; /* @todo Consider having some Token_sof, corresponding to Token_eof*/
 	Token *tok; /* Access with cur_tok */
+	int expr_depth;
 
 	/* Builtin types are generated while parsing */
 	Array(AST_Type_Decl_Ptr) builtin_decls;
@@ -612,6 +613,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 {
 	AST_Node *expr = NULL;
 
+	++ctx->expr_depth;
 	begin_node_parsing(ctx, &expr);
 
 	if (parse_literal(ctx, &expr)) {
@@ -713,6 +715,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			biop->type = tok->type;
 			biop->lhs = expr;
 			biop->rhs = rhs;
+			biop->is_top_level = (ctx->expr_depth == 1);
 			expr = AST_BASE(biop);
 		}
 	}
@@ -720,12 +723,14 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 	accept_tok(ctx, Token_semi);
 
 	end_node_parsing(ctx);
+	--ctx->expr_depth;
 
 	*ret = expr;
 	return true;
 
 mismatch:
 	cancel_node_parsing(ctx);
+	--ctx->expr_depth;
 	return false;
 }
 
@@ -811,7 +816,7 @@ AST_Scope *parse_tokens(Token *toks)
 {
 	bool failure = false;
 	Parse_Ctx ctx = {0};
-	AST_Scope *root = create_ast_tree();
+	AST_Scope *root = create_ast();
 
 	ctx.root = root;
 	ctx.builtin_decls = create_array(AST_Type_Decl_Ptr)(32);
@@ -855,7 +860,7 @@ AST_Scope *parse_tokens(Token *toks)
 			printf("Internal parser error (excuse)\n");
 		}
 		printf("Compilation failed\n");
-		destroy_ast_tree(root);
+		destroy_ast(root);
 		root = NULL;
 	}
 

@@ -85,7 +85,10 @@ AST_Access *create_access_node()
 void copy_ast_node_base(AST_Node *dst, AST_Node *src)
 {
 	int i;
-	dst->type = src->type;
+	if (dst == src)
+		return;
+	/* Type of a node can not be changed */
+	/*dst->type = src->type;*/
 	dst->begin_tok = src->begin_tok;
 	for (i = 0; i < src->pre_comments.size; ++i)
 		push_array(Token_Ptr)(&dst->pre_comments, src->pre_comments.data[i]);
@@ -239,6 +242,7 @@ void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(biop));
 	copy->type = biop->type;
+	copy->is_top_level = biop->is_top_level;
 	copy->lhs = lhs;
 	copy->rhs = rhs;
 }
@@ -442,21 +446,21 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 	return success;
 }
 
-AST_Scope *create_ast_tree()
+AST_Scope *create_ast()
 {
 	AST_Scope *root = create_scope_node();
 	root->is_root = true;
 	return root;
 }
 
-void destroy_ast_tree(AST_Scope *node)
+void destroy_ast(AST_Scope *node)
 { destroy_node((AST_Node*)node); }
 
 typedef struct Copy_Ctx {
 	Hash_Table(AST_Node_Ptr, AST_Node_Ptr) src_to_dst;
 } Copy_Ctx;
 
-AST_Node *copy_ast_tree_impl(Copy_Ctx *ctx, AST_Node *node)
+AST_Node *copy_ast_impl(Copy_Ctx *ctx, AST_Node *node)
 {
 	/* @todo backend_c copy_excluding_types_and_funcs has almost identical code */
 	if (node) {
@@ -473,7 +477,7 @@ AST_Node *copy_ast_tree_impl(Copy_Ctx *ctx, AST_Node *node)
 		push_immediate_refnodes(&refnodes, node);
 
 		for (i = 0; i < subnodes.size; ++i) {
-			subnodes.data[i] = copy_ast_tree_impl(ctx, subnodes.data[i]);
+			subnodes.data[i] = copy_ast_impl(ctx, subnodes.data[i]);
 		}
 		for (i = 0; i < refnodes.size; ++i) {
 			AST_Node *remapped = get_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx->src_to_dst, refnodes.data[i]);
@@ -492,18 +496,18 @@ AST_Node *copy_ast_tree_impl(Copy_Ctx *ctx, AST_Node *node)
 	return NULL;
 }
 
-AST_Node *copy_ast_tree(AST_Node *node)
+AST_Node *copy_ast(AST_Node *node)
 {
 	Copy_Ctx ctx = {{0}};
 	AST_Node *ret;
 	/* @todo Size should be something like TOTAL_NODE_COUNT*2 */
 	ctx.src_to_dst = create_tbl(AST_Node_Ptr, AST_Node_Ptr)(NULL, NULL, 1024);
-	ret = copy_ast_tree_impl(&ctx, node);
+	ret = copy_ast_impl(&ctx, node);
 	destroy_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx.src_to_dst);
 	return ret;
 }
 
-void move_ast_tree(AST_Scope *dst, AST_Scope *src)
+void move_ast(AST_Scope *dst, AST_Scope *src)
 {
 	/* Substitute subnodes in dst with subnodes of src, and destroy src */
 	int i;
@@ -695,6 +699,21 @@ AST_Node *replace_nodes_in_ast(AST_Node *node, AST_Node **old_nodes, AST_Node **
 	return node;
 }
 
+void find_subnodes_of_type(Array(AST_Node_Ptr) *ret, AST_Node_Type type, AST_Node *node)
+{
+	int i;
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	push_subnodes(&subnodes, node, false);
+
+	for (i = 0; i < subnodes.size; ++i) {
+		if (subnodes.data[i]->type == type)
+			push_array(AST_Node_Ptr)(ret, subnodes.data[i]);
+	}
+
+	destroy_array(AST_Node_Ptr)(&subnodes);
+}
+
+
 void print_ast(AST_Node *node, int indent)
 {
 	int i;
@@ -791,4 +810,24 @@ void print_ast(AST_Node *node, int indent)
 	default: FAIL(("print_ast: Unknown node type %i", node->type));
 	};
 }
+
+AST_Ident *create_ident_with_text(const char *fmt, ...)
+{
+	AST_Ident *ident = create_ident_node();
+	va_list args;
+	va_start(args, fmt);
+	safe_vsprintf(&ident->text, fmt, args);
+	va_end(args);
+	return ident;
+}
+
+AST_Var_Decl *create_simple_var_decl(AST_Type_Decl *type_decl, const char *ident)
+{
+	AST_Var_Decl *decl = create_var_decl_node();
+	decl->type = create_type_node();
+	decl->type->base_type_decl = type_decl;
+	decl->ident = create_ident_with_text(ident);
+	return decl;
+}
+
 

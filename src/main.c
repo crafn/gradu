@@ -96,7 +96,7 @@ int main(int argc, const char **argv)
 
 cleanup:
 	destroy_array(char)(&gen_code);
-	destroy_ast_tree(root);
+	destroy_ast(root);
 	destroy_array(Token)(&tokens);
 	free(src_buf);
 	if (file)

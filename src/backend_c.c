@@ -171,10 +171,6 @@ INTERNAL void find_subnodes_of_type(Array(AST_Node_Ptr) *ret, AST_Node_Type type
 	destroy_array(AST_Node_Ptr)(&subnodes);
 }
 
-INTERNAL U32 hash(AST_Node_Ptr)(AST_Node_Ptr node) { return hash(Void_Ptr)(node); }
-DECLARE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
-DEFINE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
-
 typedef struct Trav_Ctx {
 	int depth;
 	/* Maps nodes from source AST tree to copied/modified AST tree */
@@ -191,7 +187,7 @@ INTERNAL AST_Node *mapped_node(Trav_Ctx *ctx, AST_Node *src)
 
 
 /* Creates copy of (partial) AST, dropping type and func decls */
-/* @todo Generalize */
+/* @todo Remove in-place. This is almost identical to copy_ast_tree */
 INTERNAL AST_Node * copy_excluding_types_and_funcs(Trav_Ctx *ctx, AST_Node *node)
 {
 	AST_Node *copy = NULL;
@@ -250,8 +246,7 @@ INTERNAL AST_Node * copy_excluding_types_and_funcs(Trav_Ctx *ctx, AST_Node *node
 	return copy;
 }
 
-/* Returns new AST */
-INTERNAL AST_Scope *lift_types_and_funcs_to_global_scope(AST_Scope *root)
+void lift_types_and_funcs_to_global_scope(AST_Scope *root)
 {
 	Trav_Ctx ctx = {0};
 	AST_Scope *dst = create_ast_tree();
@@ -287,20 +282,19 @@ INTERNAL AST_Scope *lift_types_and_funcs_to_global_scope(AST_Scope *root)
 	}
 
 	destroy_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx.src_to_dst);
-	return dst;
+
+	move_ast_tree(root, dst);
 }
 
 /* Modifies the AST */
-INTERNAL void expand_matrices(AST_Scope *root)
+void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 {
 	int i, k;
-	/* Create matrix types, functions and calls */
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	Array(AST_Node_Ptr) generated_decls = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	push_subnodes(&subnodes, AST_BASE(root), false);
 
+	/* Create decls */
 	for (i = 0; i < subnodes.size; ++i) {
 		/* Matrix type processing */
 		if (subnodes.data[i]->type == AST_type_decl) {
@@ -345,7 +339,7 @@ INTERNAL void expand_matrices(AST_Scope *root)
 				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(mat_decl));
 			}
 
-			{ /* Create matrix multiplication func */
+			if (func_decls) { /* Create matrix multiplication func */
 				AST_Func_Decl *mul_decl = create_func_decl_node();
 				AST_Var_Decl *lhs_decl = NULL;
 				AST_Var_Decl *rhs_decl = NULL;
@@ -395,10 +389,29 @@ INTERNAL void expand_matrices(AST_Scope *root)
 
 				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(mul_decl));
 			}
-
-			/* @todo Detect larger matrix expressions and create unrolled functions for them */
 		}
+	}
 
+	{ /* Add C-compatible matrices and operations on top of the source */
+		int place = 0;
+		while (place < root->nodes.size && is_builtin_decl(root->nodes.data[place]))
+			++place;
+		insert_array(AST_Node_Ptr)(&root->nodes, place, generated_decls.data, generated_decls.size);
+	}
+
+	destroy_array(AST_Node_Ptr)(&subnodes);
+	destroy_array(AST_Node_Ptr)(&generated_decls);
+}
+
+INTERNAL void apply_operator_overloading(AST_Scope *root)
+{
+	int i;
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
+	push_subnodes(&subnodes, AST_BASE(root), false);
+
+	for (i = 0; i < subnodes.size; ++i) {
 		/* Handle matrix "operator overloading" */
 		if (subnodes.data[i]->type == AST_biop) {
 			CASTED_NODE(AST_Biop, biop, subnodes.data[i]);
@@ -444,14 +457,6 @@ INTERNAL void expand_matrices(AST_Scope *root)
 			shallow_destroy_node(replace_list_old.data[i]);
 	}
 
-	{ /* Add C-compatible matrices and operations on top of the source */
-		int place = 0;
-		while (place < root->nodes.size && is_builtin_decl(root->nodes.data[place]))
-			++place;
-		insert_array(AST_Node_Ptr)(&root->nodes, place, generated_decls.data, generated_decls.size);
-	}
-
-	destroy_array(AST_Node_Ptr)(&generated_decls);
 	destroy_array(AST_Node_Ptr)(&subnodes);
 	destroy_array(AST_Node_Ptr)(&replace_list_old);
 	destroy_array(AST_Node_Ptr)(&replace_list_new);
@@ -465,8 +470,7 @@ INTERNAL void append_c_comment(Array(char) *buf, Token *comment)
 		append_str(buf, "/*%.*s*/", BUF_STR_ARGS(comment->text));
 }
 
-/* Almost 1-1 mapping between nodes and C constructs */
-INTERNAL bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
+bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 {
 	int i, k;
 	bool omitted = false;
@@ -629,11 +633,12 @@ Array(char) gen_c_code(AST_Scope *root)
 {
 	Array(char) gen_src = create_array(char)(1024);
 
-	AST_Scope *modified_ast = lift_types_and_funcs_to_global_scope(root);
-	expand_matrices(modified_ast);
+	AST_Scope *modified_ast = (AST_Scope*)copy_ast_tree(AST_BASE(root));
+	lift_types_and_funcs_to_global_scope(modified_ast);
+	add_builtin_c_decls_to_global_scope(modified_ast, true);
+	apply_operator_overloading(modified_ast);
 
 	ast_to_c_str(&gen_src, 0, AST_BASE(modified_ast));
-
 	destroy_ast_tree(modified_ast);
 	return gen_src;
 }

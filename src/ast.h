@@ -30,6 +30,8 @@ typedef struct Token *Token_Ptr;
 
 DECLARE_ARRAY(AST_Node_Ptr)
 DECLARE_ARRAY(Token_Ptr)
+DECLARE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
+static U32 hash(AST_Node_Ptr)(AST_Node_Ptr node) { return hash(Void_Ptr)(node); }
 
 /* Base "class" for every AST node type */
 typedef struct AST_Node {
@@ -186,6 +188,8 @@ typedef struct AST_Access {
 
 AST_Scope *create_ast_tree();
 void destroy_ast_tree(AST_Scope *node);
+AST_Node *copy_ast_tree(AST_Node *node);
+void move_ast_tree(AST_Scope *dst, AST_Scope *src);
 
 AST_Node *create_ast_node(AST_Node_Type type);
 AST_Scope *create_scope_node();
@@ -229,6 +233,7 @@ void shallow_destroy_node(AST_Node *node);
 bool expr_type(AST_Type *ret, AST_Node *expr);
 
 /* AST traversing utils */
+
 
 void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
 /* Gathers immediate referenced (not owned) nodes */

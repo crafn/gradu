@@ -3,6 +3,7 @@
 DEFINE_ARRAY(AST_Node_Ptr)
 DEFINE_ARRAY(AST_Var_Decl_Ptr)
 DEFINE_ARRAY(Token_Ptr)
+DEFINE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
 
 INTERNAL AST_Node *create_node_impl(AST_Node_Type type, int size)
 {
@@ -403,6 +404,8 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 	switch (expr->type) {
 	case AST_ident: {
 		CASTED_NODE(AST_Ident, ident, expr);
+		if (!ident->decl)
+			break;
 		ASSERT(ident->decl->type == AST_var_decl);
 		{
 			CASTED_NODE(AST_Var_Decl, decl, ident->decl);
@@ -448,6 +451,71 @@ AST_Scope *create_ast_tree()
 
 void destroy_ast_tree(AST_Scope *node)
 { destroy_node((AST_Node*)node); }
+
+typedef struct Copy_Ctx {
+	Hash_Table(AST_Node_Ptr, AST_Node_Ptr) src_to_dst;
+} Copy_Ctx;
+
+AST_Node *copy_ast_tree_impl(Copy_Ctx *ctx, AST_Node *node)
+{
+	/* @todo backend_c copy_excluding_types_and_funcs has almost identical code */
+	if (node) {
+		int i;
+		AST_Node *copy = create_ast_node(node->type);
+
+		/* @todo Do something for the massive number of allocations */
+		Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+		Array(AST_Node_Ptr) refnodes = create_array(AST_Node_Ptr)(0);
+
+		set_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx->src_to_dst, node, copy);
+
+		push_immediate_subnodes(&subnodes, node);
+		push_immediate_refnodes(&refnodes, node);
+
+		for (i = 0; i < subnodes.size; ++i) {
+			subnodes.data[i] = copy_ast_tree_impl(ctx, subnodes.data[i]);
+		}
+		for (i = 0; i < refnodes.size; ++i) {
+			AST_Node *remapped = get_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx->src_to_dst, refnodes.data[i]);
+			refnodes.data[i] = remapped;
+		}
+
+		copy_ast_node(	copy, node,
+						subnodes.data, subnodes.size,
+						refnodes.data, refnodes.size);
+
+		destroy_array(AST_Node_Ptr)(&subnodes);
+		destroy_array(AST_Node_Ptr)(&refnodes);
+
+		return copy;
+	}
+	return NULL;
+}
+
+AST_Node *copy_ast_tree(AST_Node *node)
+{
+	Copy_Ctx ctx = {{0}};
+	AST_Node *ret;
+	/* @todo Size should be something like TOTAL_NODE_COUNT*2 */
+	ctx.src_to_dst = create_tbl(AST_Node_Ptr, AST_Node_Ptr)(NULL, NULL, 1024);
+	ret = copy_ast_tree_impl(&ctx, node);
+	destroy_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx.src_to_dst);
+	return ret;
+}
+
+void move_ast_tree(AST_Scope *dst, AST_Scope *src)
+{
+	/* Substitute subnodes in dst with subnodes of src, and destroy src */
+	int i;
+	for (i = 0; i < dst->nodes.size; ++i)
+		destroy_node(dst->nodes.data[i]);
+
+	clear_array(AST_Node_Ptr)(&dst->nodes);
+	insert_array(AST_Node_Ptr)(&dst->nodes, 0, src->nodes.data, src->nodes.size);
+
+	/* Don't destroy subnodes because they were moved */
+	shallow_destroy_node(AST_BASE(src));
+}
 
 INTERNAL void print_indent(int indent)
 { printf("%*s", indent, ""); }

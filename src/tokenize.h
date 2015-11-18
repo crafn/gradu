@@ -38,6 +38,7 @@ typedef enum {
 	Token_amp, /* & */
 	Token_hat, /* ^ */
 	Token_tilde, /* ~ */
+	Token_ellipsis, /* .. */ /* @todo Three dots */
 	Token_question, /* ? */
 	Token_squote, /* ' */
 	Token_line_comment, /* // this is comment */
@@ -60,6 +61,7 @@ typedef enum {
 	Token_kw_char,
 	Token_kw_float,
 	Token_kw_matrix,
+	Token_kw_const,
 	Token_unknown
 } Token_Type;
 

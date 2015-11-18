@@ -205,6 +205,8 @@ void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_d
 	ASSERT(!ref_to_base_type_decl || ref_to_base_type_decl->type == AST_type_decl);
 	copy->base_type_decl = (AST_Type_Decl*)ref_to_base_type_decl;
 	copy->ptr_depth = type->ptr_depth;
+	copy->array_size = type->array_size;
+	copy->is_const = type->is_const;
 }
 
 void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body, AST_Node *builtin_decl_ref)
@@ -240,6 +242,7 @@ void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *ret
 	copy->return_type = (AST_Type*)return_type;
 	copy->ident = (AST_Ident*)ident;
 	copy->body = (AST_Scope*)body;
+	copy->ellipsis = decl->ellipsis;
 
 	clear_array(AST_Var_Decl_Ptr)(&copy->params);
 	for (i = 0; i < param_count; ++i) {

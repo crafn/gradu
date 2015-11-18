@@ -74,6 +74,7 @@ typedef struct AST_Type {
 	int ptr_depth;
 	/* @todo 2-dimensional arrays, pointers to arrays, ... (?) */
 	int array_size; /* 0 for no array */
+	bool is_const; /* Just to propagate consts to output */
 } AST_Type;
 
 typedef struct Builtin_Type {
@@ -127,6 +128,7 @@ typedef struct AST_Func_Decl {
 	AST_Type *return_type;
 	AST_Ident *ident;
 	Array(AST_Var_Decl_Ptr) params;
+	bool ellipsis;
 	AST_Scope *body;
 } AST_Func_Decl;
 

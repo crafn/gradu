@@ -346,6 +346,9 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 		Builtin_Type bt = {0};
 		bool recognized = true;
 
+		if (accept_tok(ctx, Token_kw_const))
+			type->is_const = true;
+
 		/* Gather all builtin type specifiers (like int, matrix(), field()) */
 		while (recognized) {
 			Token *tok = cur_tok(ctx);
@@ -509,6 +512,11 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret)
 			AST_Var_Decl *param_decl = NULL;
 			if (cur_tok(ctx)->type == Token_comma)
 				advance_tok(ctx);
+
+			if (accept_tok(ctx, Token_ellipsis)) {
+				decl->ellipsis = true;
+				continue;
+			}
 
 			if (!parse_var_decl(ctx, (AST_Node**)&param_decl, true))
 				goto mismatch;

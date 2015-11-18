@@ -46,6 +46,8 @@ INTERNAL Token_Type double_char_tokentype(char ch1, char ch2)
 		return Token_equals;
 	if (ch1 == '!' && ch2 == '=')
 		return Token_nequals;
+	if (ch1 == '.' && ch2 == '.')
+		return Token_ellipsis;
 	if (ch1 == '/' && ch2 == '/')
 		return Token_line_comment;
 	if (ch1 == '/' && ch2 == '*')
@@ -116,6 +118,8 @@ INTERNAL Token_Type kw_tokentype(const char *buf, int size)
 		return Token_kw_float;
 	if (str_equals_buf("matrix", buf, size))
 		return Token_kw_matrix;
+	if (str_equals_buf("const", buf, size))
+		return Token_kw_const;
 	return Token_unknown;
 }
 
@@ -342,6 +346,13 @@ const char* tokentype_str(Token_Type type)
 		case Token_kw_if: return "kw_if";
 		case Token_kw_true: return "kw_true";
 		case Token_kw_false: return "kw_false";
+		case Token_kw_void: return "kw_void";
+		case Token_kw_int: return "kw_int";
+		case Token_kw_size_t: return "kw_size_t";
+		case Token_kw_char: return "kw_char";
+		case Token_kw_float: return "kw_float";
+		case Token_kw_matrix: return "kw_matrix";
+		case Token_kw_const: return "kw_const";
 		case Token_unknown:
 		default: return "unknown";
 	}
@@ -398,6 +409,13 @@ const char* tokentype_codestr(Token_Type type)
 		case Token_kw_if: return "if";
 		case Token_kw_true: return "true";
 		case Token_kw_false: return "false";
+		case Token_kw_void: return "void";
+		case Token_kw_int: return "int";
+		case Token_kw_size_t: return "size_t";
+		case Token_kw_char: return "char";
+		case Token_kw_float: return "float";
+		case Token_kw_matrix: return "matrix";
+		case Token_kw_const: return "const";
 		case Token_unknown:
 		default: return "???";
 	}

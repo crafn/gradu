@@ -1,0 +1,5 @@
+#!/bin/bash
+./gen simple.qft -b c -o generated.c
+gcc -g -O0 -Wall -Wextra -Wno-unused-parameter -std=c89 -pedantic generated.c -o compiled
+echo "Running compiled program"
+./compiled

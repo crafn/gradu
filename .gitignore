@@ -36,3 +36,5 @@ gen
 *.swp
 *~
 .fuse_hidden*
+compiled
+generated.c

@@ -85,6 +85,8 @@ void append_expr_c_func_name(Array(char) *buf, AST_Node *expr)
 INTERNAL void append_type_and_ident_str(Array(char) *buf, AST_Type *type, AST_Ident *ident)
 {
 	int i;
+	if (type->is_const)
+		append_str(buf, "const ");
 	if (type->base_type_decl->is_builtin) {
 		append_builtin_type_c_str(buf, type->base_type_decl->builtin_type);
 		append_str(buf, " ");
@@ -598,9 +600,10 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		if (decl->is_builtin) {
 			omitted = true;
 		} else {
-			append_str(buf, "struct ");
+			append_str(buf, "typedef struct ");
 			append_str(buf, "%s\n", decl->ident->text.data);
 			ast_to_c_str(buf, indent, AST_BASE(decl->body));
+			append_str(buf, " %s", decl->ident->text.data);
 		}
 	} break;
 
@@ -621,6 +624,11 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			ast_to_c_str(buf, indent, AST_BASE(decl->params.data[i]));
 			if (i + 1 < decl->params.size)
 				append_str(buf, ", ");
+		}
+		if (decl->ellipsis) {
+			if (decl->params.size > 0)
+				append_str(buf, ", ");
+			append_str(buf, "...");
 		}
 		append_str(buf, ")");
 		if (decl->body) {

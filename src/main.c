@@ -5,7 +5,6 @@
 #include "parse.h"
 
 /* General todo list
-	- output to file
 	- if and loops
 	- handle (ignore but preserve) C preprocessor
 	- handle (ignore but preserve) other C stuff
@@ -38,6 +37,7 @@ int main(int argc, const char **argv)
 	FILE *file = NULL;
 	const char *src_path;
 	const char *backend_str;
+	const char *output_path = NULL;
 	char *src_buf = NULL;
 	int src_size;
 	Array(Token) tokens = {0};
@@ -45,6 +45,7 @@ int main(int argc, const char **argv)
 	Array(char) gen_code = {0};
 
 	src_path = get_arg(argv, argc, "");
+	output_path = get_arg(argv, argc, "-o");
 	if (!src_path) {
 		printf("Give source file as an argument\n");
 		goto cleanup;
@@ -101,6 +102,12 @@ int main(int argc, const char **argv)
 			printf("Unknown backend (%s). Supported backends are %s\n", backend_str, backends);	
 		}
 		printf("%.*s", gen_code.size, gen_code.data);
+		
+		if (output_path) {
+			FILE *out = fopen(output_path, "wb");
+			fwrite(gen_code.data, strlen(gen_code.data), 1, out);
+			fclose(out);
+		}
 	}
 
 cleanup:

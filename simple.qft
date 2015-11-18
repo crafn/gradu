@@ -1,4 +1,4 @@
-void printf(char *fmt);
+int printf(const char *fmt, ..);
 
 int main(int argc, char **argv)
 {
@@ -7,23 +7,22 @@ int main(int argc, char **argv)
 	int matrix(3, 3) mat3;
 	int matrix(3, 3) result;
 
-	mat1(0, 0) = 2;
-	mat1(1, 1) = 2;
-	mat1(1, 0) = 0;
-	mat1(0, 1) = 0;
+	mat1(0, 0) = 1;
+	mat1(1, 0) = 2;
+	mat1(0, 1) = 3;
+	mat1(1, 1) = 4;
 
-	mat2(0, 0) = 3;
-	mat2(1, 1) = 3;
-	mat2(1, 0) = 0;
-	mat2(0, 1) = 0;
+	mat2(0, 0) = 5;
+	mat2(1, 0) = 5;
+	mat2(0, 1) = 5;
+	mat2(1, 1) = 6;
 
-	mat3(0, 0) = 2;
-	mat3(1, 1) = 2;
-	mat3(1, 0) = 2;
+	mat3(0, 0) = 1;
+	mat3(1, 0) = 1;
 	mat3(0, 1) = 2;
+	mat3(1, 1) = 3;
 
 	// This comment should survive to the generated code
-	result = mat1 * mat2
 	result = mat1 * mat2 * mat3;
 
 	printf("(%i, %i)\n(%i, %i)\n", result(0, 0), result(1, 0), result(0, 1), result(1, 1));

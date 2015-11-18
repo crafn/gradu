@@ -149,10 +149,11 @@ typedef struct AST_Literal {
 } AST_Literal;
 
 /* Binary operation */
+/* @todo Rename to AST_Expr */
 typedef struct AST_Biop {
 	AST_Node b;
 	Token_Type type;
-	AST_Node *lhs;
+	AST_Node *lhs; /* NULL for unary operation */
 	AST_Node *rhs;
 
 	bool is_top_level; /* This is not part of another expression */

@@ -464,7 +464,7 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 	case AST_biop: {
 		CASTED_NODE(AST_Biop, biop, expr);
 		/* @todo Operation can yield different types than either of operands (2x1 * 1x2 matrices for example) */
-		success = expr_type(ret, biop->lhs);
+		success = expr_type(ret, biop->rhs);
 	} break;
 
 	default: FAIL(("expr_type: Unknown node type %i", expr->type));
@@ -821,9 +821,14 @@ void print_ast(AST_Node *node, int indent)
 
 	case AST_biop: {
 		CASTED_NODE(AST_Biop, op, node);
-		printf("biop %s\n", tokentype_str(op->type));
-		print_ast(op->lhs, indent + 2);
-		print_ast(op->rhs, indent + 2);
+		if (op->lhs && op->rhs) {
+			printf("biop %s\n", tokentype_str(op->type));
+			print_ast(op->lhs, indent + 2);
+			print_ast(op->rhs, indent + 2);
+		} else {
+			printf("uop %s\n", tokentype_str(op->type));
+			print_ast(op->rhs, indent + 2);
+		}
 	} break;
 
 	case AST_control: {

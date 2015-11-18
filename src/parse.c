@@ -19,6 +19,7 @@ int str_to_int(Buf_Str text)
 	return value * sign;
 }
 
+#define UOP_PRECEDENCE 100000
 int op_prec(Token_Type type)
 {
 	switch (type) {
@@ -42,6 +43,11 @@ int op_assoc(Token_Type type)
 
 bool is_op(Token_Type type)
 { return op_prec(type) >= 0; }
+
+bool is_unary_op(Token_Type type)
+{
+	return type == Token_add || type == Token_sub;
+}
 
 
 /* Mirrors call stack in parsing */
@@ -705,6 +711,17 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 					goto mismatch;
 			}
 		}
+	} else if (is_unary_op(cur_tok(ctx)->type)) {
+		AST_Biop *biop = create_biop_node();
+		biop->type = cur_tok(ctx)->type;
+		biop->is_top_level = (ctx->expr_depth == 1);
+		advance_tok(ctx);
+
+		/* The precedence should be higher than any binary operation, because -1 op 2 != -(1 op 2) */
+		if (!parse_expr(ctx, &biop->rhs, UOP_PRECEDENCE)) {
+			goto mismatch;
+		}
+		expr = AST_BASE(biop);
 	} else {
 		report_error(ctx, "Expected identifier or literal, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;

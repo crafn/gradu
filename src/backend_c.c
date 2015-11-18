@@ -654,9 +654,15 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_biop: {
 		CASTED_NODE(AST_Biop, biop, node);
-		ast_to_c_str(buf, indent, biop->lhs);
-		append_str(buf, " %s ", tokentype_codestr(biop->type));
-		ast_to_c_str(buf, indent, biop->rhs);
+		if (biop->lhs && biop->rhs) {
+			ast_to_c_str(buf, indent, biop->lhs);
+			append_str(buf, " %s ", tokentype_codestr(biop->type));
+			ast_to_c_str(buf, indent, biop->rhs);
+		} else {
+			/* Unary op */
+			append_str(buf, "%s", tokentype_codestr(biop->type));
+			ast_to_c_str(buf, indent, biop->rhs);
+		}
 	} break;
 
 	case AST_control: {

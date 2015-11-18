@@ -23,9 +23,10 @@ int str_to_int(Buf_Str text)
 int op_prec(Token_Type type)
 {
 	switch (type) {
-		case Token_assign: return 1;
-		case Token_add: return 2;
-		case Token_mul: return 3;
+		case Token_equals: return 1;
+		case Token_assign: return 2;
+		case Token_add: return 3;
+		case Token_mul: return 4;
 		default: return -1;
 	}
 }
@@ -34,6 +35,7 @@ int op_prec(Token_Type type)
 int op_assoc(Token_Type type)
 {
 	switch (type) {
+		case Token_equals: return -1;
 		case Token_assign: return 1; /* a = b = c  <=>  (a = (b = c)) */
 		case Token_add: return -1;
 		case Token_mul: return -1;
@@ -160,7 +162,7 @@ INTERNAL void cancel_node_parsing(Parse_Ctx *ctx)
 	ctx->tok = frame.begin_tok;
 }
 
-void report_error(Parse_Ctx *ctx, const char *fmt, ...)
+INTERNAL void report_error(Parse_Ctx *ctx, const char *fmt, ...)
 {
 	Array(char) msg;
 	va_list args;
@@ -176,6 +178,11 @@ void report_error(Parse_Ctx *ctx, const char *fmt, ...)
 	destroy_array(char)(&ctx->error_msg);
 	ctx->error_msg = msg;
 	ctx->error_tok = cur_tok(ctx);
+}
+
+INTERNAL void report_error_expected(Parse_Ctx *ctx, const char *expected, Token *got)
+{
+	report_error(ctx, "Expected %s, got '%.*s'", expected, BUF_STR_ARGS(got->text));
 }
 
 INTERNAL bool is_decl(AST_Node *node)
@@ -252,8 +259,8 @@ INTERNAL bool parse_block(Parse_Ctx *ctx, AST_Scope **ret);
 INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec);
 INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret);
+INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret);
-
 
 /* If decl is NULL, then declaration is searched. */
 /* Parse example: foo */
@@ -299,7 +306,7 @@ INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl, AST_Sc
 
 	end_node_parsing(ctx);
 
-	*ret = (AST_Node*)ident;
+	*ret = AST_BASE(ident);
 	return true;
 
 mismatch:
@@ -317,20 +324,20 @@ INTERNAL bool parse_type_decl(Parse_Ctx *ctx, AST_Node **ret)
 		goto mismatch;
 
 	if (!parse_ident(ctx, (AST_Node**)&decl->ident, AST_BASE(decl), NULL)) {
-		report_error(ctx, "Expected type name, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+		report_error_expected(ctx, "type name", cur_tok(ctx));
 		goto mismatch;
 	}
 
 	if (parse_block(ctx, &decl->body))
 		;
 	else {
-		report_error(ctx, "Expected '{', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+		report_error_expected(ctx, "'{'", cur_tok(ctx));
 		goto mismatch;
 	}
 
 	end_node_parsing(ctx);
 
-	*ret = (AST_Node*)decl;
+	*ret = AST_BASE(decl);
 	return true;
 
 mismatch:
@@ -390,7 +397,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 				advance_tok(ctx);
 
 				if (!accept_tok(ctx, Token_open_paren)) {
-					report_error(ctx, "Expected '(', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+					report_error_expected(ctx, "'('", cur_tok(ctx));
 					goto mismatch;
 				}
 
@@ -412,7 +419,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 				}
 
 				if (!accept_tok(ctx, Token_close_paren)) {
-					report_error(ctx, "Expected ')', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+					report_error_expected(ctx, "')'", cur_tok(ctx));
 					goto mismatch;
 				}
 			} break;
@@ -461,7 +468,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 
 	/* Variable name */
 	if (!parse_ident(ctx, (AST_Node**)ret_ident, enclosing_decl, NULL)) {
-		report_error(ctx, "Expected identifier, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+		report_error_expected(ctx, "identifier", cur_tok(ctx));
 		goto mismatch;
 	}
 
@@ -485,14 +492,14 @@ INTERNAL bool parse_var_decl(Parse_Ctx *ctx, AST_Node **ret, bool is_param_decl)
 
 	if (!is_param_decl) {
 		if (!accept_tok(ctx, Token_semi)) {
-			report_error(ctx, "Expected ';' before '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+			report_error_expected(ctx, "';'", cur_tok(ctx));
 			goto mismatch;
 		}
 	}
 
 	end_node_parsing(ctx);
 
-	*ret = (AST_Node*)decl;
+	*ret = AST_BASE(decl);
 	return true;
 
 mismatch:
@@ -509,7 +516,7 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret)
 		goto mismatch;
 
 	if (!accept_tok(ctx, Token_open_paren)) {
-		report_error(ctx, "Expected '(', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+		report_error_expected(ctx, "'('", cur_tok(ctx));
 		goto mismatch;
 	}
 
@@ -532,7 +539,7 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret)
 	}
 
 	if (!accept_tok(ctx, Token_close_paren)) {
-		report_error(ctx, "Expected ')', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+		report_error_expected(ctx, "')'", cur_tok(ctx));
 		goto mismatch;
 	}
 
@@ -547,7 +554,7 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret)
 
 	end_node_parsing(ctx);
 
-	*ret = (AST_Node*)decl;
+	*ret = AST_BASE(decl);
 	return true;
 
 mismatch:
@@ -563,7 +570,7 @@ INTERNAL bool parse_block(Parse_Ctx *ctx, AST_Scope **ret)
 	begin_node_parsing(ctx, (AST_Node**)&scope);
 
 	if (!accept_tok(ctx, Token_open_brace)) {
-		report_error(ctx, "Expected '{', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+		report_error_expected(ctx, "'{'", cur_tok(ctx));
 		goto mismatch;
 	}
 
@@ -602,14 +609,14 @@ INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret)
 			literal->value.string= tok->text;
 		break;
 		default:
-			report_error(ctx, "Expected literal, got '%.*s'", BUF_STR_ARGS(tok->text));
+			report_error_expected(ctx, "literal", cur_tok(ctx));
 			goto mismatch;
 	}
 	advance_tok(ctx);
 
 	end_node_parsing(ctx);
 
-	*ret = (AST_Node*)literal;
+	*ret = AST_BASE(literal);
 	return true;
 
 mismatch:
@@ -632,7 +639,7 @@ INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret)
 	}
 
 	if (!accept_tok(ctx, Token_close_paren)) {
-		report_error(ctx, "Expected ')', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+		report_error_expected(ctx, "')'", cur_tok(ctx));
 		goto mismatch;
 	}
 
@@ -664,7 +671,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			expr = AST_BASE(call);
 
 			if (!accept_tok(ctx, Token_open_paren)) {
-				report_error(ctx, "Expected '(', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+				report_error_expected(ctx, "'('", cur_tok(ctx));
 				goto mismatch;
 			}
 
@@ -723,7 +730,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 		}
 		expr = AST_BASE(biop);
 	} else {
-		report_error(ctx, "Expected identifier or literal, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+		report_error_expected(ctx, "identifier or literal", cur_tok(ctx));
 		goto mismatch;
 	}
 	/* @todo ^ parse parens */
@@ -783,14 +790,14 @@ INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret)
 		case Token_kw_return: {
 			advance_tok(ctx);
 			if (!parse_element(ctx, &control->value)) {
-				report_error(ctx, "Expected return value, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+				report_error_expected(ctx, "return value", cur_tok(ctx));
 				goto mismatch;
 			}
 		} break;
 		case Token_kw_goto: {
 			advance_tok(ctx);
 			if (!parse_element(ctx, &control->value)) {
-				report_error(ctx, "Expected goto label, got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+				report_error_expected(ctx, "goto label", cur_tok(ctx));
 				goto mismatch;
 			}
 		} break;
@@ -799,13 +806,78 @@ INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret)
 			advance_tok(ctx);
 		break;
 		default:
-			report_error(ctx, "Expected control statement, got '%.*s'", BUF_STR_ARGS(tok->text));
+			report_error_expected(ctx, "control statement", cur_tok(ctx));
 			goto mismatch;
 	}
 
 	end_node_parsing(ctx);
 
-	*ret = (AST_Node*)control;
+	*ret = AST_BASE(control);
+	return true;
+
+mismatch:
+	cancel_node_parsing(ctx);
+	return false;
+}
+
+/* Parse example: if (..) { .. } else { .. } */
+INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret)
+{
+	AST_Cond *cond = create_cond_node();
+
+	begin_node_parsing(ctx, (AST_Node**)&cond);
+
+	if (!accept_tok(ctx, Token_kw_if)) {
+		report_error_expected(ctx, "'if'", cur_tok(ctx));
+		goto mismatch;
+	}
+
+	if (!accept_tok(ctx, Token_open_paren)) {
+		report_error_expected(ctx, "'('", cur_tok(ctx));
+		goto mismatch;
+	}
+
+	if (!parse_expr(ctx, &cond->expr, 0))
+		goto mismatch;
+
+	if (!accept_tok(ctx, Token_close_paren)) {
+		report_error_expected(ctx, "')'", cur_tok(ctx));
+		goto mismatch;
+	}
+
+	if (!accept_tok(ctx, Token_semi)) {
+		if (parse_block(ctx, &cond->body)) {
+			;
+		} else {
+			AST_Scope *scope = create_scope_node();
+			AST_Node *elem = NULL;
+			cond->body = scope;
+
+			if (parse_element(ctx, &elem)) {
+				push_array(AST_Node_Ptr)(&scope->nodes, elem);
+			} else {
+				goto mismatch;
+			}
+		}
+	}
+
+	if (accept_tok(ctx, Token_kw_else)) {
+		if (!accept_tok(ctx, Token_semi)) {
+			if (!parse_element(ctx, &cond->after_else))
+				goto mismatch;
+		}
+
+		if (cond->after_else) {
+			if (	cond->after_else->type != AST_scope ||
+					cond->after_else->type != AST_cond) {
+				report_error_expected(ctx, "'if', '{' or ';'", cur_tok(ctx));
+			}
+		}
+	}
+
+	end_node_parsing(ctx);
+
+	*ret = AST_BASE(cond);
 	return true;
 
 mismatch:
@@ -835,6 +907,8 @@ INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret)
 	else if (parse_control(ctx, &result))
 		;
 	else if (parse_block(ctx, (AST_Scope**)&result))
+		;
+	else if (parse_cond(ctx, &result))
 		;
 	else 
 		goto mismatch;

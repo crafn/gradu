@@ -39,6 +39,7 @@ AST_Node *create_ast_node(AST_Node_Type type)
 		case AST_control: return AST_BASE(create_control_node());
 		case AST_call: return AST_BASE(create_call_node());
 		case AST_access: return AST_BASE(create_access_node());
+		case AST_cond: return AST_BASE(create_cond_node());
 		default: FAIL(("create_ast_node: Unknown node type %i", type));
 	}
 }
@@ -93,6 +94,9 @@ AST_Access *create_access_node()
 	return access;
 }
 
+AST_Cond *create_cond_node()
+{ return CREATE_NODE(AST_Cond, AST_cond); }
+
 
 /* Node copying */
 
@@ -118,45 +122,60 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 			ASSERT(refnode_count == 0);
 			copy_scope_node((AST_Scope*)copy, (AST_Scope*)node, subnodes, subnode_count);
 		break;
+
 		case AST_ident: {
 			ASSERT(subnode_count == 0 && refnode_count == 1);
 			copy_ident_node((AST_Ident*)copy, (AST_Ident*)node, refnodes[0]);
 		} break;
+
 		case AST_type: {
 			ASSERT(subnode_count == 0 && refnode_count == 1);
 			copy_type_node((AST_Type*)copy, (AST_Type*)node, refnodes[0]);
 		} break;
+
 		case AST_type_decl: {
 			ASSERT(subnode_count == 2 && refnode_count == 1);
 			copy_type_decl_node((AST_Type_Decl*)copy, (AST_Type_Decl*)node, subnodes[0], subnodes[1], refnodes[0]);
 		} break;
+
 		case AST_var_decl: {
 			ASSERT(subnode_count == 3 && refnode_count == 0);
 			copy_var_decl_node((AST_Var_Decl*)copy, (AST_Var_Decl*)node, subnodes[0], subnodes[1], subnodes[2]);
 		} break;
+
 		case AST_func_decl: {
 			ASSERT(subnode_count >= 3 && refnode_count == 0);
 			copy_func_decl_node((AST_Func_Decl*)copy, (AST_Func_Decl*)node, subnodes[0], subnodes[1], subnodes[2], &subnodes[3], subnode_count - 3);
 		} break;
+
 		case AST_literal: {
 			ASSERT(subnode_count == 0 && refnode_count == 0);
 			copy_literal_node((AST_Literal*)copy, (AST_Literal*)node);
 		} break;
+
 		case AST_biop: {
 			ASSERT(subnode_count == 2 && refnode_count == 0);
 			copy_biop_node((AST_Biop*)copy, (AST_Biop*)node, subnodes[0], subnodes[1]);
 		} break;
+
 		case AST_control: {
 			ASSERT(subnode_count == 1 && refnode_count == 0);
 			copy_control_node((AST_Control*)copy, (AST_Control*)node, subnodes[0]);
 		} break;
+
 		case AST_call: {
 			ASSERT(subnode_count >= 1 && refnode_count == 0);
 			copy_call_node((AST_Call*)copy, (AST_Call*)node, subnodes[0], &subnodes[1], subnode_count - 1);
 		} break;
+
 		case AST_access: {
 			ASSERT(subnode_count >= 1 && refnode_count == 0);
 			copy_access_node((AST_Access*)copy, (AST_Access*)node, subnodes[0], &subnodes[1], subnode_count - 1);
+		} break;
+
+		case AST_cond: {
+			ASSERT(subnode_count == 3 && refnode_count == 0);
+			copy_cond_node((AST_Cond*)copy, (AST_Cond*)node, subnodes[0], subnodes[1], subnodes[2]);
 		} break;
 		default: FAIL(("copy_ast_node: Unknown node type %i", node->type));
 	}
@@ -298,6 +317,15 @@ void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_
 	copy->is_array_access = access->is_array_access;
 }
 
+void copy_cond_node(AST_Cond *copy, AST_Cond *cond, AST_Node *expr, AST_Node *body, AST_Node *after_else)
+{
+	copy_ast_node_base(AST_BASE(copy), AST_BASE(cond));
+	ASSERT(!body || body->type == AST_scope);
+	copy->expr = expr;
+	copy->body = (AST_Scope*)body;
+	copy->after_else = after_else;
+}
+
 void destroy_node(AST_Node *node)
 {
 	int i;
@@ -366,6 +394,13 @@ void destroy_node(AST_Node *node)
 		for (i = 0; i < access->args.size; ++i)
 			destroy_node(access->args.data[i]);
 	} break;
+
+	case AST_cond: {
+		CASTED_NODE(AST_Cond, cond, node);
+		destroy_node(cond->expr);
+		destroy_node(AST_BASE(cond->body));
+		destroy_node(cond->after_else);
+	} break;
 	
 	default: FAIL(("destroy_node: Unknown node type %i", node->type));
 	}
@@ -416,6 +451,9 @@ void shallow_destroy_node(AST_Node *node)
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
 		destroy_array(AST_Node_Ptr)(&access->args);
+	} break;
+
+	case AST_cond: {
 	} break;
 
 	default: FAIL(("shallow_destroy_node: Unknown node type %i", node->type));
@@ -629,6 +667,13 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 		insert_array(AST_Node_Ptr)(ret, ret->size, access->args.data, access->args.size);
 	} break;
 
+	case AST_cond: {
+		CASTED_NODE(AST_Cond, cond, node);
+		push_array(AST_Node_Ptr)(ret, cond->expr);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(cond->body));
+		push_array(AST_Node_Ptr)(ret, cond->after_else);
+	} break;
+
 	default: FAIL(("push_immediate_subnodes: Unknown node type: %i", node->type));
 	}
 }
@@ -662,6 +707,7 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 	case AST_control: break;
 	case AST_call: break;
 	case AST_access: break;
+	case AST_cond: break;
 
 	default: FAIL(("push_immediate_refnodes: Unknown node type: %i", node->type));
 	}
@@ -851,6 +897,14 @@ void print_ast(AST_Node *node, int indent)
 		print_ast(access->base, indent + 2);
 		for (i = 0; i < access->args.size; ++i)
 			print_ast(access->args.data[i], indent + 2);
+	} break;
+
+	case AST_cond: {
+		CASTED_NODE(AST_Cond, cond, node);
+		printf("cond\n");
+		print_ast(cond->expr, indent + 2);
+		print_ast(AST_BASE(cond->body), indent + 2);
+		print_ast(cond->after_else, indent + 2);
 	} break;
 
 	default: FAIL(("print_ast: Unknown node type %i", node->type));

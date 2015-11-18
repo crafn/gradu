@@ -538,11 +538,12 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 {
 	int i, k;
 	bool omitted = false;
+	int indent_add = 4;
 
 	switch (node->type) {
 	case AST_scope: {
 		CASTED_NODE(AST_Scope, scope, node);
-		int new_indent = indent + 4;
+		int new_indent = indent + indent_add;
 		if (scope->is_root)
 			new_indent = 0;
 
@@ -568,7 +569,9 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			append_str(buf, "%*s", new_indent, "");
 			statement_omitted = ast_to_c_str(buf, new_indent, sub);
 
-			if (!statement_omitted && sub->type != AST_func_decl && sub->type != AST_scope)
+			if (!statement_omitted &&	sub->type != AST_func_decl &&
+										sub->type != AST_scope &&
+										sub->type != AST_cond)
 				append_str(buf, ";");
 
 			if (!statement_omitted && !sub->begin_tok && scope->is_root)
@@ -700,6 +703,27 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			append_str(buf, "]");
 		} else if (access->is_element_access) {
 			FAIL(("All element accesses should be transformed to member + array accesses"));
+		}
+	} break;
+
+	case AST_cond: {
+		CASTED_NODE(AST_Cond, cond, node);
+		append_str(buf, "if (");
+		ast_to_c_str(buf, indent, cond->expr);
+		append_str(buf, ") ");
+		if (cond->body) {
+			ast_to_c_str(buf, indent, AST_BASE(cond->body));
+		} else {
+			append_str(buf, "\n%*s;", indent + indent_add, "");
+		}
+
+		if (cond->after_else) {
+			if (cond->body)
+				append_str(buf, " ");
+			else
+				append_str(buf, "\n%*s", indent, "");
+			append_str(buf, "else ");
+			ast_to_c_str(buf, indent, cond->after_else);
 		}
 	} break;
 

@@ -6,10 +6,11 @@
 
 /* General todo list
 	- if and loops
-	- handle (ignore but preserve) C preprocessor
-	- handle (ignore but preserve) other C stuff
 	- attributes to AST (like __global__ in cuda)
 	- unit tests
+	- typedef
+	- handle (ignore but preserve) C preprocessor
+	- handle (ignore but preserve) other C stuff
 */
 
 const char *backends = "[c|cuda]";

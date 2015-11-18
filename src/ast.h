@@ -16,11 +16,8 @@ typedef enum {
 	AST_biop,
 	AST_control,
 	AST_call,
-	AST_access
-		/*
-	AST_uop,
-	AST_label,
-	*/
+	AST_access,
+	AST_cond
 } AST_Node_Type;
 
 struct AST_Node;
@@ -191,6 +188,17 @@ typedef struct AST_Access {
 	/* @todo Field access etc. */
 } AST_Access;
 
+/* If */
+typedef struct AST_Cond {
+	AST_Node b;
+
+	AST_Node *expr;
+	AST_Scope *body;
+
+	/* Must be AST_Scope or AST_Cond or NULL */
+	AST_Node *after_else;
+} AST_Cond;
+
 /* Usage: CASTED_NODE(AST_Ident, ident, generic_node); printf("%c", ident->text_buf[0]); */
 #define CASTED_NODE(type, name, assign) \
 	type *name = (type*)assign
@@ -214,6 +222,7 @@ AST_Biop *create_biop_node();
 AST_Control *create_control_node();
 AST_Call *create_call_node();
 AST_Access *create_access_node();
+AST_Cond *create_cond_node();
 
 /* Copies only stuff in AST_Node structure. Useful for copying comments to another node, for example. */
 void copy_ast_node_base(AST_Node *dst, AST_Node *src);
@@ -237,6 +246,7 @@ void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs
 void copy_control_node(AST_Control *copy, AST_Control *control, AST_Node *value);
 void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **args, int arg_count);
 void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node **args, int arg_count);
+void copy_cond_node(AST_Cond *copy, AST_Cond *cond, AST_Node *expr, AST_Node *body, AST_Node *after_else);
 
 /* Recursive */
 /* @todo Use destroy_ast for this */

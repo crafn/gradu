@@ -22,6 +22,17 @@ int main(int argc, char **argv)
 	mat3(0, 1) = 2;
 	mat3(1, 1) = 3;
 
+	if (1) {
+		/* Foo */
+		mat2 = mat3;
+	} else if (2)
+		result = mat1;
+	else {
+		/* Bar */
+		if (1)
+			;
+	}
+
 	// This comment should survive to the generated code
 	result = mat1 * mat2 * mat3;
 

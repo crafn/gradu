@@ -87,7 +87,11 @@ AST_Call *create_call_node()
 }
 
 AST_Access *create_access_node()
-{ return CREATE_NODE(AST_Access, AST_access); }
+{
+	AST_Access *access = CREATE_NODE(AST_Access, AST_access);
+	access->args = create_array(AST_Node_Ptr)(1);
+	return access;
+}
 
 
 /* Node copying */
@@ -123,8 +127,8 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 			copy_type_node((AST_Type*)copy, (AST_Type*)node, refnodes[0]);
 		} break;
 		case AST_type_decl: {
-			ASSERT(subnode_count == 2 && refnode_count == 0);
-			copy_type_decl_node((AST_Type_Decl*)copy, (AST_Type_Decl*)node, subnodes[0], subnodes[1]);
+			ASSERT(subnode_count == 2 && refnode_count == 1);
+			copy_type_decl_node((AST_Type_Decl*)copy, (AST_Type_Decl*)node, subnodes[0], subnodes[1], refnodes[0]);
 		} break;
 		case AST_var_decl: {
 			ASSERT(subnode_count == 3 && refnode_count == 0);
@@ -151,8 +155,8 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 			copy_call_node((AST_Call*)copy, (AST_Call*)node, subnodes[0], &subnodes[1], subnode_count - 1);
 		} break;
 		case AST_access: {
-			ASSERT(subnode_count >= 2 && refnode_count == 0);
-			copy_access_node((AST_Access*)copy, (AST_Access*)node, subnodes[0], subnodes[1]);
+			ASSERT(subnode_count >= 1 && refnode_count == 0);
+			copy_access_node((AST_Access*)copy, (AST_Access*)node, subnodes[0], &subnodes[1], subnode_count - 1);
 		} break;
 		default: FAIL(("copy_ast_node: Unknown node type %i", node->type));
 	}
@@ -203,15 +207,17 @@ void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_d
 	copy->ptr_depth = type->ptr_depth;
 }
 
-void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body)
+void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body, AST_Node *builtin_decl_ref)
 {
 	ASSERT(!ident || ident->type == AST_ident);
 	ASSERT(!body || body->type == AST_scope);
+	ASSERT(!builtin_decl_ref || builtin_decl_ref->type == AST_type_decl);
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(decl));
 	copy->ident = (AST_Ident*)ident;
 	copy->body = (AST_Scope*)body;
 	copy->is_builtin = decl->is_builtin;
 	copy->builtin_type = decl->builtin_type;
+	copy->builtin_concrete_decl = (AST_Type_Decl*)builtin_decl_ref;
 }
 
 void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value)
@@ -276,12 +282,16 @@ void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **
 	}
 }
 
-void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node *sub)
+void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node **args, int arg_count)
 {
+	int i;
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(access));
 	copy->base = base;
-	copy->sub = sub;
+	clear_array(AST_Node_Ptr)(&copy->args);
+	for (i = 0; i < arg_count; ++i)
+		push_array(AST_Node_Ptr)(&copy->args, args[i]);
 	copy->is_member_access = access->is_member_access;
+	copy->is_element_access = access->is_element_access;
 	copy->is_array_access = access->is_array_access;
 }
 
@@ -350,7 +360,8 @@ void destroy_node(AST_Node *node)
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
 		destroy_node(access->base);
-		destroy_node(access->sub);
+		for (i = 0; i < access->args.size; ++i)
+			destroy_node(access->args.data[i]);
 	} break;
 	
 	default: FAIL(("destroy_node: Unknown node type %i", node->type));
@@ -400,6 +411,8 @@ void shallow_destroy_node(AST_Node *node)
 	} break;
 
 	case AST_access: {
+		CASTED_NODE(AST_Access, access, node);
+		destroy_array(AST_Node_Ptr)(&access->args);
 	} break;
 
 	default: FAIL(("shallow_destroy_node: Unknown node type %i", node->type));
@@ -435,7 +448,8 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, expr);
 		if (access->is_member_access) {
-			success = expr_type(ret, access->sub);
+			ASSERT(access->args.size == 1);
+			success = expr_type(ret, access->args.data[0]);
 		} else if (access->is_array_access) {
 			success = expr_type(ret, access->base);
 			--ret->ptr_depth;
@@ -520,6 +534,13 @@ AST_Node *copy_ast(AST_Node *node)
 	return ret;
 }
 
+AST_Node *shallow_copy_ast(AST_Node *node)
+{
+	AST_Node *copy = create_ast_node(node->type);
+	shallow_copy_ast_node(copy, node);
+	return copy;
+}
+
 void move_ast(AST_Scope *dst, AST_Scope *src)
 {
 	/* Substitute subnodes in dst with subnodes of src, and destroy src */
@@ -602,7 +623,7 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
 		push_array(AST_Node_Ptr)(ret, access->base);
-		push_array(AST_Node_Ptr)(ret, access->sub);
+		insert_array(AST_Node_Ptr)(ret, ret->size, access->args.data, access->args.size);
 	} break;
 
 	default: FAIL(("push_immediate_subnodes: Unknown node type: %i", node->type));
@@ -627,7 +648,10 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 		push_array(AST_Node_Ptr)(ret, AST_BASE(type->base_type_decl));
 	} break;
 
-	case AST_type_decl: break;
+	case AST_type_decl: {
+		CASTED_NODE(AST_Type_Decl, decl, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->builtin_concrete_decl));
+	} break;
 	case AST_var_decl: break;
 	case AST_func_decl: break;
 	case AST_literal: break;
@@ -817,7 +841,8 @@ void print_ast(AST_Node *node, int indent)
 		CASTED_NODE(AST_Access, access, node);
 		printf("access\n");
 		print_ast(access->base, indent + 2);
-		print_ast(access->sub, indent + 2);
+		for (i = 0; i < access->args.size; ++i)
+			print_ast(access->args.data[i], indent + 2);
 	} break;
 
 	default: FAIL(("print_ast: Unknown node type %i", node->type));
@@ -861,6 +886,14 @@ AST_Type_Decl *find_builtin_type_decl(Builtin_Type bt, AST_Scope *root)
 	}
 	FAIL(("Builtin type not found"));
 	return NULL;
+}
+
+AST_Literal *create_integer_literal(int value)
+{
+	AST_Literal *literal = create_literal_node();
+	literal->type = Literal_int;
+	literal->value.integer = value;
+	return literal;
 }
 
 Builtin_Type void_builtin_type()

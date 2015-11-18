@@ -117,32 +117,35 @@ INTERNAL AST_Access *create_access_for_var(AST_Var_Decl *var_decl)
 INTERNAL AST_Access *create_access_for_array(AST_Node *expr, int index)
 {
 	AST_Access *access = create_access_node();
-	AST_Literal *literal = create_literal_node();
-
-	literal->type = Literal_int;
-	literal->value.integer = index;
-
 	access->base = expr;
-	access->sub = AST_BASE(literal);
+	push_array(AST_Node_Ptr)(&access->args, AST_BASE(create_integer_literal(index)));
 	access->is_array_access = true;
-
 	return access;
 }
 
 INTERNAL AST_Access *create_access_for_member(AST_Var_Decl *base_decl, AST_Var_Decl *member_decl)
 {
 	AST_Access *access = create_access_node();
-	AST_Ident *base_ident = create_ident_node();
-	AST_Ident *member_ident = create_ident_node();
-
-	shallow_copy_ast_node(AST_BASE(base_ident), AST_BASE(base_decl->ident));
-	shallow_copy_ast_node(AST_BASE(member_ident), AST_BASE(member_decl->ident));
+	AST_Ident *base_ident = (AST_Ident*)shallow_copy_ast(AST_BASE(base_decl->ident));
+	AST_Ident *member_ident = (AST_Ident*)shallow_copy_ast(AST_BASE(member_decl->ident));
 
 	access->base = AST_BASE(base_ident);
-	access->sub = AST_BASE(member_ident);
+	push_array(AST_Node_Ptr)(&access->args, AST_BASE(member_ident));
 	access->is_member_access = true;
 
 	return access;
+}
+
+INTERNAL AST_Var_Decl *c_mat_elements_decl(AST_Type_Decl *mat_decl)
+{
+	AST_Node *m = mat_decl->body->nodes.data[0];
+	ASSERT(m->type == AST_var_decl);
+	return (AST_Var_Decl*)m;
+}
+
+INTERNAL AST_Type_Decl *c_mat_decl(Builtin_Type bt, AST_Scope *root)
+{
+	return find_builtin_type_decl(bt, root)->builtin_concrete_decl;
 }
 
 /* @todo Generalize for n-rank matrices */
@@ -330,6 +333,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 				mat_decl = create_type_decl_node();
 				mat_decl->ident = create_ident_for_builtin(bt);
 				mat_decl->body = create_scope_node();
+				decl->builtin_concrete_decl = mat_decl;
 
 				{ /* struct member */
 					AST_Type_Decl *m_type_decl = create_type_decl_node(); /* @todo Use existing type decl */
@@ -415,7 +419,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 	destroy_array(AST_Node_Ptr)(&generated_decls);
 }
 
-INTERNAL void apply_c_operator_overloading(AST_Scope *root)
+void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 {
 	int i;
 	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
@@ -425,19 +429,17 @@ INTERNAL void apply_c_operator_overloading(AST_Scope *root)
 
 	for (i = 0; i < subnodes.size; ++i) {
 		/* Handle matrix "operator overloading" */
-		if (subnodes.data[i]->type == AST_biop) {
+		if (convert_mat_expr && subnodes.data[i]->type == AST_biop) {
 			CASTED_NODE(AST_Biop, biop, subnodes.data[i]);
 			AST_Type type;
 			Builtin_Type bt;
 
-			if (!expr_type(&type, AST_BASE(biop)))
-				continue;
-
 			if (biop->type == Token_assign)
+				continue;
+			if (!expr_type(&type, AST_BASE(biop)))
 				continue;
 			if (!type.base_type_decl->is_builtin)
 				continue;
-
 			bt = type.base_type_decl->builtin_type;
 			if (!bt.is_matrix)
 				continue;
@@ -461,12 +463,58 @@ INTERNAL void apply_c_operator_overloading(AST_Scope *root)
 				push_array(AST_Node_Ptr)(&replace_list_new, AST_BASE(call));
 			}
 		}
+
+		/* Convert matrix element accesses to member array accesses */
+		if (subnodes.data[i]->type == AST_access) {
+			CASTED_NODE(AST_Access, access, subnodes.data[i]);
+			AST_Type type;
+			Builtin_Type bt;
+
+			if (!access->is_element_access)
+				continue;
+			if (!expr_type(&type, access->base))
+				continue;
+			if (!type.base_type_decl->is_builtin)
+				continue;
+			bt = type.base_type_decl->builtin_type;
+			if (!bt.is_matrix)
+				continue;
+
+			{ /* Transform from mat(1, 2) -> mat.m[1 + 2*sizex] */
+				AST_Type_Decl *mat_decl = c_mat_decl(bt, root);
+				AST_Access *member_access = create_access_node();
+				AST_Access *array_access = create_access_node();
+				AST_Biop *sum = create_biop_node();
+				AST_Biop *prod = create_biop_node();
+
+				member_access->base = access->base;
+				push_array(AST_Node_Ptr)(&member_access->args, AST_BASE(create_access_for_var(c_mat_elements_decl(mat_decl))));
+				member_access->is_member_access = true;
+
+				array_access->base = AST_BASE(member_access);
+				push_array(AST_Node_Ptr)(&array_access->args, AST_BASE(sum));
+				array_access->is_array_access = true;
+
+				ASSERT(access->args.size == 2); /* @todo Generic matrix rank */
+				sum->type = Token_add;
+				sum->lhs = access->args.data[0];
+				sum->rhs = AST_BASE(prod);
+
+				prod->type = Token_mul;
+				prod->lhs = access->args.data[1];
+				prod->rhs = AST_BASE(create_integer_literal(bt.matrix_dim[0]));
+
+				push_array(AST_Node_Ptr)(&replace_list_old, AST_BASE(access));
+				push_array(AST_Node_Ptr)(&replace_list_new, AST_BASE(array_access));
+			}
+		}
 	}
 
 	{ /* Replace old nodes with new nodes */
 		ASSERT(replace_list_new.size == replace_list_old.size);
 		replace_nodes_in_ast(AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
 
+		/* No deep copies of branches */
 		for (i = 0; i < replace_list_old.size; ++i)
 			shallow_destroy_node(replace_list_old.data[i]);
 	}
@@ -629,11 +677,15 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		ast_to_c_str(buf, indent, access->base);
 		if (access->is_member_access) {
 			append_str(buf, ".");
-			ast_to_c_str(buf, indent, access->sub);
+			ASSERT(access->args.size == 1);
+			ast_to_c_str(buf, indent, access->args.data[0]);
 		} else if (access->is_array_access) {
 			append_str(buf, "[");
-			ast_to_c_str(buf, indent, access->sub);
+			ASSERT(access->args.size == 1);
+			ast_to_c_str(buf, indent, access->args.data[0]);
 			append_str(buf, "]");
+		} else if (access->is_element_access) {
+			FAIL(("All element accesses should be transformed to member + array accesses"));
 		}
 	} break;
 
@@ -650,7 +702,7 @@ Array(char) gen_c_code(AST_Scope *root)
 	AST_Scope *modified_ast = (AST_Scope*)copy_ast(AST_BASE(root));
 	lift_types_and_funcs_to_global_scope(modified_ast);
 	add_builtin_c_decls_to_global_scope(modified_ast, true);
-	apply_c_operator_overloading(modified_ast);
+	apply_c_operator_overloading(modified_ast, true);
 
 	ast_to_c_str(&gen_src, 0, AST_BASE(modified_ast));
 	destroy_ast(modified_ast);

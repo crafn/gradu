@@ -106,6 +106,7 @@ typedef struct AST_Type_Decl {
 	/* 'body' and 'ident' are NULL for builtin types */
 	bool is_builtin; /* void, int, char etc. */
 	Builtin_Type builtin_type;
+	struct AST_Type_Decl *builtin_concrete_decl; /* Not owned. Backend can use this wanted */
 } AST_Type_Decl;
 
 /* Variable declaration / definition */
@@ -174,13 +175,14 @@ typedef struct AST_Call {
 typedef struct AST_Access {
 	AST_Node b;
 
-	/* base -- base.sub -- base->sub -- base[sub] */
+	/* base -- base.sub -- base->sub -- base[sub] -- some_matrix(0, 0)*/
 	AST_Node *base;
-	AST_Node *sub;
+	Array(AST_Node_Ptr) args; /* e.g. matrix(x, y) requires multiple args */
 	/* @todo Decide if 'base.sub' -> Access(Access(Ident(base)).Ident(sub)) or not.
 	 * Currently it's Access(Ident(base).Ident(sub)) */
 
 	bool is_member_access;
+	bool is_element_access; /* Matrix or field element access */
 	bool is_array_access;
 
 	/* @todo Field access etc. */
@@ -194,6 +196,7 @@ typedef struct AST_Access {
 AST_Scope *create_ast();
 void destroy_ast(AST_Scope *node);
 AST_Node *copy_ast(AST_Node *node);
+AST_Node *shallow_copy_ast(AST_Node *node);
 void move_ast(AST_Scope *dst, AST_Scope *src);
 
 AST_Node *create_ast_node(AST_Node_Type type);
@@ -223,14 +226,14 @@ void shallow_copy_ast_node(AST_Node *copy, AST_Node* node);
 void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int subnode_count);
 void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl);
 void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_decl);
-void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body);
+void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body, AST_Node *backend_decl_ref);
 void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value);
 void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *body, AST_Node **params, int param_count);
 void copy_literal_node(AST_Literal *copy, AST_Literal *literal);
 void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs);
 void copy_control_node(AST_Control *copy, AST_Control *control, AST_Node *value);
 void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **args, int arg_count);
-void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node *sub);
+void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node **args, int arg_count);
 
 /* Recursive */
 /* @todo Use destroy_ast for this */
@@ -265,6 +268,7 @@ void print_ast(AST_Node *node, int indent);
 AST_Ident *create_ident_with_text(const char *fmt, ...);
 AST_Var_Decl *create_simple_var_decl(AST_Type_Decl *type_decl, const char *ident);
 AST_Type_Decl *find_builtin_type_decl(Builtin_Type bt, AST_Scope *root);
+AST_Literal *create_integer_literal(int value);
 
 Builtin_Type void_builtin_type();
 Builtin_Type int_builtin_type();

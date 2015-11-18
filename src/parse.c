@@ -603,6 +603,31 @@ mismatch:
 	return false;
 }
 
+/* Parses 'foo, bar)' */
+INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret)
+{
+	while (cur_tok(ctx)->type != Token_close_paren) {
+		AST_Node *arg = NULL;
+		if (cur_tok(ctx)->type == Token_comma)
+			advance_tok(ctx);
+
+		if (!parse_expr(ctx, (AST_Node**)&arg, true))
+			goto mismatch;
+
+		push_array(AST_Node_Ptr)(ret, arg);
+	}
+
+	if (!accept_tok(ctx, Token_close_paren)) {
+		report_error(ctx, "Expected ')', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+		goto mismatch;
+	}
+
+	return true;
+
+mismatch:
+	return false;
+}
+
 /* Parse example: var = 5 + 3 * 2; */
 INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 {
@@ -629,23 +654,9 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 				goto mismatch;
 			}
 
-			{ /* Parse argument list */
-				while (cur_tok(ctx)->type != Token_close_paren) {
-					AST_Node *arg = NULL;
-					if (cur_tok(ctx)->type == Token_comma)
-						advance_tok(ctx);
-
-					if (!parse_expr(ctx, (AST_Node**)&arg, true))
-						goto mismatch;
-
-					push_array(AST_Node_Ptr)(&call->args, arg);
-				}
-			}
-
-			if (!accept_tok(ctx, Token_close_paren)) {
-				report_error(ctx, "Expected ')', got '%.*s'", BUF_STR_ARGS(cur_tok(ctx)->text));
+			if (!parse_arg_list(ctx, &call->args))
 				goto mismatch;
-			}
+
 		} else if (ident->decl->type == AST_var_decl) {
 			/* This is variable access */
 			/* @todo This might have to be moved to main expr loop below as '.' operator
@@ -659,6 +670,8 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 				access->is_member_access = true;
 			} else if (accept_tok(ctx, Token_right_arrow)) {
 				access->is_member_access = true;
+			} else if (accept_tok(ctx, Token_open_paren)) {
+				access->is_element_access = true;
 			} else {
 				;
 			}
@@ -677,8 +690,11 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 					ASSERT(base_type_scope);
 					if (!parse_ident(ctx, (AST_Node**)&sub, NULL, base_type_scope))
 						goto mismatch;
-					access->sub = AST_BASE(sub);
+					push_array(AST_Node_Ptr)(&access->args, AST_BASE(sub));
 				}
+			} else if (access->is_element_access) {
+				if (!parse_arg_list(ctx, &access->args))
+					goto mismatch;
 			}
 		}
 	} else {

@@ -38,3 +38,5 @@ gen
 .fuse_hidden*
 compiled
 generated.c
+tests/*_c
+tests/*_cu

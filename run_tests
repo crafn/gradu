@@ -1,5 +1,81 @@
-#!/bin/bash
-./gen simple.qft -b c -o generated.c
-gcc -g -O0 -Wall -Wextra -Wno-unused-parameter -std=c89 -pedantic generated.c -o compiled
-echo "Running compiled program"
-./compiled
+#!/usr/bin/env python
+import os, sys
+
+test_files = [
+	"./tests/hello_world.qft",
+	"./tests/builtin_types.qft",
+	"./tests/syntax.qft",
+	"./tests/simulation.qft",
+]
+
+class backend:
+	name = ""
+	src_ext = ""
+	compile_command = ""
+
+colors = {
+    "pink" : '\033[95m',
+    "blue" : '\033[94m',
+    "green" : '\033[92m',
+    "yellow" : '\033[93m',
+    "red" : '\033[91m',
+    "bold" : '\033[1m',
+    "underline" : '\033[4m',
+    "end" : '\033[0m',
+}
+
+def styled(str, color):
+	return colors[color] + str + colors["end"]
+
+if __name__ == "__main__":
+	backends = []
+
+	c_backend = backend()
+	c_backend.name = "c"
+	c_backend.src_ext = "c"
+	c_backend.compile_command = "gcc -g -O0 -Wall -Wextra -Werror -Wno-unused-parameter -std=c89 -pedantic"
+	backends.append(c_backend)
+
+	cuda_backend = backend()
+	cuda_backend.name = "cuda"
+	cuda_backend.src_ext = "cu"
+	cuda_backend.compile_command = "nvcc -g -O0 -lc -lcudart"
+	backends.append(cuda_backend)
+
+	log = []
+	failure_count = 0
+	for test in test_files:
+		for backend in backends:
+			test_name = test + " " + backend.name
+			print(styled(test_name, "bold"))
+
+			# Compile to C
+			phase = "codegen"
+			gen_file = os.path.splitext(test)[0] + "." + backend.src_ext
+			bin_file = os.path.splitext(test)[0] + "_" + backend.src_ext
+			ret = os.system("./gen -backend=" + backend.name + " -output=" + gen_file + " "  + test)
+
+			# Compile C to binary
+			if ret == 0:
+				phase = "backend compiler"
+				ret = os.system(backend.compile_command + " " + gen_file + " -o " + bin_file)
+
+			# Run binary
+			if ret == 0:
+				phase = "running binary"
+				ret = os.system(bin_file);
+
+			if ret == 0:
+				log.append(styled("  " + test_name, "green"))
+			else:
+				failure_count += 1
+				log.append(styled("* " + test_name + " (" + phase + ")", "red"))
+
+	if failure_count == 0:
+		print(styled("*** All tests completed ***", "green"))
+	else:
+		print(styled("*** FAILED TESTS (" + str(failure_count) + ") ***", "red"))
+
+	for row in log:
+		print(row)
+

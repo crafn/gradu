@@ -571,7 +571,8 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 			if (!statement_omitted &&	sub->type != AST_func_decl &&
 										sub->type != AST_scope &&
-										sub->type != AST_cond)
+										sub->type != AST_cond &&
+										sub->type != AST_loop)
 				append_str(buf, ";");
 
 			if (!statement_omitted && !sub->begin_tok && scope->is_root)
@@ -725,6 +726,28 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			append_str(buf, "else ");
 			ast_to_c_str(buf, indent, cond->after_else);
 		}
+	} break;
+
+	case AST_loop: {
+		CASTED_NODE(AST_Loop, loop, node);
+		if (loop->init) {
+			append_str(buf, "for (");
+			ast_to_c_str(buf, indent, loop->init);
+			append_str(buf, "; ");
+			ast_to_c_str(buf, indent, loop->cond);
+			append_str(buf, "; ");
+			ast_to_c_str(buf, indent, loop->incr);
+			append_str(buf, ") ");
+		} else {
+			append_str(buf, "while (");
+			ast_to_c_str(buf, indent, loop->cond);
+			append_str(buf, ") ");
+		}
+
+		if (loop->body)
+			ast_to_c_str(buf, indent, AST_BASE(loop->body));
+		else
+			append_str(buf, "\n%*s;", indent + indent_add, "");
 	} break;
 
 	default: FAIL(("ast_to_c_str: Unknown node type: %i", node->type));

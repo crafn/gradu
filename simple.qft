@@ -2,6 +2,7 @@ int printf(const char *fmt, ..);
 
 int main(int argc, char **argv)
 {
+	int i; // @todo Free placement for declarations
 	int matrix(3, 3) mat1;
 	int matrix(3, 3) mat2;
 	int matrix(3, 3) mat3;
@@ -24,13 +25,18 @@ int main(int argc, char **argv)
 
 	if (1) {
 		/* Foo */
-		mat2 = mat3;
+		for (i = 0; i < 10; i = i + 1) { // @todo ++i and i++
+			printf("Looping %i\n", i);
+		}
 	} else if (2)
-		result = mat1;
+		for (i = 0; i < 10; i = i + 1)
+			;
 	else {
 		/* Bar */
 		if (1)
-			;
+			i = 2; /* Comment */
+		while (i)
+			i = i - 1; // @todo --i and i--
 	}
 
 	// This comment should survive to the generated code

@@ -51,6 +51,7 @@ typedef enum {
 	Token_kw_else, /* else */
 	Token_kw_null, /* NULL */
 	Token_kw_for, /* for */
+	Token_kw_while, /* while */
 	Token_kw_if, /* if */
 	Token_kw_true, /* true */
 	Token_kw_false, /* false */
@@ -78,6 +79,7 @@ typedef struct Token {
 
 	/* Used only for comments */
 	int comment_bound_to; /* -1 == prev token, 1 == next_token */
+	int comment_ast_depth; /* Used by parser */
 } Token;
 
 static bool is_comment_tok(Token_Type type) { return type == Token_line_comment || type == Token_block_comment; }

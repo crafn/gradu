@@ -5,7 +5,6 @@
 #include "parse.h"
 
 /* General todo list
-	- if and loops
 	- attributes to AST (like __global__ in cuda)
 	- unit tests
 	- typedef

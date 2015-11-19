@@ -40,6 +40,7 @@ AST_Node *create_ast_node(AST_Node_Type type)
 		case AST_call: return AST_BASE(create_call_node());
 		case AST_access: return AST_BASE(create_access_node());
 		case AST_cond: return AST_BASE(create_cond_node());
+		case AST_loop: return AST_BASE(create_loop_node());
 		default: FAIL(("create_ast_node: Unknown node type %i", type));
 	}
 }
@@ -96,6 +97,9 @@ AST_Access *create_access_node()
 
 AST_Cond *create_cond_node()
 { return CREATE_NODE(AST_Cond, AST_cond); }
+
+AST_Loop *create_loop_node()
+{ return CREATE_NODE(AST_Loop, AST_loop); }
 
 
 /* Node copying */
@@ -176,6 +180,11 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 		case AST_cond: {
 			ASSERT(subnode_count == 3 && refnode_count == 0);
 			copy_cond_node((AST_Cond*)copy, (AST_Cond*)node, subnodes[0], subnodes[1], subnodes[2]);
+		} break;
+
+		case AST_loop: {
+			ASSERT(subnode_count == 4 && refnode_count == 0);
+			copy_loop_node((AST_Loop*)copy, (AST_Loop*)node, subnodes[0], subnodes[1], subnodes[2], subnodes[3]);
 		} break;
 		default: FAIL(("copy_ast_node: Unknown node type %i", node->type));
 	}
@@ -273,7 +282,8 @@ void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *ret
 void copy_literal_node(AST_Literal *copy, AST_Literal *literal)
 {
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(literal));
-	*copy = *literal;
+	copy->type = literal->type;
+	copy->value = literal->value;
 }
 
 void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs)
@@ -324,6 +334,18 @@ void copy_cond_node(AST_Cond *copy, AST_Cond *cond, AST_Node *expr, AST_Node *bo
 	copy->expr = expr;
 	copy->body = (AST_Scope*)body;
 	copy->after_else = after_else;
+	copy->implicit_scope = cond->implicit_scope;
+}
+
+void copy_loop_node(AST_Loop *copy, AST_Loop *loop, AST_Node *init, AST_Node *cond, AST_Node *incr, AST_Node *body)
+{
+	copy_ast_node_base(AST_BASE(copy), AST_BASE(loop));
+	ASSERT(!body || body->type == AST_scope);
+	copy->init = init;
+	copy->cond = cond;
+	copy->incr = incr;
+	copy->body = (AST_Scope*)body;
+	copy->implicit_scope = loop->implicit_scope;
 }
 
 void destroy_node(AST_Node *node)
@@ -401,7 +423,15 @@ void destroy_node(AST_Node *node)
 		destroy_node(AST_BASE(cond->body));
 		destroy_node(cond->after_else);
 	} break;
-	
+
+	case AST_loop: {
+		CASTED_NODE(AST_Loop, loop, node);
+		destroy_node(loop->init);
+		destroy_node(loop->cond);
+		destroy_node(loop->incr);
+		destroy_node(AST_BASE(loop->body));
+	} break;
+
 	default: FAIL(("destroy_node: Unknown node type %i", node->type));
 	}
 	shallow_destroy_node(node);
@@ -454,6 +484,9 @@ void shallow_destroy_node(AST_Node *node)
 	} break;
 
 	case AST_cond: {
+	} break;
+
+	case AST_loop: {
 	} break;
 
 	default: FAIL(("shallow_destroy_node: Unknown node type %i", node->type));
@@ -674,6 +707,14 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 		push_array(AST_Node_Ptr)(ret, cond->after_else);
 	} break;
 
+	case AST_loop: {
+		CASTED_NODE(AST_Loop, loop, node);
+		push_array(AST_Node_Ptr)(ret, loop->init);
+		push_array(AST_Node_Ptr)(ret, loop->cond);
+		push_array(AST_Node_Ptr)(ret, loop->incr);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(loop->body));
+	} break;
+
 	default: FAIL(("push_immediate_subnodes: Unknown node type: %i", node->type));
 	}
 }
@@ -708,6 +749,7 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 	case AST_call: break;
 	case AST_access: break;
 	case AST_cond: break;
+	case AST_loop: break;
 
 	default: FAIL(("push_immediate_refnodes: Unknown node type: %i", node->type));
 	}
@@ -905,6 +947,15 @@ void print_ast(AST_Node *node, int indent)
 		print_ast(cond->expr, indent + 2);
 		print_ast(AST_BASE(cond->body), indent + 2);
 		print_ast(cond->after_else, indent + 2);
+	} break;
+
+	case AST_loop: {
+		CASTED_NODE(AST_Loop, loop, node);
+		printf("loop\n");
+		print_ast(loop->init, indent + 2);
+		print_ast(loop->cond, indent + 2);
+		print_ast(loop->incr, indent + 2);
+		print_ast(AST_BASE(loop->body), indent + 2);
 	} break;
 
 	default: FAIL(("print_ast: Unknown node type %i", node->type));

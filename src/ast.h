@@ -17,7 +17,8 @@ typedef enum {
 	AST_control,
 	AST_call,
 	AST_access,
-	AST_cond
+	AST_cond,
+	AST_loop
 } AST_Node_Type;
 
 struct AST_Node;
@@ -150,8 +151,8 @@ typedef struct AST_Literal {
 typedef struct AST_Biop {
 	AST_Node b;
 	Token_Type type;
-	AST_Node *lhs; /* NULL for unary operation */
-	AST_Node *rhs;
+	AST_Node *lhs; /* NULL for unary operations like '-5' */
+	AST_Node *rhs; /* NULL for unary operations like 'i++' */
 
 	bool is_top_level; /* This is not part of another expression */
 } AST_Biop;
@@ -175,9 +176,9 @@ typedef struct AST_Call {
 typedef struct AST_Access {
 	AST_Node b;
 
-	/* base -- base.sub -- base->sub -- base[sub] -- some_matrix(0, 0)*/
+	/* base -- base.arg -- base->arg -- base[arg] -- some_matrix(arg1, arg2)*/
 	AST_Node *base;
-	Array(AST_Node_Ptr) args; /* e.g. matrix(x, y) requires multiple args */
+	Array(AST_Node_Ptr) args;
 	/* @todo Decide if 'base.sub' -> Access(Access(Ident(base)).Ident(sub)) or not.
 	 * Currently it's Access(Ident(base).Ident(sub)) */
 
@@ -188,16 +189,32 @@ typedef struct AST_Access {
 	/* @todo Field access etc. */
 } AST_Access;
 
-/* If */
+/* if */
 typedef struct AST_Cond {
 	AST_Node b;
 
 	AST_Node *expr;
 	AST_Scope *body;
+	bool implicit_scope; /* Original source had no { } */
 
 	/* Must be AST_Scope or AST_Cond or NULL */
 	AST_Node *after_else;
 } AST_Cond;
+
+/* while/for/do-while */
+typedef struct AST_Loop {
+	AST_Node b;
+
+	/* while-loop has only 'cond' */
+	AST_Node *init;
+	AST_Node *cond;
+	AST_Node *incr;
+
+	AST_Scope *body;
+	bool implicit_scope; /* Original source had no { } */
+
+	/* @todo do-while */
+} AST_Loop;
 
 /* Usage: CASTED_NODE(AST_Ident, ident, generic_node); printf("%c", ident->text_buf[0]); */
 #define CASTED_NODE(type, name, assign) \
@@ -223,6 +240,7 @@ AST_Control *create_control_node();
 AST_Call *create_call_node();
 AST_Access *create_access_node();
 AST_Cond *create_cond_node();
+AST_Loop *create_loop_node();
 
 /* Copies only stuff in AST_Node structure. Useful for copying comments to another node, for example. */
 void copy_ast_node_base(AST_Node *dst, AST_Node *src);
@@ -247,6 +265,7 @@ void copy_control_node(AST_Control *copy, AST_Control *control, AST_Node *value)
 void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **args, int arg_count);
 void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node **args, int arg_count);
 void copy_cond_node(AST_Cond *copy, AST_Cond *cond, AST_Node *expr, AST_Node *body, AST_Node *after_else);
+void copy_loop_node(AST_Loop *copy, AST_Loop *loop, AST_Node *init, AST_Node *cond, AST_Node *incr, AST_Node *body);
 
 /* Recursive */
 /* @todo Use destroy_ast for this */

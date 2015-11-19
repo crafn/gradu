@@ -98,6 +98,8 @@ INTERNAL Token_Type kw_tokentype(const char *buf, int size)
 		return Token_kw_null;
 	if (str_equals_buf("for", buf, size))
 		return Token_kw_for;
+	if (str_equals_buf("while", buf, size))
+		return Token_kw_while;
 	if (str_equals_buf("if", buf, size))
 		return Token_kw_if;
 	if (str_equals_buf("true", buf, size))
@@ -406,6 +408,7 @@ const char* tokentype_codestr(Token_Type type)
 		case Token_kw_else: return "else";
 		case Token_kw_null: return "NULL";
 		case Token_kw_for: return "for";
+		case Token_kw_while: return "while";
 		case Token_kw_if: return "if";
 		case Token_kw_true: return "true";
 		case Token_kw_false: return "false";

@@ -23,10 +23,16 @@ int str_to_int(Buf_Str text)
 int op_prec(Token_Type type)
 {
 	switch (type) {
-		case Token_equals: return 1;
-		case Token_assign: return 2;
-		case Token_add: return 3;
-		case Token_mul: return 4;
+		case Token_leq: return 1;
+		case Token_geq: return 1;
+		case Token_less: return 1;
+		case Token_greater: return 1;
+		case Token_equals: return 2;
+		case Token_assign: return 3;
+		case Token_add: return 4;
+		case Token_sub: return 4;
+		case Token_mul: return 5;
+		case Token_div: return 5;
 		default: return -1;
 	}
 }
@@ -35,10 +41,7 @@ int op_prec(Token_Type type)
 int op_assoc(Token_Type type)
 {
 	switch (type) {
-		case Token_equals: return -1;
 		case Token_assign: return 1; /* a = b = c  <=>  (a = (b = c)) */
-		case Token_add: return -1;
-		case Token_mul: return -1;
 		default: return -1;
 	}
 }
@@ -115,6 +118,19 @@ INTERNAL void begin_node_parsing(Parse_Ctx *ctx, AST_Node **node)
 	push_array(Parse_Stack_Frame)(&ctx->parse_stack, frame);
 }
 
+INTERNAL bool can_have_post_comments(AST_Node *node)
+{
+	/* if or loop without explicit scope can't have post-comments -- only the statement can */
+	if (node->type == AST_cond) {
+		CASTED_NODE(AST_Cond, cond, node);
+		return !cond->implicit_scope;
+	} else if (node->type == AST_loop) {
+		CASTED_NODE(AST_Loop, loop, node);
+		return !loop->implicit_scope;
+	}
+	return true;
+}
+
 INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 {
 	Parse_Stack_Frame frame = pop_array(Parse_Stack_Frame)(&ctx->parse_stack);
@@ -138,7 +154,7 @@ INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 			++tok;
 		}
 	}
-	if ((*frame.node)->post_comments.size == 0) {
+	if (can_have_post_comments(*frame.node) && (*frame.node)->post_comments.size == 0) {
 		Token *tok = cur_tok(ctx);
 		/* Cursor has been advanced past following comments, rewind */
 		--tok;
@@ -260,6 +276,7 @@ INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec);
 INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret);
+INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret);
 
 /* If decl is NULL, then declaration is searched. */
@@ -820,24 +837,14 @@ mismatch:
 	return false;
 }
 
-/* Parse example: if (..) { .. } else { .. } */
-INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret)
+INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret)
 {
-	AST_Cond *cond = create_cond_node();
-
-	begin_node_parsing(ctx, (AST_Node**)&cond);
-
-	if (!accept_tok(ctx, Token_kw_if)) {
-		report_error_expected(ctx, "'if'", cur_tok(ctx));
-		goto mismatch;
-	}
-
 	if (!accept_tok(ctx, Token_open_paren)) {
 		report_error_expected(ctx, "'('", cur_tok(ctx));
 		goto mismatch;
 	}
 
-	if (!parse_expr(ctx, &cond->expr, 0))
+	if (!parse_expr(ctx, ret, 0))
 		goto mismatch;
 
 	if (!accept_tok(ctx, Token_close_paren)) {
@@ -845,13 +852,35 @@ INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret)
 		goto mismatch;
 	}
 
+	return true;
+
+mismatch:
+	return false;
+}
+
+/* Parse example: if (..) { .. } else { .. } */
+INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret)
+{
+	AST_Cond *cond = create_cond_node();
+	begin_node_parsing(ctx, (AST_Node**)&cond);
+
+	if (!accept_tok(ctx, Token_kw_if)) {
+		report_error_expected(ctx, "'if'", cur_tok(ctx));
+		goto mismatch;
+	}
+
+	if (!parse_expr_inside_parens(ctx, &cond->expr))
+		goto mismatch;
+
 	if (!accept_tok(ctx, Token_semi)) {
 		if (parse_block(ctx, &cond->body)) {
 			;
 		} else {
+			/* Always have scope, because then we can expand one statement to multiple ones without worry */
 			AST_Scope *scope = create_scope_node();
 			AST_Node *elem = NULL;
 			cond->body = scope;
+			cond->implicit_scope = true;
 
 			if (parse_element(ctx, &elem)) {
 				push_array(AST_Node_Ptr)(&scope->nodes, elem);
@@ -876,8 +905,67 @@ INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret)
 	}
 
 	end_node_parsing(ctx);
-
 	*ret = AST_BASE(cond);
+	return true;
+
+mismatch:
+	cancel_node_parsing(ctx);
+	return false;
+}
+
+/* Parse example: while(1) { .. } -- for (i = 0; i < 10; ++i) { .. } */
+INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret)
+{
+	AST_Loop *loop = create_loop_node();
+	begin_node_parsing(ctx, (AST_Node**)&loop);
+
+	if (accept_tok(ctx, Token_kw_for)) {
+		if (!accept_tok(ctx, Token_open_paren)) {
+			report_error_expected(ctx, "'('", cur_tok(ctx));
+			goto mismatch;
+		}
+
+		if (!parse_expr(ctx, &loop->init, 0))
+			goto mismatch;
+
+		if (!parse_expr(ctx, &loop->cond, 0))
+			goto mismatch;
+
+		if (!parse_expr(ctx, &loop->incr, 0))
+			goto mismatch;
+
+		if (!accept_tok(ctx, Token_close_paren)) {
+			report_error_expected(ctx, "')'", cur_tok(ctx));
+			goto mismatch;
+		}
+	} else if (accept_tok(ctx, Token_kw_while)) {
+		if (!parse_expr_inside_parens(ctx, &loop->cond))
+			goto mismatch;
+	} else {
+		report_error_expected(ctx, "beginning of a loop", cur_tok(ctx));
+		goto mismatch;
+	}
+
+	if (!accept_tok(ctx, Token_semi)) {
+		if (parse_block(ctx, &loop->body)) {
+			;
+		} else {
+			/* Always have scope, because then we can expand one statement to multiple ones without worry */
+			AST_Scope *scope = create_scope_node();
+			AST_Node *elem = NULL;
+			loop->body = scope;
+			loop->implicit_scope = true;
+
+			if (parse_element(ctx, &elem)) {
+				push_array(AST_Node_Ptr)(&scope->nodes, elem);
+			} else {
+				goto mismatch;
+			}
+		}
+	}
+
+	end_node_parsing(ctx);
+	*ret = AST_BASE(loop);
 	return true;
 
 mismatch:
@@ -909,6 +997,8 @@ INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret)
 	else if (parse_block(ctx, (AST_Scope**)&result))
 		;
 	else if (parse_cond(ctx, &result))
+		;
+	else if (parse_loop(ctx, &result))
 		;
 	else 
 		goto mismatch;

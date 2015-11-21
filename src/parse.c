@@ -273,6 +273,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_block(Parse_Ctx *ctx, AST_Scope **ret);
 INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret);
+INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec);
 INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret);
@@ -362,6 +363,27 @@ mismatch:
 	return false;
 }
 
+AST_Type_Decl *create_decl_for_builtin(Parse_Ctx *ctx, Builtin_Type bt)
+{
+	int i;
+	/* Search for builtin declaration from existing decls */
+	for (i = 0; i < ctx->builtin_decls.size; ++i) {
+		AST_Type_Decl *decl = ctx->builtin_decls.data[i];
+		Builtin_Type t = decl->builtin_type;
+		if (builtin_type_equals(t, bt))
+			return decl;
+	}
+
+	{ /* Create new builtin decl if not found */
+		AST_Type_Decl *decl = create_type_decl_node();
+		/* Note that the declaration doesn't have ident -- it's up to backend to generate it */
+		decl->is_builtin = true;
+		decl->builtin_type = bt;
+		push_array(AST_Type_Decl_Ptr)(&ctx->builtin_decls, decl);
+		return decl;
+	}
+}
+
 /* Type and ident in same function because of cases like 'int (*foo)()' */
 INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Ident **ret_ident, AST_Node *enclosing_decl)
 {
@@ -440,40 +462,75 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 					goto mismatch;
 				}
 			} break;
+			case Token_kw_field: {
+				AST_Node *dim_expr = NULL;
+				AST_Literal dim_value;
+				bt.is_field = true;
+				advance_tok(ctx);
+
+				if (!parse_expr_inside_parens(ctx, &dim_expr))
+					goto mismatch;
+				if (!eval_const_expr(&dim_value, dim_expr)) {
+					report_error(ctx, "Field dimension must be a constant expression");
+					goto mismatch;
+				}
+				if (dim_value.type != Literal_int) {
+					report_error(ctx, "Field dimension must be an integer");
+					goto mismatch;
+				}
+				bt.field_dim = dim_value.value.integer;
+				/* Constant expression is removed */
+				destroy_node(dim_expr);
+			} break;
 			default: recognized = false;
 			}
 			if (recognized)
 				is_builtin = true;
 		}
 
+		/* Create builtin decls for types included in the type */
 		if (is_builtin) {
-			int i;
-			/* Search for builtin declaration from existing decls */
-			for (i = 0; i < ctx->builtin_decls.size; ++i) {
-				AST_Type_Decl *decl = ctx->builtin_decls.data[i];
-				Builtin_Type t = decl->builtin_type;
-				if (builtin_type_equals(t, bt)) {
-					found_decl = (AST_Node*)decl;
-					break;
-				}
-			}
-			/* Create new builtin decl if not found */
-			if (!found_decl) {
-				AST_Type_Decl *decl = create_type_decl_node();
-				/* Note that the declaration doesn't have ident -- it's up to backend to generate it */
-				decl->is_builtin = true;
-				decl->builtin_type = bt;
-				push_array(AST_Type_Decl_Ptr)(&ctx->builtin_decls, decl);
+			AST_Type_Decl *builtin_type = NULL;
+			AST_Type_Decl *field_sub_type = NULL;
+			AST_Type_Decl *matrix_sub_type = NULL;
 
-				found_decl = AST_BASE(decl);
+			if (bt.is_field) {
+				Builtin_Type sub_type = bt;
+				sub_type.is_field = false;
+				field_sub_type = create_decl_for_builtin(ctx, sub_type);
 			}
+
+			if (bt.is_matrix) {
+				Builtin_Type sub_type = bt;
+				sub_type.is_matrix = false;
+				sub_type.is_field = false;
+				matrix_sub_type = create_decl_for_builtin(ctx, sub_type);
+
+				/* 'int matrix field' generates int, matrix, and field type decls.
+				 * This sets matrix->sub_builtin_type_decl to the int type decl. */
+				if (field_sub_type)
+					field_sub_type->sub_builtin_type_decl = matrix_sub_type;
+			}
+
+			builtin_type = create_decl_for_builtin(ctx, bt);
+
+			if (field_sub_type) {
+				builtin_type->sub_builtin_type_decl = field_sub_type;
+			} else if (matrix_sub_type) {
+				builtin_type->sub_builtin_type_decl = matrix_sub_type;
+			}
+
+			found_decl = AST_BASE(builtin_type);
 		} else {
 			found_decl = find_decl_scoped(ctx, cur_tok(ctx)->text);
 			if (found_decl)
 				advance_tok(ctx);
 		}
 		if (!found_decl || found_decl->type != AST_type_decl) {
-			report_error(ctx, "'%.*s' is not declared in this scope", BUF_STR_ARGS(cur_tok(ctx)->text));
+			if (cur_tok(ctx)->type == Token_name)
+				report_error(ctx, "'%.*s' is not declared in this scope", BUF_STR_ARGS(cur_tok(ctx)->text));
+			else
+				report_error_expected(ctx, "type name", cur_tok(ctx));
 			goto mismatch;
 		}
 		type->base_type_decl = (AST_Type_Decl*)found_decl;
@@ -666,6 +723,29 @@ mismatch:
 	return false;
 }
 
+/* Parse example: (4 * 2) */
+INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret)
+{
+	if (!accept_tok(ctx, Token_open_paren)) {
+		report_error_expected(ctx, "'('", cur_tok(ctx));
+		goto mismatch;
+	}
+
+	if (!parse_expr(ctx, ret, 0))
+		goto mismatch;
+
+	if (!accept_tok(ctx, Token_close_paren)) {
+		report_error_expected(ctx, "')'", cur_tok(ctx));
+		goto mismatch;
+	}
+
+	return true;
+
+mismatch:
+	return false;
+}
+
+
 /* Parse example: var = 5 + 3 * 2; */
 INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 {
@@ -834,27 +914,6 @@ INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret)
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
-}
-
-INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret)
-{
-	if (!accept_tok(ctx, Token_open_paren)) {
-		report_error_expected(ctx, "'('", cur_tok(ctx));
-		goto mismatch;
-	}
-
-	if (!parse_expr(ctx, ret, 0))
-		goto mismatch;
-
-	if (!accept_tok(ctx, Token_close_paren)) {
-		report_error_expected(ctx, "')'", cur_tok(ctx));
-		goto mismatch;
-	}
-
-	return true;
-
-mismatch:
 	return false;
 }
 

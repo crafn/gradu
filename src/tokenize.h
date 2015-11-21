@@ -62,6 +62,7 @@ typedef enum {
 	Token_kw_char,
 	Token_kw_float,
 	Token_kw_matrix,
+	Token_kw_field,
 	Token_kw_const,
 	Token_unknown
 } Token_Type;

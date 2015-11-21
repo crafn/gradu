@@ -120,6 +120,8 @@ INTERNAL Token_Type kw_tokentype(const char *buf, int size)
 		return Token_kw_float;
 	if (str_equals_buf("matrix", buf, size))
 		return Token_kw_matrix;
+	if (str_equals_buf("field", buf, size))
+		return Token_kw_field;
 	if (str_equals_buf("const", buf, size))
 		return Token_kw_const;
 	return Token_unknown;
@@ -354,6 +356,7 @@ const char* tokentype_str(Token_Type type)
 		case Token_kw_char: return "kw_char";
 		case Token_kw_float: return "kw_float";
 		case Token_kw_matrix: return "kw_matrix";
+		case Token_kw_field: return "kw_field";
 		case Token_kw_const: return "kw_const";
 		case Token_unknown:
 		default: return "unknown";
@@ -418,6 +421,7 @@ const char* tokentype_codestr(Token_Type type)
 		case Token_kw_char: return "char";
 		case Token_kw_float: return "float";
 		case Token_kw_matrix: return "matrix";
+		case Token_kw_field: return "field";
 		case Token_kw_const: return "const";
 		case Token_unknown:
 		default: return "???";

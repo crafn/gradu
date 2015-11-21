@@ -3,11 +3,14 @@ int printf(const char *fmt, ..);
 int main(int argc, char **argv)
 {
 	// Not yet a simulation!
+	int field(2 + 1) test_field;
+	float matrix(2, 2) field(2) test_field2;
 
 	int matrix(3, 3) mat1;
 	int matrix(3, 3) mat2;
 	int matrix(3, 3) mat3;
 	int matrix(3, 3) result;
+	float matrix(2, 2) test;
 
 	mat1(0, 0) = 1;
 	mat1(1, 0) = -1 + -2 * -3;
@@ -24,8 +27,13 @@ int main(int argc, char **argv)
 	mat3(0, 1) = 2;
 	mat3(1, 1) = 3;
 
+	/* @todo Create and destruct fields. This probably segfaults */
+	test_field(1, 2, 3) = 4;
+	test_field2(1, 2) = test;
+
 	// This comment should survive to the generated code
 	result = mat1 * mat2 * mat3;
+	test = test_field2(0, 0) * test_field2(1, 1);
 
 	printf("(%i, %i)\n(%i, %i)\n", result(0, 0), result(1, 0), result(0, 1), result(1, 1));
 

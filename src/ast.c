@@ -7,12 +7,20 @@ DEFINE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
 
 bool builtin_type_equals(Builtin_Type a, Builtin_Type b)
 {
+	bool is_same_matrix = (a.is_matrix == b.is_matrix);
+	bool is_same_field = (a.is_field == b.is_field);
+	if (is_same_matrix && a.is_matrix)
+		is_same_matrix = !memcmp(a.matrix_dim, b.matrix_dim, sizeof(a.matrix_dim));
+	if (is_same_field && a.is_field)
+		is_same_field = (a.field_dim == b.field_dim);
+
 	return	a.is_void == b.is_void &&
 			a.is_integer == b.is_integer &&
 			a.is_float == b.is_float &&
 			a.bitness == b.bitness &&
 			a.is_unsigned == b.is_unsigned &&
-			a.is_matrix == b.is_matrix;
+			is_same_matrix &&
+			is_same_field;
 }
 
 INTERNAL AST_Node *create_node_impl(AST_Node_Type type, int size)
@@ -138,8 +146,8 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 		} break;
 
 		case AST_type_decl: {
-			ASSERT(subnode_count == 2 && refnode_count == 1);
-			copy_type_decl_node((AST_Type_Decl*)copy, (AST_Type_Decl*)node, subnodes[0], subnodes[1], refnodes[0]);
+			ASSERT(subnode_count == 2 && refnode_count == 2);
+			copy_type_decl_node((AST_Type_Decl*)copy, (AST_Type_Decl*)node, subnodes[0], subnodes[1], refnodes[0], refnodes[1]);
 		} break;
 
 		case AST_var_decl: {
@@ -237,16 +245,18 @@ void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_d
 	copy->is_const = type->is_const;
 }
 
-void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body, AST_Node *builtin_decl_ref)
+void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body, AST_Node *builtin_sub_decl_ref, AST_Node *builtin_decl_ref)
 {
 	ASSERT(!ident || ident->type == AST_ident);
 	ASSERT(!body || body->type == AST_scope);
 	ASSERT(!builtin_decl_ref || builtin_decl_ref->type == AST_type_decl);
+	ASSERT(!builtin_sub_decl_ref || builtin_sub_decl_ref->type == AST_type_decl);
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(decl));
 	copy->ident = (AST_Ident*)ident;
 	copy->body = (AST_Scope*)body;
 	copy->is_builtin = decl->is_builtin;
 	copy->builtin_type = decl->builtin_type;
+	copy->sub_builtin_type_decl = (AST_Type_Decl*)builtin_sub_decl_ref;
 	copy->builtin_concrete_decl = (AST_Type_Decl*)builtin_decl_ref;
 }
 
@@ -524,10 +534,26 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 		if (access->is_member_access) {
 			ASSERT(access->args.size == 1);
 			success = expr_type(ret, access->args.data[0]);
+		} else if (access->is_element_access) {
+			success = expr_type(ret, access->base);
+			/* "Dereference" field -> matrix/scalar, matrix -> scalar */
+			ASSERT(access->base->type == AST_ident);
+			{
+				CASTED_NODE(AST_Ident, ident, access->base);
+				memset(ret, 0, sizeof(*ret));
+				ASSERT(ident->decl->type == AST_var_decl);
+				{
+					CASTED_NODE(AST_Var_Decl, decl, ident->decl); /* Variable declaration of 'm' in 'm(1, 2)' */
+					ASSERT(decl->type->base_type_decl->sub_builtin_type_decl);
+					ret->base_type_decl = decl->type->base_type_decl->sub_builtin_type_decl;
+				}
+			}
 		} else if (access->is_array_access) {
 			success = expr_type(ret, access->base);
 			--ret->ptr_depth;
 		} else {
+			/* Plain variable access */
+			ASSERT(access->args.size == 0);
 			success = expr_type(ret, access->base);
 		}
 	} break;
@@ -538,7 +564,62 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 		success = expr_type(ret, biop->rhs);
 	} break;
 
-	default: FAIL(("expr_type: Unknown node type %i", expr->type));
+	default:;
+	}
+
+	return success;
+}
+
+bool eval_const_expr(AST_Literal *ret, AST_Node *expr)
+{
+	bool success = false;
+	memset(ret, 0, sizeof(*ret));
+
+	switch (expr->type) {
+	case AST_literal: {
+		CASTED_NODE(AST_Literal, literal, expr);
+		ret->type = literal->type;
+		ret->value = literal->value;
+		success = true;
+	} break;
+
+	case AST_biop: {
+		CASTED_NODE(AST_Biop, biop, expr);
+		/* @todo Operation can yield different types than either of operands (2x1 * 1x2 matrices for example) */
+		if (biop->lhs && biop->rhs) {
+			AST_Literal lhs, rhs;
+			success = eval_const_expr(&lhs, biop->lhs);
+			if (!success)
+				break;
+			success = eval_const_expr(&rhs, biop->rhs);
+			if (!success)
+				break;
+			if (lhs.type != rhs.type) {
+				success = false;
+				break;
+			}
+
+			switch (biop->type) {
+			case Token_add:
+				switch (lhs.type) {
+				case Literal_int: ret->value.integer = lhs.value.integer + rhs.value.integer; break;
+				default: FAIL(("Unhandled literal type %i", lhs.type));
+				}
+			break;
+			case Token_sub:
+				switch (lhs.type) {
+				case Literal_int: ret->value.integer = lhs.value.integer - rhs.value.integer; break;
+				default: FAIL(("Unhandled literal type %i", lhs.type));
+				}
+			break;
+			default: FAIL(("Unhandled biop type %i", biop->type));
+			}
+		} else {
+			FAIL(("@todo unary const expr eval"));
+		}
+	} break;
+
+	default:;
 	}
 
 	return success;
@@ -739,6 +820,7 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 
 	case AST_type_decl: {
 		CASTED_NODE(AST_Type_Decl, decl, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->sub_builtin_type_decl));
 		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->builtin_concrete_decl));
 	} break;
 	case AST_var_decl: break;
@@ -865,18 +947,24 @@ void print_ast(AST_Node *node, int indent)
 
 	case AST_type: {
 		CASTED_NODE(AST_Type, type, node);
-		if (type->base_type_decl->is_builtin)
+		if (type->base_type_decl->is_builtin) {
 			printf("builtin_type\n");
-		else
+		} else {
 			printf("type %s %i\n", type->base_type_decl->ident->text.data, type->ptr_depth);
+		}
 	} break;
 
 	case AST_type_decl: {
 		CASTED_NODE(AST_Type_Decl, decl, node);
-		if (decl->is_builtin)
-			printf("builtin_type_decl\n");
-		else
+		if (decl->is_builtin) {
+			Builtin_Type bt = decl->builtin_type;
+			printf("builtin_type_decl: is_field: %i dim: %i  is_matrix: %i rank: %i  is_int: %i  is_float: %i\n",
+					bt.is_field, bt.field_dim,
+					bt.is_matrix, bt.matrix_rank,
+					bt.is_integer, bt.is_float);
+		} else {
 			printf("type_decl\n");
+		}
 		print_ast(AST_BASE(decl->ident), indent + 2);
 		print_ast(AST_BASE(decl->body), indent + 2);
 	} break;
@@ -997,7 +1085,7 @@ AST_Type_Decl *find_builtin_type_decl(Builtin_Type bt, AST_Scope *root)
 				return type_decl;
 		}
 	}
-	FAIL(("Builtin type not found"));
+	FAIL(("find_builtin_type_decl: Builtin type not found"));
 	return NULL;
 }
 
@@ -1021,4 +1109,28 @@ Builtin_Type int_builtin_type()
 	Builtin_Type bt = {0};
 	bt.is_integer = true;
 	return bt;
+}
+
+AST_Node *create_chained_expr(AST_Node **lhs_elems, AST_Node **rhs_elems, int elem_count, Token_Type biop, Token_Type chainop)
+{
+	int i;
+	AST_Node *ret = NULL;
+	for (i = 0; i < elem_count; ++i) {
+		AST_Biop *inner = create_biop_node();
+		inner->type = biop;
+		inner->lhs = lhs_elems[i];
+		inner->rhs = rhs_elems[i];
+
+		if (!ret) {
+			ret = AST_BASE(inner);
+		} else {
+			AST_Biop *outer = create_biop_node();
+			outer->type = chainop;
+			outer->lhs = ret;
+			outer->rhs = AST_BASE(inner);
+
+			ret = AST_BASE(outer);
+		}
+	}
+	return ret;
 }

@@ -88,11 +88,10 @@ typedef struct Builtin_Type {
 	int matrix_rank;
 	int matrix_dim[MAX_MATRIX_RANK];
 
-	/* When adding members, remember to update builtin_type_equals! */
-
-	/*
 	bool is_field;
-	*/
+	int field_dim;
+
+	/* When adding members, remember to update builtin_type_equals! */
 } Builtin_Type;
 bool builtin_type_equals(Builtin_Type a, Builtin_Type b);
 
@@ -105,7 +104,8 @@ typedef struct AST_Type_Decl {
 	/* 'body' and 'ident' are NULL for builtin types */
 	bool is_builtin; /* void, int, char etc. */
 	Builtin_Type builtin_type;
-	struct AST_Type_Decl *builtin_concrete_decl; /* Not owned. Backend can use this wanted */
+	struct AST_Type_Decl *sub_builtin_type_decl; /* Not owner. Matrix/scalar for a field. Scalar for a matrix. */
+	struct AST_Type_Decl *builtin_concrete_decl; /* Not owned. Backend can use this to point generated types. */
 } AST_Type_Decl;
 
 /* Variable declaration / definition */
@@ -256,7 +256,7 @@ void shallow_copy_ast_node(AST_Node *copy, AST_Node* node);
 void copy_scope_node(AST_Scope *copy, AST_Scope *scope, AST_Node **subnodes, int subnode_count);
 void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl);
 void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_decl);
-void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body, AST_Node *backend_decl_ref);
+void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body, AST_Node *builtin_sub_decl_ref, AST_Node *backend_decl_ref);
 void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value);
 void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *body, AST_Node **params, int param_count);
 void copy_literal_node(AST_Literal *copy, AST_Literal *literal);
@@ -274,7 +274,11 @@ void destroy_node(AST_Node *node);
  * Doesn't destroy any owned nodes. */
 void shallow_destroy_node(AST_Node *node);
 
+/* Evaluation */
+/* Don't destroy nodes returned by evaluation, they are not constructed by create_*, just containers of data */
+
 bool expr_type(AST_Type *ret, AST_Node *expr);
+bool eval_const_expr(AST_Literal *ret, AST_Node *expr);
 
 /* AST traversing utils */
 
@@ -297,6 +301,7 @@ void find_subnodes_of_type(Array(AST_Node_Ptr) *ret, AST_Node_Type type, AST_Nod
 void print_ast(AST_Node *node, int indent);
 
 /* Convenience functions */
+
 AST_Ident *create_ident_with_text(const char *fmt, ...);
 AST_Var_Decl *create_simple_var_decl(AST_Type_Decl *type_decl, const char *ident);
 AST_Type_Decl *find_builtin_type_decl(Builtin_Type bt, AST_Scope *root);
@@ -304,5 +309,8 @@ AST_Literal *create_integer_literal(int value);
 
 Builtin_Type void_builtin_type();
 Builtin_Type int_builtin_type();
+
+/* (lhs[0] biop rhs[0]) chainop (lhs[1] biop rhs[1]) */
+AST_Node *create_chained_expr(AST_Node **lhs_elems, AST_Node **rhs_elems, int elem_count, Token_Type biop, Token_Type chainop);
 
 #endif

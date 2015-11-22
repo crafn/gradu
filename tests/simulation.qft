@@ -1,5 +1,9 @@
 int printf(const char *fmt, ..);
 
+int foo(int x) {
+	return 2;
+}
+
 int main(int argc, char **argv)
 {
 	// Not yet a simulation!
@@ -30,6 +34,8 @@ int main(int argc, char **argv)
 	/* @todo Create and destruct fields. This probably segfaults */
 	test_field(1, 2, 3) = 4;
 	test_field2(1, 2) = test;
+
+	test_field2(13, 37)(1, 0) = 3;
 
 	// This comment should survive to the generated code
 	result = mat1 * mat2 * mat3;

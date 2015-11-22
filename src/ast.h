@@ -179,8 +179,9 @@ typedef struct AST_Access {
 	/* base -- base.arg -- base->arg -- base[arg] -- some_matrix(arg1, arg2)*/
 	AST_Node *base;
 	Array(AST_Node_Ptr) args;
-	/* @todo Decide if 'base.sub' -> Access(Access(Ident(base)).Ident(sub)) or not.
-	 * Currently it's Access(Ident(base).Ident(sub)) */
+	/* 'base.sub' -> Access(Access(Ident(base)), Ident(sub))
+	 * 'base' is wrapped in an extra Access, because then '(base + 0)->sub' and '(base)->sub' and 'base.sub'
+	 * are handled uniformly that way (every expression has two Access nodes) */
 
 	bool is_member_access;
 	bool is_element_access; /* Matrix or field element access */

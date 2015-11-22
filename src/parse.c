@@ -763,6 +763,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			goto mismatch;
 		} else if (ident->decl->type == AST_func_decl) {
 			/* This is a function call */
+			/* @todo This should be moved to while loop below next to element access parsing */
 			AST_Call *call = create_call_node();
 			call->ident = ident;
 			expr = AST_BASE(call);
@@ -776,44 +777,10 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 				goto mismatch;
 
 		} else if (ident->decl->type == AST_var_decl) {
-			/* This is variable access */
-			/* @todo This might have to be moved to main expr loop below as '.' operator
-			 * with correct associativity and precedence. Think 'a.b.c'. */
-
+			/* This is a variable access */
 			AST_Access *access = create_access_node();
 			access->base = AST_BASE(ident);
 			expr = AST_BASE(access);
-
-			if (accept_tok(ctx, Token_dot)) {
-				access->is_member_access = true;
-			} else if (accept_tok(ctx, Token_right_arrow)) {
-				access->is_member_access = true;
-			} else if (accept_tok(ctx, Token_open_paren)) {
-				access->is_element_access = true;
-			} else {
-				;
-			}
-
-			if (access->is_member_access) {
-				AST_Ident *sub = NULL;
-				AST_Node *base_decl = ident->decl;
-				if (base_decl->type != AST_var_decl) {
-					report_error(ctx, "@todo: good message for this error");
-					goto mismatch;
-				}
-
-				{
-					CASTED_NODE(AST_Var_Decl, base_var_decl, base_decl);
-					AST_Scope *base_type_scope = base_var_decl->type->base_type_decl->body;
-					ASSERT(base_type_scope);
-					if (!parse_ident(ctx, (AST_Node**)&sub, NULL, base_type_scope))
-						goto mismatch;
-					push_array(AST_Node_Ptr)(&access->args, AST_BASE(sub));
-				}
-			} else if (access->is_element_access) {
-				if (!parse_arg_list(ctx, &access->args))
-					goto mismatch;
-			}
 		}
 	} else if (is_unary_op(cur_tok(ctx)->type)) {
 		AST_Biop *biop = create_biop_node();
@@ -832,31 +799,69 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 	}
 	/* @todo ^ parse parens */
 
-	while (	is_op(cur_tok(ctx)->type) &&
-			op_prec(cur_tok(ctx)->type) >= min_prec) {
-		AST_Node *rhs = NULL;
-		Token *tok = cur_tok(ctx);
-		int prec = op_prec(tok->type);
-		int assoc = op_assoc(tok->type);
-		int next_min_prec;
-		if (assoc == -1)
-			next_min_prec = prec + 1;
-		else
-			next_min_prec = prec;
-		advance_tok(ctx);
+	while (	(is_op(cur_tok(ctx)->type) &&
+			op_prec(cur_tok(ctx)->type) >= min_prec) ||
+			cur_tok(ctx)->type == Token_open_paren ||
+			cur_tok(ctx)->type == Token_dot ||
+			cur_tok(ctx)->type == Token_right_arrow) {
 
-		if (!parse_expr(ctx, &rhs, next_min_prec))
-			goto mismatch;
+		if (is_op(cur_tok(ctx)->type)) {
+			AST_Node *rhs = NULL;
+			Token *tok = cur_tok(ctx);
+			int prec = op_prec(tok->type);
+			int assoc = op_assoc(tok->type);
+			int next_min_prec;
+			if (assoc == -1)
+				next_min_prec = prec + 1;
+			else
+				next_min_prec = prec;
+			advance_tok(ctx);
 
-		{
-			/* @todo Type checking */
-			/* @todo Operator overloading */
-			AST_Biop *biop = create_biop_node();
-			biop->type = tok->type;
-			biop->lhs = expr;
-			biop->rhs = rhs;
-			biop->is_top_level = (ctx->expr_depth == 1);
-			expr = AST_BASE(biop);
+			if (!parse_expr(ctx, &rhs, next_min_prec))
+				goto mismatch;
+
+			{
+				/* @todo Type checking */
+				/* @todo Operator overloading */
+				AST_Biop *biop = create_biop_node();
+				biop->type = tok->type;
+				biop->lhs = expr;
+				biop->rhs = rhs;
+				biop->is_top_level = (ctx->expr_depth == 1);
+				expr = AST_BASE(biop);
+			}
+		} else if (accept_tok(ctx, Token_dot) || accept_tok(ctx, Token_right_arrow)) {
+			AST_Type base_type;
+			if (!expr_type(&base_type, expr)) {
+				report_error(ctx, "Expression does not have accessible members");
+				goto mismatch;
+			}
+
+			{
+				AST_Access *access = create_access_node();
+				AST_Ident *sub = NULL;
+				access->base = expr;
+				expr = AST_BASE(access);
+				access->is_member_access = true;
+
+				{
+					AST_Scope *base_type_scope = base_type.base_type_decl->body;
+					ASSERT(base_type_scope);
+					if (!parse_ident(ctx, (AST_Node**)&sub, NULL, base_type_scope))
+						goto mismatch;
+					push_array(AST_Node_Ptr)(&access->args, AST_BASE(sub));
+				}
+			}
+		} else if (accept_tok(ctx, Token_open_paren)) {
+			AST_Access *access = create_access_node();
+			access->is_element_access = true;
+			access->base = expr;
+			expr = AST_BASE(access);
+
+			if (!parse_arg_list(ctx, &access->args))
+				goto mismatch;
+		} else {
+			FAIL(("Expression parsing logic failed"));
 		}
 	}
 

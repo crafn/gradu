@@ -537,9 +537,12 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 		} else if (access->is_element_access) {
 			success = expr_type(ret, access->base);
 			/* "Dereference" field -> matrix/scalar, matrix -> scalar */
-			ASSERT(access->base->type == AST_ident);
+			ASSERT(access->base->type == AST_access);
 			{
-				CASTED_NODE(AST_Ident, ident, access->base);
+				CASTED_NODE(AST_Access, base, access->base);
+				CASTED_NODE(AST_Ident, ident, base->base);
+				ASSERT(base->base->type == AST_ident);
+
 				memset(ret, 0, sizeof(*ret));
 				ASSERT(ident->decl->type == AST_var_decl);
 				{

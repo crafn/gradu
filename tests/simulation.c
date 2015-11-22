@@ -47,6 +47,11 @@ intmat3x3 intmat3x3_mul(intmat3x3 lhs, intmat3x3 rhs)
 
 int printf(const char *fmt, ...);
 
+int foo(int x)
+{
+    return 2;
+}
+
 int main(int argc, char **argv)
 {
     /* Not yet a simulation! */
@@ -77,6 +82,8 @@ int main(int argc, char **argv)
     /* @todo Create and destruct fields. This probably segfaults */
     test_field.m[test_field.size[0] * 1 + test_field.size[1] * 2 + test_field.size[2] * 3] = 4;
     test_field2.m[test_field2.size[0] * 1 + test_field2.size[1] * 2] = test;
+
+    test_field2.m[test_field2.size[0] * 13 + test_field2.size[1] * 37].m[1 * 1 + 2 * 0] = 3;
 
     /* This comment should survive to the generated code */
     result = intmat3x3_mul(intmat3x3_mul(mat1, mat2), mat3);

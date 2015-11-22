@@ -2,12 +2,15 @@
 
 INTERNAL bool is_builtin_decl(AST_Node *node)
 {
-	if (node->type != AST_type_decl)
-		return false;
-	{
+	if (node->type == AST_type_decl) {
 		CASTED_NODE(AST_Type_Decl, decl, node);
 		return decl->is_builtin;
+	} else if (node->type == AST_func_decl) {
+		CASTED_NODE(AST_Func_Decl, decl, node);
+		return decl->is_builtin;
 	}
+
+	return false;
 }
 
 void append_builtin_type_c_str(Array(char) *buf, Builtin_Type bt)
@@ -164,7 +167,9 @@ INTERNAL AST_Var_Decl *c_field_size_decl(AST_Type_Decl *field_decl)
 
 INTERNAL AST_Type_Decl *concrete_type_decl(Builtin_Type bt, AST_Scope *root)
 {
-	return find_builtin_type_decl(bt, root)->builtin_concrete_decl;
+	AST_Type_Decl *decl = find_builtin_type_decl(bt, root)->builtin_concrete_decl;
+	ASSERT(decl);
+	return decl;
 }
 
 /* @todo Generalize for n-rank matrices */
@@ -446,6 +451,9 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 
 				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(mul_decl));
 			}
+		} else if (subnodes.data[i]->type == AST_func_decl) {
+			/* Field alloc and dealloc funcs */
+			/* @todo */
 		}
 	}
 
@@ -684,6 +692,10 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_func_decl: {
 		CASTED_NODE(AST_Func_Decl, decl, node);
+		if (decl->is_builtin) {
+			omitted = true;
+			break;
+		}
 		append_type_and_ident_str(buf, decl->return_type, decl->ident);
 		append_str(buf, "(");
 		for (i = 0; i < decl->params.size; ++i) {

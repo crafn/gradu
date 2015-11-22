@@ -75,8 +75,8 @@ typedef struct Parse_Ctx {
 	Token *tok; /* Access with cur_tok */
 	int expr_depth;
 
-	/* Builtin types are generated while parsing */
-	Array(AST_Type_Decl_Ptr) builtin_decls;
+	/* Builtin type and funcs decls are generated while parsing */
+	Array(AST_Node_Ptr) builtin_decls;
 
 	Array(char) error_msg;
 	Token *error_tok;
@@ -243,10 +243,6 @@ INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, Buf_Str name)
 
 				{
 					AST_Ident *ident = decl_ident(node);
-/*					printf("trying to match decl %.*s <=> %s\n",
-							BUF_STR_ARGS(buf),
-							ident->text.data);
-							*/
 					if (!buf_str_equals(c_str_to_buf_str(ident->text.data), name))
 						continue;
 
@@ -259,6 +255,27 @@ INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, Buf_Str name)
 		if (found_decl)
 			break;
 	}
+
+	if (!found_decl) {
+		/* Look from builtin funcs. */
+		/* This doesn't find types, only functions, because e.g. decl
+		 * 'float matrix(2,2)' doesn't have an identifier */
+		for (i = 0; i < ctx->builtin_decls.size; ++i) {
+			AST_Node *node = ctx->builtin_decls.data[i];
+			if (!is_decl(node))
+				continue;
+
+			{
+				AST_Ident *ident = decl_ident(node);
+				if (!ident || !buf_str_equals(c_str_to_buf_str(ident->text.data), name))
+					continue;
+
+				found_decl = node;
+				break;
+			}
+		}
+	}
+
 	return found_decl;
 }
 
@@ -368,19 +385,73 @@ AST_Type_Decl *create_decl_for_builtin(Parse_Ctx *ctx, Builtin_Type bt)
 	int i;
 	/* Search for builtin declaration from existing decls */
 	for (i = 0; i < ctx->builtin_decls.size; ++i) {
-		AST_Type_Decl *decl = ctx->builtin_decls.data[i];
-		Builtin_Type t = decl->builtin_type;
-		if (builtin_type_equals(t, bt))
-			return decl;
+		AST_Node *node = ctx->builtin_decls.data[i];
+		if (node->type == AST_type_decl) {
+			CASTED_NODE(AST_Type_Decl, decl, node);
+			Builtin_Type t = decl->builtin_type;
+			if (builtin_type_equals(t, bt))
+				return decl;
+		}
 	}
 
 	{ /* Create new builtin decl if not found */
-		AST_Type_Decl *decl = create_type_decl_node();
+		AST_Type_Decl *tdecl = create_type_decl_node();
 		/* Note that the declaration doesn't have ident -- it's up to backend to generate it */
-		decl->is_builtin = true;
-		decl->builtin_type = bt;
-		push_array(AST_Type_Decl_Ptr)(&ctx->builtin_decls, decl);
-		return decl;
+		tdecl->is_builtin = true;
+		tdecl->builtin_type = bt;
+		push_array(AST_Node_Ptr)(&ctx->builtin_decls, AST_BASE(tdecl));
+
+		if (bt.is_field) {
+			{ /* Create field alloc func */
+				AST_Func_Decl *fdecl = create_func_decl_node();
+				fdecl->is_builtin = true;
+
+				fdecl->return_type = create_type_node();
+				fdecl->return_type->base_type_decl = tdecl;
+
+				fdecl->ident = create_ident_with_text("alloc_field");
+				fdecl->ident->decl = AST_BASE(fdecl);
+
+				for (i = 0; i < bt.field_dim; ++i) {
+					AST_Var_Decl *param = create_var_decl_node();
+					param->type = create_type_node();
+					param->type->base_type_decl = create_decl_for_builtin(ctx, int_builtin_type());
+
+					param->ident = create_ident_with_text("size_%i", i);
+					param->ident->decl = AST_BASE(param);
+
+					push_array(AST_Var_Decl_Ptr)(&fdecl->params, param);
+				}
+
+				push_array(AST_Node_Ptr)(&ctx->builtin_decls, AST_BASE(fdecl));
+			}
+
+			{ /* Create field free func */
+				AST_Func_Decl *fdecl = create_func_decl_node();
+				fdecl->is_builtin = true;
+
+				fdecl->return_type = create_type_node();
+				fdecl->return_type->base_type_decl = create_decl_for_builtin(ctx, void_builtin_type());
+
+				fdecl->ident = create_ident_with_text("free_field");
+				fdecl->ident->decl = AST_BASE(fdecl);
+
+				{
+					AST_Var_Decl *param = create_var_decl_node();
+					param->type = create_type_node();
+					param->type->base_type_decl = tdecl;
+
+					param->ident = create_ident_with_text("field");
+					param->ident->decl = AST_BASE(param);
+
+					push_array(AST_Var_Decl_Ptr)(&fdecl->params, param);
+				}
+
+				push_array(AST_Node_Ptr)(&ctx->builtin_decls, AST_BASE(fdecl));
+			}
+		}
+
+		return tdecl;
 	}
 }
 
@@ -754,9 +825,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 	++ctx->expr_depth;
 	begin_node_parsing(ctx, &expr);
 
-	if (parse_literal(ctx, &expr)) {
-		;
-	} else if (parse_ident(ctx, &expr, NULL, NULL)) {
+	if (parse_ident(ctx, &expr, NULL, NULL)) {
 		CASTED_NODE(AST_Ident, ident, expr);
 		if (ident->decl->type == AST_type_decl) {
 			report_error(ctx, "Expression can't start with a type name (%s)", ident->text.data);
@@ -793,6 +862,8 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 			goto mismatch;
 		}
 		expr = AST_BASE(biop);
+	} else if (parse_literal(ctx, &expr)) {
+		;
 	} else {
 		report_error_expected(ctx, "identifier or literal", cur_tok(ctx));
 		goto mismatch;
@@ -1083,7 +1154,7 @@ AST_Scope *parse_tokens(Token *toks)
 	AST_Scope *root = create_ast();
 
 	ctx.root = root;
-	ctx.builtin_decls = create_array(AST_Type_Decl_Ptr)(32);
+	ctx.builtin_decls = create_array(AST_Node_Ptr)(32);
 	ctx.parse_stack = create_array(Parse_Stack_Frame)(32);
 	ctx.tok = ctx.first_tok = toks;
 	if (is_comment_tok(ctx.tok->type))
@@ -1105,7 +1176,7 @@ AST_Scope *parse_tokens(Token *toks)
 		int i;
 		/* @todo Array insert function */
 		for (i = 0; i < ctx.builtin_decls.size; ++i) {
-			push_array(AST_Node_Ptr)(&new_nodes, AST_BASE(ctx.builtin_decls.data[i]));
+			push_array(AST_Node_Ptr)(&new_nodes, ctx.builtin_decls.data[i]);
 		}
 		for (i = 0; i < root->nodes.size; ++i) {
 			push_array(AST_Node_Ptr)(&new_nodes, root->nodes.data[i]);
@@ -1130,7 +1201,7 @@ AST_Scope *parse_tokens(Token *toks)
 
 	destroy_array(char)(&ctx.error_msg);
 	destroy_array(Parse_Stack_Frame)(&ctx.parse_stack);
-	destroy_array(AST_Type_Decl_Ptr)(&ctx.builtin_decls);
+	destroy_array(AST_Node_Ptr)(&ctx.builtin_decls);
 
 	return root;
 }

@@ -79,7 +79,9 @@ int main(int argc, char **argv)
     mat3.m[1 * 0 + 3 * 1] = 2;
     mat3.m[1 * 1 + 3 * 1] = 3;
 
-    /* @todo Create and destruct fields. This probably segfaults */
+    test_field = alloc_field(100, 100, 100);
+    test_field2 = alloc_field(200, 200);
+
     test_field.m[test_field.size[0] * 1 + test_field.size[1] * 2 + test_field.size[2] * 3] = 4;
     test_field2.m[test_field2.size[0] * 1 + test_field2.size[1] * 2] = test;
 
@@ -90,6 +92,9 @@ int main(int argc, char **argv)
     test = floatmat2x2_mul(test_field2.m[test_field2.size[0] * 0 + test_field2.size[1] * 0], test_field2.m[test_field2.size[0] * 1 + test_field2.size[1] * 1]);
 
     printf("(%i, %i)\n(%i, %i)\n", result.m[1 * 0 + 3 * 0], result.m[1 * 1 + 3 * 0], result.m[1 * 0 + 3 * 1], result.m[1 * 1 + 3 * 1]);
+
+    free_field(test_field);
+    free_field(test_field2);
 
     return 0;
 }

@@ -281,6 +281,7 @@ void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *ret
 	copy->ident = (AST_Ident*)ident;
 	copy->body = (AST_Scope*)body;
 	copy->ellipsis = decl->ellipsis;
+	copy->is_builtin = decl->is_builtin;
 
 	clear_array(AST_Var_Decl_Ptr)(&copy->params);
 	for (i = 0; i < param_count; ++i) {

@@ -128,6 +128,8 @@ typedef struct AST_Func_Decl {
 	Array(AST_Var_Decl_Ptr) params;
 	bool ellipsis;
 	AST_Scope *body;
+
+	bool is_builtin; /* Field allocation and deallocation functions */
 } AST_Func_Decl;
 
 typedef enum {

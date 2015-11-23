@@ -886,8 +886,6 @@ INTERNAL bool parse_call_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node *expr, AS
 	begin_node_parsing(ctx, (AST_Node**)&call);
 
 	if (expr->type != AST_ident) {
-		/* @todo Function ptrs */
-		report_error_expected(ctx, "identifier", expr->begin_tok);
 		goto mismatch;
 	}
 

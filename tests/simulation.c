@@ -111,8 +111,7 @@ int main(int argc, char **argv)
     test_field.m[test_field.size[0] * 1 + test_field.size[1] * 2 + test_field.size[2] * 3] = 4;
     test_field2.m[test_field2.size[0] * 1 + test_field2.size[1] * 2] = test;
 
-    /* @todo Fix type evaluation of lhs in expr below */
-    /*test_field2(13, 37)(1, 0) = 3; */
+    test_field2.m[test_field2.size[0] * 13 + test_field2.size[1] * 37].m[1 * 1 + 2 * 0] = 3;
 
     /* This comment should survive to the generated code */
     result = intmat3x3_mul(intmat3x3_mul(mat1, mat2), mat3);

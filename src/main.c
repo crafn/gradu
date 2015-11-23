@@ -6,6 +6,7 @@
 
 /* General todo list
     - accessing matrix and field elements should probably have [x, y, z] syntax instead of (x, y, z)...
+	- overloading test
 	- attributes to AST (like __global__ in cuda)
 	- typedef
 	- handle (ignore but preserve) C preprocessor

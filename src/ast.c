@@ -5,6 +5,16 @@ DEFINE_ARRAY(AST_Var_Decl_Ptr)
 DEFINE_ARRAY(Token_Ptr)
 DEFINE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
 
+bool type_node_equals(AST_Type a, AST_Type b)
+{
+	if (	a.ptr_depth != b.ptr_depth ||
+			a.array_size != b.array_size ||
+			a.is_const != b.is_const ||
+			a.base_type_decl != b.base_type_decl)
+		return false;
+	return true;
+}
+
 bool builtin_type_equals(Builtin_Type a, Builtin_Type b)
 {
 	bool is_same_matrix = (a.is_matrix == b.is_matrix);
@@ -156,13 +166,13 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 		} break;
 
 		case AST_func_decl: {
-			ASSERT(subnode_count >= 3 && refnode_count == 0);
-			copy_func_decl_node((AST_Func_Decl*)copy, (AST_Func_Decl*)node, subnodes[0], subnodes[1], subnodes[2], &subnodes[3], subnode_count - 3);
+			ASSERT(subnode_count >= 3 && refnode_count == 1);
+			copy_func_decl_node((AST_Func_Decl*)copy, (AST_Func_Decl*)node, subnodes[0], subnodes[1], subnodes[2], &subnodes[3], subnode_count - 3, refnodes[0]);
 		} break;
 
 		case AST_literal: {
-			ASSERT(subnode_count == 0 && refnode_count == 0);
-			copy_literal_node((AST_Literal*)copy, (AST_Literal*)node);
+			ASSERT(subnode_count == 0 && refnode_count == 1);
+			copy_literal_node((AST_Literal*)copy, (AST_Literal*)node, refnodes[0]);
 		} break;
 
 		case AST_biop: {
@@ -256,7 +266,7 @@ void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ide
 	copy->body = (AST_Scope*)body;
 	copy->is_builtin = decl->is_builtin;
 	copy->builtin_type = decl->builtin_type;
-	copy->sub_builtin_type_decl = (AST_Type_Decl*)builtin_sub_decl_ref;
+	copy->builtin_sub_type_decl = (AST_Type_Decl*)builtin_sub_decl_ref;
 	copy->builtin_concrete_decl = (AST_Type_Decl*)builtin_decl_ref;
 }
 
@@ -270,18 +280,20 @@ void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, 
 	copy->value = value;
 }
 
-void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *return_type, AST_Node *ident, AST_Node *body, AST_Node **params, int param_count)
+void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *return_type, AST_Node *ident, AST_Node *body, AST_Node **params, int param_count, AST_Node *backend_decl_ref)
 {
 	int i;
 	ASSERT(ident->type == AST_ident);
 	ASSERT(return_type->type == AST_type);
 	ASSERT(!body || body->type == AST_scope);
+	ASSERT(!backend_decl_ref || backend_decl_ref->type == AST_func_decl);
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(decl));
 	copy->return_type = (AST_Type*)return_type;
 	copy->ident = (AST_Ident*)ident;
 	copy->body = (AST_Scope*)body;
 	copy->ellipsis = decl->ellipsis;
 	copy->is_builtin = decl->is_builtin;
+	copy->builtin_concrete_decl = (AST_Func_Decl*)backend_decl_ref;
 
 	clear_array(AST_Var_Decl_Ptr)(&copy->params);
 	for (i = 0; i < param_count; ++i) {
@@ -290,11 +302,13 @@ void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *ret
 	}
 }
 
-void copy_literal_node(AST_Literal *copy, AST_Literal *literal)
+void copy_literal_node(AST_Literal *copy, AST_Literal *literal, AST_Node *type_decl_ref)
 {
+	ASSERT(!type_decl_ref || type_decl_ref->type == AST_type_decl);
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(literal));
 	copy->type = literal->type;
 	copy->value = literal->value;
+	copy->base_type_decl = (AST_Type_Decl*)type_decl_ref;
 }
 
 void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs)
@@ -527,7 +541,12 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 	} break;
 
 	case AST_literal: {
-		/* @todo */
+		CASTED_NODE(AST_Literal, literal, expr);
+		ret->base_type_decl = literal->base_type_decl;
+		ASSERT(ret->base_type_decl);
+		if (literal->type == Literal_string)
+			++ret->ptr_depth;
+		success = true;
 	} break;
 
 	case AST_access: {
@@ -548,8 +567,8 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 				ASSERT(ident->decl->type == AST_var_decl);
 				{
 					CASTED_NODE(AST_Var_Decl, decl, ident->decl); /* Variable declaration of 'm' in 'm(1, 2)' */
-					ASSERT(decl->type->base_type_decl->sub_builtin_type_decl);
-					ret->base_type_decl = decl->type->base_type_decl->sub_builtin_type_decl;
+					ASSERT(decl->type->base_type_decl->builtin_sub_type_decl);
+					ret->base_type_decl = decl->type->base_type_decl->builtin_sub_type_decl;
 				}
 			}
 		} else if (access->is_array_access) {
@@ -824,12 +843,22 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 
 	case AST_type_decl: {
 		CASTED_NODE(AST_Type_Decl, decl, node);
-		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->sub_builtin_type_decl));
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->builtin_sub_type_decl));
 		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->builtin_concrete_decl));
 	} break;
+
 	case AST_var_decl: break;
-	case AST_func_decl: break;
-	case AST_literal: break;
+
+	case AST_func_decl: {
+		CASTED_NODE(AST_Func_Decl, decl, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(decl->builtin_concrete_decl));
+	} break;
+
+	case AST_literal: {
+		CASTED_NODE(AST_Literal, literal, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(literal->base_type_decl));
+	} break;
+
 	case AST_biop: break;
 	case AST_control: break;
 	case AST_call: break;
@@ -1101,6 +1130,47 @@ AST_Literal *create_integer_literal(int value)
 	return literal;
 }
 
+AST_Call *create_call_1(AST_Ident *ident, AST_Node *arg)
+{
+	AST_Call *call = create_call_node();
+	call->ident = ident;
+	push_array(AST_Node_Ptr)(&call->args, arg);
+	return call;
+}
+
+AST_Control *create_return(AST_Node *expr)
+{
+	AST_Control *ret = create_control_node();
+	ret->type = Token_kw_return;
+	ret->value = expr;
+	return ret;
+}
+
+AST_Biop *create_sizeof(AST_Node *expr)
+{
+	AST_Biop *op = create_biop_node();
+	op->type = Token_kw_sizeof;
+	op->rhs = expr;
+	return op;
+}
+
+AST_Biop *create_deref(AST_Node *expr)
+{
+	AST_Biop *op = create_biop_node();
+	op->type = Token_mul;
+	op->rhs = expr;
+	return op;
+}
+
+AST_Biop *create_assign(AST_Node *lhs, AST_Node *rhs)
+{
+	AST_Biop *op = create_biop_node();
+	op->type = Token_assign;
+	op->lhs = lhs;
+	op->rhs = rhs;
+	return op;
+}
+
 Builtin_Type void_builtin_type()
 {
 	Builtin_Type bt = {0};
@@ -1115,7 +1185,33 @@ Builtin_Type int_builtin_type()
 	return bt;
 }
 
-AST_Node *create_chained_expr(AST_Node **lhs_elems, AST_Node **rhs_elems, int elem_count, Token_Type biop, Token_Type chainop)
+Builtin_Type char_builtin_type()
+{
+	Builtin_Type bt = {0};
+	bt.is_char = true;
+	return bt;
+}
+
+AST_Node *create_chained_expr(AST_Node **elems, int elem_count, Token_Type chainop)
+{
+	int i;
+	AST_Node *ret = NULL;
+	for (i = 0; i < elem_count; ++i) {
+		if (!ret) {
+			ret = elems[i];
+		} else {
+			AST_Biop *chain = create_biop_node();
+			chain->type = chainop;
+			chain->lhs = ret;
+			chain->rhs = elems[i];
+
+			ret = AST_BASE(chain);
+		}
+	}
+	return ret;
+}
+
+AST_Node *create_chained_expr_2(AST_Node **lhs_elems, AST_Node **rhs_elems, int elem_count, Token_Type biop, Token_Type chainop)
 {
 	int i;
 	AST_Node *ret = NULL;

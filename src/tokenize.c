@@ -108,6 +108,8 @@ INTERNAL Token_Type kw_tokentype(const char *buf, int size)
 		return Token_kw_true;
 	if (str_equals_buf("false", buf, size))
 		return Token_kw_false;
+	if (str_equals_buf("sizeof", buf, size))
+		return Token_kw_sizeof;
 	if (str_equals_buf("void", buf, size))
 		return Token_kw_void;
 	if (str_equals_buf("int", buf, size))
@@ -350,6 +352,7 @@ const char* tokentype_str(Token_Type type)
 		case Token_kw_if: return "kw_if";
 		case Token_kw_true: return "kw_true";
 		case Token_kw_false: return "kw_false";
+		case Token_kw_sizeof: return "kw_sizeof";
 		case Token_kw_void: return "kw_void";
 		case Token_kw_int: return "kw_int";
 		case Token_kw_size_t: return "kw_size_t";
@@ -415,6 +418,7 @@ const char* tokentype_codestr(Token_Type type)
 		case Token_kw_if: return "if";
 		case Token_kw_true: return "true";
 		case Token_kw_false: return "false";
+		case Token_kw_sizeof: return "sizeof";
 		case Token_kw_void: return "void";
 		case Token_kw_int: return "int";
 		case Token_kw_size_t: return "size_t";

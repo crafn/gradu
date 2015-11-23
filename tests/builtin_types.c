@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 typedef struct intmat2x2
 {
     int m[4];

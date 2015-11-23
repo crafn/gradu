@@ -51,7 +51,7 @@ bool is_op(Token_Type type)
 
 bool is_unary_op(Token_Type type)
 {
-	return type == Token_add || type == Token_sub;
+	return type == Token_add || type == Token_sub || type == Token_kw_sizeof;
 }
 
 
@@ -224,11 +224,10 @@ INTERNAL AST_Ident *decl_ident(AST_Node *node)
 	}
 }
 
-/* Find declaration visible in current parse scope */
-INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, Buf_Str name)
+/* Find declarations corresponding to a name visible in current parse scope */
+INTERNAL void find_decls_scoped(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, Buf_Str name, AST_Type *hint)
 {
 	int f, i;
-	AST_Node *found_decl = NULL;
 	for (f = ctx->parse_stack.size - 1; f >= 0; --f) {
 		AST_Node *stack_node = *ctx->parse_stack.data[f].node;
 		if (!stack_node || stack_node->type != AST_scope)
@@ -247,43 +246,38 @@ INTERNAL AST_Node *find_decl_scoped(Parse_Ctx *ctx, Buf_Str name)
 						continue;
 
 					/* Found declaration for the name */
-					found_decl = node;
-					break;
+					push_array(AST_Node_Ptr)(ret, node);
 				}
 			}
 		}
-		if (found_decl)
-			break;
 	}
 
-	if (!found_decl) {
-		/* Look from builtin funcs. */
-		/* This doesn't find types, only functions, because e.g. decl
-		 * 'float matrix(2,2)' doesn't have an identifier */
-		for (i = 0; i < ctx->builtin_decls.size; ++i) {
-			AST_Node *node = ctx->builtin_decls.data[i];
-			if (!is_decl(node))
+	/* Look from builtin funcs. */
+	/* This doesn't find types, only functions, because e.g. decl
+	 * 'float matrix(2,2)' doesn't have an identifier */
+	for (i = 0; i < ctx->builtin_decls.size; ++i) {
+		AST_Node *node = ctx->builtin_decls.data[i];
+		if (node->type != AST_func_decl)
+			continue;
+
+		{
+			CASTED_NODE(AST_Func_Decl, decl, node);
+			if (!buf_str_equals(c_str_to_buf_str(decl->ident->text.data), name))
 				continue;
 
-			{
-				AST_Ident *ident = decl_ident(node);
-				if (!ident || !buf_str_equals(c_str_to_buf_str(ident->text.data), name))
-					continue;
+			if (hint && !type_node_equals(*hint, *decl->return_type))
+				continue;
 
-				found_decl = node;
-				break;
-			}
+			push_array(AST_Node_Ptr)(ret, node);
 		}
 	}
-
-	return found_decl;
 }
 
 
 /* Parsing */
 
-/* @todo AST_Node -> specific node type */
-INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl, AST_Scope *search_scope);
+/* @todo AST_Node -> specific node type. <-- not so sure about that.. */
+INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Ident **ret, AST_Node *decl);
 INTERNAL bool parse_type_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_var_decl(Parse_Ctx *ctx, AST_Node **ret, bool is_param_decl);
 INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Ident **ret_ident, AST_Node *enclosing_decl);
@@ -291,15 +285,98 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_block(Parse_Ctx *ctx, AST_Scope **ret);
 INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret);
-INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec);
+INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type *type_hint);
 INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret);
 
+INTERNAL bool resolve_ident_in_scope(Parse_Ctx *ctx, AST_Ident *ident, AST_Scope *search_scope)
+{
+	/* Search from given scope */
+	int i;
+	for (i = 0; i < search_scope->nodes.size; ++i) {
+		AST_Node *subnode = search_scope->nodes.data[i];
+		if (!is_decl(subnode))
+			continue;
+		if (strcmp(decl_ident(subnode)->text.data, ident->text.data))
+			continue;
+
+		ident->decl = subnode;
+		return true;
+	}
+
+	report_error(ctx, "'%s' not declared in this scope", ident->text.data);
+	return false;
+}
+
+DECLARE_ARRAY(AST_Type)
+DEFINE_ARRAY(AST_Type)
+
+/* Use 'arg_count = -1' for non-function identifier resolution */
+INTERNAL bool resolve_ident(Parse_Ctx *ctx, AST_Ident *ident, AST_Type *hint, AST_Type *arg_types, int arg_count)
+{
+	Array(AST_Node_Ptr) decls = create_array(AST_Node_Ptr)(0);
+	int i, k;
+	AST_Node *best_match = NULL;
+
+	ident->decl = NULL;
+	find_decls_scoped(ctx, &decls, c_str_to_buf_str(ident->text.data), hint);
+
+	for (i = 0; i < decls.size; ++i) {
+		AST_Node *decl = decls.data[i];
+		if (!best_match) {
+			best_match = decl;
+			continue;
+		}
+
+		/* Match decl type with 'hint' */
+		if (hint && decl->type == AST_var_decl && arg_count == -1) {
+			CASTED_NODE(AST_Var_Decl, var_decl, decl);
+			if (!type_node_equals(*hint, *var_decl->type))
+				continue;
+
+			best_match = decl;
+			break;
+		} else if (decl->type == AST_func_decl) {
+			CASTED_NODE(AST_Func_Decl, func_decl, decl);
+			bool arg_types_matched = true;
+
+			if (hint && !type_node_equals(*hint, *func_decl->return_type))
+				continue;
+
+			if (func_decl->params.size != arg_count)
+				continue;
+
+			/* Match argument types */
+			for (k = 0; k < arg_count; ++k) {
+				if (!type_node_equals(*func_decl->params.data[k]->type, arg_types[k])) {
+					arg_types_matched = false;
+					break;
+				}
+			}
+			if (!arg_types_matched)
+				continue;
+
+			best_match = decl;
+			break;
+		} else {
+			FAIL(("Unknown decl type %i", decl->type));
+		}
+	}
+
+	ident->decl = best_match;
+
+	if (!ident->decl)
+		report_error(ctx, "'%s' not declared in this scope", ident->text.data);
+
+	destroy_array(AST_Node_Ptr)(&decls);
+	return ident->decl != NULL;
+}
+
 /* If decl is NULL, then declaration is searched. */
 /* Parse example: foo */
-INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl, AST_Scope *search_scope)
+INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Ident **ret, AST_Node *decl)
 {
 	Token *tok = cur_tok(ctx);
 	AST_Ident *ident = create_ident_node();
@@ -312,36 +389,14 @@ INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Node **ret, AST_Node *decl, AST_Sc
 		goto mismatch;
 	}
 
-	if (decl) {
-		ident->decl = decl;
-	} else {
-		if (search_scope) {
-			/* Search from given scope */
-			int i;
-			for (i = 0; i < search_scope->nodes.size; ++i) {
-				AST_Node *subnode = search_scope->nodes.data[i];
-				if (!is_decl(subnode))
-					continue;
-				if (strcmp(decl_ident(subnode)->text.data, ident->text.data))
-					continue;
+	/* Might be NULL -- should be resolved shortly after */
+	ident->decl = decl;
 
-				ident->decl = subnode;
-				break;
-			}
-		} else {
-			/* Search from current scope */
-			ident->decl = find_decl_scoped(ctx, tok->text);
-		}
-	}
-	if (!ident->decl) {
-		report_error(ctx, "'%.*s' is not declared in this scope", BUF_STR_ARGS(tok->text));
-		goto mismatch;
-	}
 	advance_tok(ctx);
 
 	end_node_parsing(ctx);
 
-	*ret = AST_BASE(ident);
+	*ret = ident;
 	return true;
 
 mismatch:
@@ -358,7 +413,7 @@ INTERNAL bool parse_type_decl(Parse_Ctx *ctx, AST_Node **ret)
 	if (!accept_tok(ctx, Token_kw_struct))
 		goto mismatch;
 
-	if (!parse_ident(ctx, (AST_Node**)&decl->ident, AST_BASE(decl), NULL)) {
+	if (!parse_ident(ctx, &decl->ident, AST_BASE(decl))) {
 		report_error_expected(ctx, "type name", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -380,7 +435,7 @@ mismatch:
 	return false;
 }
 
-AST_Type_Decl *create_decl_for_builtin(Parse_Ctx *ctx, Builtin_Type bt)
+AST_Type_Decl *create_builtin_decl(Parse_Ctx *ctx, Builtin_Type bt)
 {
 	int i;
 	/* Search for builtin declaration from existing decls */
@@ -415,7 +470,7 @@ AST_Type_Decl *create_decl_for_builtin(Parse_Ctx *ctx, Builtin_Type bt)
 				for (i = 0; i < bt.field_dim; ++i) {
 					AST_Var_Decl *param = create_var_decl_node();
 					param->type = create_type_node();
-					param->type->base_type_decl = create_decl_for_builtin(ctx, int_builtin_type());
+					param->type->base_type_decl = create_builtin_decl(ctx, int_builtin_type());
 
 					param->ident = create_ident_with_text("size_%i", i);
 					param->ident->decl = AST_BASE(param);
@@ -431,7 +486,7 @@ AST_Type_Decl *create_decl_for_builtin(Parse_Ctx *ctx, Builtin_Type bt)
 				fdecl->is_builtin = true;
 
 				fdecl->return_type = create_type_node();
-				fdecl->return_type->base_type_decl = create_decl_for_builtin(ctx, void_builtin_type());
+				fdecl->return_type->base_type_decl = create_builtin_decl(ctx, void_builtin_type());
 
 				fdecl->ident = create_ident_with_text("free_field");
 				fdecl->ident->decl = AST_BASE(fdecl);
@@ -568,40 +623,44 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 			if (bt.is_field) {
 				Builtin_Type sub_type = bt;
 				sub_type.is_field = false;
-				field_sub_type = create_decl_for_builtin(ctx, sub_type);
+				field_sub_type = create_builtin_decl(ctx, sub_type);
 			}
 
 			if (bt.is_matrix) {
 				Builtin_Type sub_type = bt;
 				sub_type.is_matrix = false;
 				sub_type.is_field = false;
-				matrix_sub_type = create_decl_for_builtin(ctx, sub_type);
+				matrix_sub_type = create_builtin_decl(ctx, sub_type);
 
 				/* 'int matrix field' generates int, matrix, and field type decls.
-				 * This sets matrix->sub_builtin_type_decl to the int type decl. */
+				 * This sets matrix->builtin_sub_type_decl to the int type decl. */
 				if (field_sub_type)
-					field_sub_type->sub_builtin_type_decl = matrix_sub_type;
+					field_sub_type->builtin_sub_type_decl = matrix_sub_type;
 			}
 
-			builtin_type = create_decl_for_builtin(ctx, bt);
+			builtin_type = create_builtin_decl(ctx, bt);
 
 			if (field_sub_type) {
-				builtin_type->sub_builtin_type_decl = field_sub_type;
+				builtin_type->builtin_sub_type_decl = field_sub_type;
 			} else if (matrix_sub_type) {
-				builtin_type->sub_builtin_type_decl = matrix_sub_type;
+				builtin_type->builtin_sub_type_decl = matrix_sub_type;
 			}
 
 			found_decl = AST_BASE(builtin_type);
 		} else {
-			found_decl = find_decl_scoped(ctx, cur_tok(ctx)->text);
-			if (found_decl)
-				advance_tok(ctx);
+			AST_Ident *ident;
+			if (!parse_ident(ctx, &ident, NULL))
+				goto mismatch;
+			if (!resolve_ident(ctx, ident, NULL, NULL, -1)) {
+				destroy_node(AST_BASE(ident));
+				goto mismatch;
+			}
+			destroy_node(AST_BASE(ident));
+			found_decl = ident->decl;
 		}
-		if (!found_decl || found_decl->type != AST_type_decl) {
-			if (cur_tok(ctx)->type == Token_name)
-				report_error(ctx, "'%.*s' is not declared in this scope", BUF_STR_ARGS(cur_tok(ctx)->text));
-			else
-				report_error_expected(ctx, "type name", cur_tok(ctx));
+		ASSERT(found_decl);
+		if (found_decl->type != AST_type_decl) {
+			report_error_expected(ctx, "type name", cur_tok(ctx));
 			goto mismatch;
 		}
 		type->base_type_decl = (AST_Type_Decl*)found_decl;
@@ -612,7 +671,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 		++type->ptr_depth;
 
 	/* Variable name */
-	if (!parse_ident(ctx, (AST_Node**)ret_ident, enclosing_decl, NULL)) {
+	if (!parse_ident(ctx, ret_ident, enclosing_decl)) {
 		report_error_expected(ctx, "identifier", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -748,10 +807,12 @@ INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret)
 		case Token_number:
 			literal->type = Literal_int;
 			literal->value.integer = str_to_int(tok->text);
+			literal->base_type_decl = create_builtin_decl(ctx, int_builtin_type());
 		break;
 		case Token_string:
 			literal->type = Literal_string;
-			literal->value.string= tok->text;
+			literal->value.string = tok->text;
+			literal->base_type_decl = create_builtin_decl(ctx, char_builtin_type());
 		break;
 		default:
 			report_error_expected(ctx, "literal", cur_tok(ctx));
@@ -777,7 +838,7 @@ INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret)
 		if (cur_tok(ctx)->type == Token_comma)
 			advance_tok(ctx);
 
-		if (!parse_expr(ctx, (AST_Node**)&arg, true))
+		if (!parse_expr(ctx, (AST_Node**)&arg, 0, NULL))
 			goto mismatch;
 
 		push_array(AST_Node_Ptr)(ret, arg);
@@ -802,7 +863,7 @@ INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret)
 		goto mismatch;
 	}
 
-	if (!parse_expr(ctx, ret, 0))
+	if (!parse_expr(ctx, ret, 0, NULL))
 		goto mismatch;
 
 	if (!accept_tok(ctx, Token_close_paren)) {
@@ -816,40 +877,105 @@ mismatch:
 	return false;
 }
 
+/* Functions '*_expr' are part of 'parse_expr', and therefore take lhs as a param */
+
+/* Parse example: pre-parsed-expr + '(a, b, c)' */
+INTERNAL bool parse_call_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node *expr, AST_Type *hint)
+{
+	AST_Call *call = create_call_node();
+	begin_node_parsing(ctx, (AST_Node**)&call);
+
+	if (expr->type != AST_ident) {
+		/* @todo Function ptrs */
+		report_error_expected(ctx, "identifier", expr->begin_tok);
+		goto mismatch;
+	}
+
+	if (expr->type == AST_ident)
+		call->ident = (AST_Ident*)expr;
+
+	if (!accept_tok(ctx, Token_open_paren)) {
+		report_error_expected(ctx, "'('", cur_tok(ctx));
+		goto mismatch;
+	}
+
+	if (!parse_arg_list(ctx, &call->args))
+		goto mismatch;
+
+	{
+		Array(AST_Type) types = create_array(AST_Type)(call->args.size);
+		int i;
+		for (i = 0; i < call->args.size; ++i) {
+			AST_Type type;
+			if (!expr_type(&type, call->args.data[i])) {
+				goto mismatch;
+			}
+			push_array(AST_Type)(&types, type);
+		}
+		/* @todo Resolve identifier here using argument types */
+		if (!resolve_ident(ctx, call->ident, hint, types.data, types.size)) {
+			goto mismatch;
+		}
+		destroy_array(AST_Type)(&types);
+	}
+
+	end_node_parsing(ctx);
+
+	*ret = AST_BASE(call);
+	return true;
+
+mismatch:
+	cancel_node_parsing(ctx);
+	return false;
+}
+
+/* Parse example: preparsed-ident */
+INTERNAL bool parse_var_access_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node *expr)
+{
+	AST_Access *access = create_access_node();
+	begin_node_parsing(ctx, (AST_Node**)&access);
+
+	if (expr->type != AST_ident) {
+		report_error_expected(ctx, "identifier", expr->begin_tok);
+		goto mismatch;
+	}
+
+	{
+		CASTED_NODE(AST_Ident, ident, expr);
+
+		if (!resolve_ident(ctx, ident, NULL, NULL, -1))
+			goto mismatch;
+
+		if (ident->decl->type == AST_var_decl) {
+			access->base = AST_BASE(ident);
+		} else {
+			ident->decl = NULL;
+			goto mismatch;
+		}
+	}
+
+	end_node_parsing(ctx);
+
+	*ret = AST_BASE(access);
+	return true;
+
+mismatch:
+	cancel_node_parsing(ctx);
+	return false;
+}
 
 /* Parse example: var = 5 + 3 * 2; */
-INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
+INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type *type_hint)
 {
 	AST_Node *expr = NULL;
 
 	++ctx->expr_depth;
 	begin_node_parsing(ctx, &expr);
 
-	if (parse_ident(ctx, &expr, NULL, NULL)) {
-		CASTED_NODE(AST_Ident, ident, expr);
-		if (ident->decl->type == AST_type_decl) {
-			report_error(ctx, "Expression can't start with a type name (%s)", ident->text.data);
-			goto mismatch;
-		} else if (ident->decl->type == AST_func_decl) {
-			/* This is a function call */
-			/* @todo This should be moved to while loop below next to element access parsing */
-			AST_Call *call = create_call_node();
-			call->ident = ident;
-			expr = AST_BASE(call);
-
-			if (!accept_tok(ctx, Token_open_paren)) {
-				report_error_expected(ctx, "'('", cur_tok(ctx));
-				goto mismatch;
-			}
-
-			if (!parse_arg_list(ctx, &call->args))
-				goto mismatch;
-
-		} else if (ident->decl->type == AST_var_decl) {
-			/* This is a variable access */
-			AST_Access *access = create_access_node();
-			access->base = AST_BASE(ident);
-			expr = AST_BASE(access);
+	if (parse_ident(ctx, (AST_Ident**)&expr, NULL)) {
+		/* If ident is var, wrap it in AST_Access */
+		if (parse_var_access_expr(ctx, &expr, expr)) {
+			;
 		}
 	} else if (is_unary_op(cur_tok(ctx)->type)) {
 		AST_Biop *biop = create_biop_node();
@@ -858,7 +984,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 		advance_tok(ctx);
 
 		/* The precedence should be higher than any binary operation, because -1 op 2 != -(1 op 2) */
-		if (!parse_expr(ctx, &biop->rhs, UOP_PRECEDENCE)) {
+		if (!parse_expr(ctx, &biop->rhs, UOP_PRECEDENCE, NULL)) {
 			goto mismatch;
 		}
 		expr = AST_BASE(biop);
@@ -868,7 +994,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 		report_error_expected(ctx, "identifier or literal", cur_tok(ctx));
 		goto mismatch;
 	}
-	/* @todo ^ parse parens */
+	/* @todo Parse parens */
 
 	while (	(is_op(cur_tok(ctx)->type) &&
 			op_prec(cur_tok(ctx)->type) >= min_prec) ||
@@ -879,6 +1005,8 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 		if (is_op(cur_tok(ctx)->type)) {
 			AST_Node *rhs = NULL;
 			Token *tok = cur_tok(ctx);
+			AST_Type new_type_hint;
+			AST_Type *new_type_hint_ptr = NULL;
 			int prec = op_prec(tok->type);
 			int assoc = op_assoc(tok->type);
 			int next_min_prec;
@@ -888,7 +1016,10 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 				next_min_prec = prec;
 			advance_tok(ctx);
 
-			if (!parse_expr(ctx, &rhs, next_min_prec))
+			/* E.g. LHS of 'field = alloc_field(1);' chooses the allocation function through type hint */ 
+			if (expr_type(&new_type_hint, expr))
+				new_type_hint_ptr = &new_type_hint;
+			if (!parse_expr(ctx, &rhs, next_min_prec, new_type_hint_ptr))
 				goto mismatch;
 
 			{
@@ -901,7 +1032,11 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 				biop->is_top_level = (ctx->expr_depth == 1);
 				expr = AST_BASE(biop);
 			}
+		} else if (parse_call_expr(ctx, &expr, expr, type_hint)) {
+			;
 		} else if (accept_tok(ctx, Token_dot) || accept_tok(ctx, Token_right_arrow)) {
+			/* Parse member access */
+			/* @todo Move to own function for clarity */
 			AST_Type base_type;
 			if (!expr_type(&base_type, expr)) {
 				report_error(ctx, "Expression does not have accessible members");
@@ -918,12 +1053,16 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec)
 				{
 					AST_Scope *base_type_scope = base_type.base_type_decl->body;
 					ASSERT(base_type_scope);
-					if (!parse_ident(ctx, (AST_Node**)&sub, NULL, base_type_scope))
+					if (!parse_ident(ctx, &sub, NULL))
+						goto mismatch;
+					if (!resolve_ident_in_scope(ctx, sub, base_type_scope))
 						goto mismatch;
 					push_array(AST_Node_Ptr)(&access->args, AST_BASE(sub));
 				}
 			}
 		} else if (accept_tok(ctx, Token_open_paren)) {
+			/* Parse element access */
+			/* @todo Move to own function for clarity */
 			AST_Access *access = create_access_node();
 			access->is_element_access = true;
 			access->base = expr;
@@ -1060,13 +1199,13 @@ INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret)
 			goto mismatch;
 		}
 
-		if (!parse_expr(ctx, &loop->init, 0))
+		if (!parse_expr(ctx, &loop->init, 0, NULL))
 			goto mismatch;
 
-		if (!parse_expr(ctx, &loop->cond, 0))
+		if (!parse_expr(ctx, &loop->cond, 0, NULL))
 			goto mismatch;
 
-		if (!parse_expr(ctx, &loop->incr, 0))
+		if (!parse_expr(ctx, &loop->incr, 0, NULL))
 			goto mismatch;
 
 		if (!accept_tok(ctx, Token_close_paren)) {
@@ -1125,7 +1264,7 @@ INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret)
 		;
 	else if (parse_func_decl(ctx, &result))
 		;
-	else if (parse_expr(ctx, &result, 0))
+	else if (parse_expr(ctx, &result, 0, NULL))
 		;
 	else if (parse_control(ctx, &result))
 		;

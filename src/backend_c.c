@@ -451,9 +451,119 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 
 				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(mul_decl));
 			}
-		} else if (subnodes.data[i]->type == AST_func_decl) {
-			/* Field alloc and dealloc funcs */
-			/* @todo */
+		} else if (subnodes.data[i]->type == AST_func_decl && func_decls) {
+			/* Create concrete field alloc and dealloc funcs */
+
+			CASTED_NODE(AST_Func_Decl, func_decl, subnodes.data[i]);
+			if (!func_decl->is_builtin)
+				continue;
+
+			if (!strcmp(func_decl->ident->text.data, "alloc_field")) {
+				AST_Func_Decl *alloc_func = (AST_Func_Decl*)copy_ast(AST_BASE(func_decl));
+				AST_Type_Decl *field_decl = alloc_func->return_type->base_type_decl;
+				Builtin_Type bt = field_decl->builtin_type;
+				field_decl = field_decl->builtin_concrete_decl;
+
+				ASSERT(!alloc_func->body);
+
+				alloc_func->is_builtin = false;
+				func_decl->builtin_concrete_decl = alloc_func;
+				append_str(&alloc_func->ident->text, "_");
+				append_builtin_type_c_str(&alloc_func->ident->text,
+						alloc_func->return_type->base_type_decl->builtin_type);
+
+				{ /* Function contents */
+					AST_Var_Decl *field_var_decl;
+					AST_Biop *sizeof_expr;
+					Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(alloc_func->params.size);
+					AST_Biop *elements_assign;
+					AST_Control *ret_stmt;
+
+					alloc_func->body = create_scope_node();
+
+					field_var_decl = create_simple_var_decl(field_decl, "field");
+					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(field_var_decl));
+
+					sizeof_expr =
+						create_sizeof(AST_BASE(
+							create_deref(AST_BASE(
+								create_access_for_member(
+									copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
+									c_mat_elements_decl(field_decl)
+								)
+							))
+						));
+					push_array(AST_Node_Ptr)(&size_accesses, AST_BASE(sizeof_expr));
+					for (k = 0; k < alloc_func->params.size; ++k) {
+						push_array(AST_Node_Ptr)(&size_accesses,
+							AST_BASE(create_access_for_var(alloc_func->params.data[k])));
+					}
+
+					elements_assign =
+						create_assign(AST_BASE(
+							create_access_for_member(
+								copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
+								c_mat_elements_decl(field_decl)
+							)), AST_BASE(
+							create_call_1(
+								create_ident_with_text("malloc"),
+								create_chained_expr(size_accesses.data, size_accesses.size, Token_mul)
+							)
+						));
+					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(elements_assign));
+					destroy_array(AST_Node_Ptr)(&size_accesses);
+
+					for (k = 0; k < bt.field_dim; ++k) {
+						AST_Biop *assign =
+							create_assign(AST_BASE(
+								create_access_for_member_array(
+									copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
+									c_field_size_decl(field_decl),
+									k
+								)), AST_BASE(
+								create_access_for_var(
+									alloc_func->params.data[k]
+								)
+							));
+						push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(assign));
+					}
+
+					ret_stmt =
+						create_return(AST_BASE(
+							create_access_for_var(field_var_decl)
+						));
+					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(ret_stmt));
+				}
+
+				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(alloc_func));
+			} else if (!strcmp(func_decl->ident->text.data, "free_field")) {
+				AST_Func_Decl *free_func = (AST_Func_Decl*)copy_ast(AST_BASE(func_decl));
+				AST_Type_Decl *field_decl = free_func->params.data[0]->type->base_type_decl;
+				Builtin_Type bt = field_decl->builtin_type;
+				field_decl = field_decl->builtin_concrete_decl;
+
+				ASSERT(!free_func->body);
+				ASSERT(free_func->params.size == 1);
+
+				free_func->is_builtin = false;
+				func_decl->builtin_concrete_decl = free_func;
+				append_str(&free_func->ident->text, "_");
+				append_builtin_type_c_str(&free_func->ident->text, bt);
+
+				{ /* Function contents */
+					AST_Access *access_field_data = create_access_for_member(
+							copy_ast(AST_BASE(free_func->params.data[0]->ident)),
+							c_mat_elements_decl(field_decl));
+					AST_Call *libc_free_call = create_call_1(
+							create_ident_with_text("free"),
+							AST_BASE(access_field_data));
+
+					free_func->body = create_scope_node();
+					push_array(AST_Node_Ptr)(&free_func->body->nodes, AST_BASE(libc_free_call));
+				}
+
+				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(free_func));
+			}
 		}
 	}
 
@@ -553,7 +663,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 						push_array(AST_Node_Ptr)(&multipliers, AST_BASE(size_access));
 					}
 					ASSERT(multipliers.size == access->args.size);
-					index_expr = create_chained_expr(multipliers.data, access->args.data,
+					index_expr = create_chained_expr_2(multipliers.data, access->args.data,
 							access->args.size, Token_mul, Token_add);
 					push_array(AST_Node_Ptr)(&array_access->args, index_expr);
 
@@ -569,7 +679,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 						mul_accum *= bt.matrix_dim[k];
 					}
 					ASSERT(multipliers.size == access->args.size);
-					index_expr = create_chained_expr(multipliers.data, access->args.data,
+					index_expr = create_chained_expr_2(multipliers.data, access->args.data,
 							access->args.size, Token_mul, Token_add);
 					push_array(AST_Node_Ptr)(&array_access->args, index_expr);
 
@@ -737,9 +847,15 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			append_str(buf, " %s ", tokentype_codestr(biop->type));
 			ast_to_c_str(buf, indent, biop->rhs);
 		} else {
+			bool parens = (biop->type == Token_kw_sizeof);
 			/* Unary op */
 			append_str(buf, "%s", tokentype_codestr(biop->type));
+			
+			if (parens)
+				append_str(buf, "(");
 			ast_to_c_str(buf, indent, biop->rhs);
+			if (parens)
+				append_str(buf, ")");
 		}
 	} break;
 
@@ -754,7 +870,13 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_call: {
 		CASTED_NODE(AST_Call, call, node);
-		ast_to_c_str(buf, indent, AST_BASE(call->ident));
+		CASTED_NODE(AST_Func_Decl, decl, call->ident->decl);
+		if (decl && decl->is_builtin) {
+			/* e.g. alloc_field -> alloc_field_floatfield2 */
+			ast_to_c_str(buf, indent, AST_BASE(decl->builtin_concrete_decl->ident));
+		} else {
+			ast_to_c_str(buf, indent, AST_BASE(call->ident));
+		}
 		append_str(buf, "(");
 		for (i = 0; i < call->args.size; ++i) {
 			ast_to_c_str(buf, indent, call->args.data[i]);
@@ -839,6 +961,8 @@ Array(char) gen_c_code(AST_Scope *root)
 	add_builtin_c_decls_to_global_scope(modified_ast, true);
 	apply_c_operator_overloading(modified_ast, true);
 
+	append_str(&gen_src, "#include <stdio.h>\n");
+	append_str(&gen_src, "#include <stdlib.h>\n");
 	ast_to_c_str(&gen_src, 0, AST_BASE(modified_ast));
 	destroy_ast(modified_ast);
 	return gen_src;

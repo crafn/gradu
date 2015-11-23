@@ -55,6 +55,7 @@ typedef enum {
 	Token_kw_if, /* if */
 	Token_kw_true, /* true */
 	Token_kw_false, /* false */
+	Token_kw_sizeof, /* sizeof */
 	/* Type-related */
 	Token_kw_void,
 	Token_kw_int,

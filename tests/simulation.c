@@ -108,14 +108,14 @@ int main(int argc, char **argv)
     test_field = alloc_field_intfield3(100, 100, 100);
     test_field2 = alloc_field_floatmat2x2field2(200, 200);
 
-    test_field.m[test_field.size[0] * 1 + test_field.size[1] * 2 + test_field.size[2] * 3] = 4;
-    test_field2.m[test_field2.size[0] * 1 + test_field2.size[1] * 2] = test;
+    test_field.m[1 * 1 + test_field.size[0] * 2 + test_field.size[0] * test_field.size[1] * 3] = 4;
+    test_field2.m[1 * 1 + test_field2.size[0] * 2] = test;
 
-    test_field2.m[test_field2.size[0] * 13 + test_field2.size[1] * 37].m[1 * 1 + 2 * 0] = 3;
+    test_field2.m[1 * 13 + test_field2.size[0] * 37].m[1 * 1 + 2 * 0] = 3;
 
     /* This comment should survive to the generated code */
     result = intmat3x3_mul(intmat3x3_mul(mat1, mat2), mat3);
-    test = floatmat2x2_mul(test_field2.m[test_field2.size[0] * 0 + test_field2.size[1] * 0], test_field2.m[test_field2.size[0] * 1 + test_field2.size[1] * 1]);
+    test = floatmat2x2_mul(test_field2.m[1 * 0 + test_field2.size[0] * 0], test_field2.m[1 * 1 + test_field2.size[0] * 1]);
 
     printf("(%i, %i)\n(%i, %i)\n", result.m[1 * 0 + 3 * 0], result.m[1 * 1 + 3 * 0], result.m[1 * 0 + 3 * 1], result.m[1 * 1 + 3 * 1]);
 

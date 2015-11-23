@@ -320,6 +320,7 @@ AST_Control *create_return(AST_Node *expr);
 AST_Biop *create_sizeof(AST_Node *expr);
 AST_Biop *create_deref(AST_Node *expr);
 AST_Biop *create_assign(AST_Node *lhs, AST_Node *rhs);
+AST_Biop *create_mul(AST_Node *lhs, AST_Node *rhs);
 
 Builtin_Type void_builtin_type();
 Builtin_Type int_builtin_type();

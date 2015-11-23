@@ -658,9 +658,18 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 					AST_Node *index_expr = NULL;
 					AST_Var_Decl *size_member_decl = c_field_size_decl(mat_decl);
 					for (k = 0; k < bt.field_dim; ++k) {
-						AST_Node *field_access = copy_ast(access->base);
-						AST_Access *size_access = create_access_for_member_array(field_access, size_member_decl, k);
-						push_array(AST_Node_Ptr)(&multipliers, AST_BASE(size_access));
+						if (k == 0) {
+							push_array(AST_Node_Ptr)(&multipliers, AST_BASE(create_integer_literal(1)));
+						} else {
+							AST_Node *field_access = copy_ast(access->base);
+							AST_Access *size_access = create_access_for_member_array(field_access, size_member_decl, k - 1);
+							if (k == 1) {
+								push_array(AST_Node_Ptr)(&multipliers, AST_BASE(size_access));
+							} else {
+								AST_Biop *mul = create_mul(copy_ast(multipliers.data[k - 1]), AST_BASE(size_access));
+								push_array(AST_Node_Ptr)(&multipliers, AST_BASE(mul));
+							}
+						}
 					}
 					ASSERT(multipliers.size == access->args.size);
 					index_expr = create_chained_expr_2(multipliers.data, access->args.data,

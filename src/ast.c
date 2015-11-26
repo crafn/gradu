@@ -119,6 +119,9 @@ AST_Cond *create_cond_node()
 AST_Loop *create_loop_node()
 { return CREATE_NODE(AST_Loop, AST_loop); }
 
+AST_Cast *create_cast_node()
+{ return CREATE_NODE(AST_Cast, AST_cast); }
+
 
 /* Node copying */
 
@@ -203,6 +206,11 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 		case AST_loop: {
 			ASSERT(subnode_count == 4 && refnode_count == 0);
 			copy_loop_node((AST_Loop*)copy, (AST_Loop*)node, subnodes[0], subnodes[1], subnodes[2], subnodes[3]);
+		} break;
+
+		case AST_cast: {
+			ASSERT(subnode_count == 2 && refnode_count == 0);
+			copy_cast_node((AST_Cast*)copy, (AST_Cast*)node, subnodes[0], subnodes[1]);
 		} break;
 		default: FAIL(("copy_ast_node: Unknown node type %i", node->type));
 	}
@@ -373,6 +381,14 @@ void copy_loop_node(AST_Loop *copy, AST_Loop *loop, AST_Node *init, AST_Node *co
 	copy->implicit_scope = loop->implicit_scope;
 }
 
+void copy_cast_node(AST_Cast *copy, AST_Cast *cast, AST_Node *type, AST_Node *target)
+{
+	copy_ast_node_base(AST_BASE(copy), AST_BASE(cast));
+	ASSERT(!type || type->type == AST_type);
+	copy->type = (AST_Type*)type;
+	copy->target = target;
+}
+
 void destroy_node(AST_Node *node)
 {
 	int i;
@@ -457,6 +473,12 @@ void destroy_node(AST_Node *node)
 		destroy_node(AST_BASE(loop->body));
 	} break;
 
+	case AST_cast: {
+		CASTED_NODE(AST_Cast, cast, node);
+		destroy_node(AST_BASE(cast->type));
+		destroy_node(cast->target);
+	} break;
+
 	default: FAIL(("destroy_node: Unknown node type %i", node->type));
 	}
 	shallow_destroy_node(node);
@@ -475,28 +497,18 @@ void shallow_destroy_node(AST_Node *node)
 		destroy_array(char)(&ident->text);
 	} break;
 
-	case AST_type: {
-	} break;
-
-	case AST_type_decl: {
-	} break;
-
-	case AST_var_decl: {
-	} break;
+	case AST_type: break;
+	case AST_type_decl: break;
+	case AST_var_decl: break;
 
 	case AST_func_decl: {
 		CASTED_NODE(AST_Func_Decl, decl, node);
 		destroy_array(AST_Var_Decl_Ptr)(&decl->params);
 	} break;
 
-	case AST_literal: {
-	} break;
-
-	case AST_biop: {
-	} break;
-
-	case AST_control: {
-	} break;
+	case AST_literal: break;
+	case AST_biop: break;
+	case AST_control: break;
 
 	case AST_call: {
 		CASTED_NODE(AST_Call, call, node);
@@ -508,11 +520,9 @@ void shallow_destroy_node(AST_Node *node)
 		destroy_array(AST_Node_Ptr)(&access->args);
 	} break;
 
-	case AST_cond: {
-	} break;
-
-	case AST_loop: {
-	} break;
+	case AST_cond: break;
+	case AST_loop: break;
+	case AST_cast: break;
 
 	default: FAIL(("shallow_destroy_node: Unknown node type %i", node->type));
 	};
@@ -806,6 +816,12 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 		push_array(AST_Node_Ptr)(ret, AST_BASE(loop->body));
 	} break;
 
+	case AST_cast: {
+		CASTED_NODE(AST_Cast, cast, node);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(cast->type));
+		push_array(AST_Node_Ptr)(ret, cast->target);
+	} break;
+
 	default: FAIL(("push_immediate_subnodes: Unknown node type: %i", node->type));
 	}
 }
@@ -852,6 +868,7 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 	case AST_access: break;
 	case AST_cond: break;
 	case AST_loop: break;
+	case AST_cast: break;
 
 	default: FAIL(("push_immediate_refnodes: Unknown node type: %i", node->type));
 	}
@@ -1066,6 +1083,13 @@ void print_ast(AST_Node *node, int indent)
 		print_ast(AST_BASE(loop->body), indent + 2);
 	} break;
 
+	case AST_cast: {
+		CASTED_NODE(AST_Cast, cast, node);
+		printf("cast\n");
+		print_ast(AST_BASE(cast->type), indent + 2);
+		print_ast(cast->target, indent + 2);
+	} break;
+
 	default: FAIL(("print_ast: Unknown node type %i", node->type));
 	};
 }
@@ -1165,6 +1189,30 @@ AST_Biop *create_mul(AST_Node *lhs, AST_Node *rhs)
 	op->lhs = lhs;
 	op->rhs = rhs;
 	return op;
+}
+
+AST_Cast *create_cast(AST_Type *type, AST_Node *target)
+{
+	AST_Cast *cast = create_cast_node();
+	cast->type = type;
+	cast->target = target;
+	return cast;
+}
+
+AST_Type *create_builtin_type(Builtin_Type bt, int ptr_depth, AST_Scope *root)
+{
+	AST_Type *type = create_type_node();
+	type->base_type_decl = find_builtin_type_decl(bt, root);;
+	type->ptr_depth = ptr_depth;
+	ASSERT(type->base_type_decl);
+	return type;
+}
+
+AST_Type *copy_and_modify_type(AST_Type *type, int delta_ptr_depth)
+{
+	AST_Type *copy = (AST_Type*)copy_ast(AST_BASE(type));
+	copy->ptr_depth += delta_ptr_depth;
+	return copy;
 }
 
 Builtin_Type void_builtin_type()

@@ -1297,6 +1297,13 @@ AST_Scope *parse_tokens(Token *toks)
 	if (is_comment_tok(ctx.tok->type))
 		advance_tok(&ctx);
 
+	{ /* Create C builtin types (backends should be able to rely that they exist in the AST) */
+		create_builtin_decl(&ctx, void_builtin_type());
+		create_builtin_decl(&ctx, int_builtin_type());
+		create_builtin_decl(&ctx, char_builtin_type());
+		/* @todo Rest */
+	}
+
 	begin_node_parsing(&ctx, (AST_Node**)&root);
 	while (ctx.tok->type != Token_eof) {
 		AST_Node *elem = NULL;

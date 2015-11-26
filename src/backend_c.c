@@ -89,7 +89,7 @@ void append_expr_c_func_name(Array(char) *buf, AST_Node *expr)
 	destroy_array(AST_Node_Ptr)(&nodes);
 }
 
-INTERNAL void append_type_and_ident_str(Array(char) *buf, AST_Type *type, AST_Ident *ident)
+INTERNAL void append_type_and_ident_str(Array(char) *buf, AST_Type *type, const char *ident)
 {
 	int i;
 	if (type->is_const)
@@ -102,7 +102,7 @@ INTERNAL void append_type_and_ident_str(Array(char) *buf, AST_Type *type, AST_Id
 	}
 	for (i = 0; i < type->ptr_depth; ++i)
 		append_str(buf, "*");
-	append_str(buf, "%s", ident->text.data);
+	append_str(buf, "%s", ident);
 	if (type->array_size > 0)
 		append_str(buf, "[%i]", type->array_size);
 }
@@ -400,7 +400,8 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(mat_decl));
 			}
 
-			if (func_decls && !bt.is_field) { /* Create matrix multiplication func */
+			/* Create matrix multiplication func */
+			if (func_decls && !bt.is_field) {
 				AST_Func_Decl *mul_decl = create_func_decl_node();
 				AST_Var_Decl *lhs_decl = NULL;
 				AST_Var_Decl *rhs_decl = NULL;
@@ -485,14 +486,14 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(field_var_decl));
 
 					sizeof_expr =
-						create_sizeof(AST_BASE(
-							create_deref(AST_BASE(
-								create_access_for_member(
+						create_sizeof(
+							AST_BASE(create_deref(
+								AST_BASE(create_access_for_member(
 									copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
 									c_mat_elements_decl(field_decl)
-								)
+								))
 							))
-						));
+						);
 					push_array(AST_Node_Ptr)(&size_accesses, AST_BASE(sizeof_expr));
 					for (k = 0; k < alloc_func->params.size; ++k) {
 						push_array(AST_Node_Ptr)(&size_accesses,
@@ -500,31 +501,34 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 					}
 
 					elements_assign =
-						create_assign(AST_BASE(
-							create_access_for_member(
+						create_assign(
+							AST_BASE(create_access_for_member(
 								copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
 								c_mat_elements_decl(field_decl)
-							)), AST_BASE(
-							create_call_1(
-								create_ident_with_text("malloc"),
-								create_chained_expr(size_accesses.data, size_accesses.size, Token_mul)
-							)
-						));
+							)),
+							AST_BASE(create_cast( /* For c++ */
+								(AST_Type*)copy_ast(AST_BASE(c_mat_elements_decl(field_decl)->type)),
+								AST_BASE(create_call_1(
+									create_ident_with_text("malloc"),
+									create_chained_expr(size_accesses.data, size_accesses.size, Token_mul)
+								))
+							))
+						);
 					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(elements_assign));
 					destroy_array(AST_Node_Ptr)(&size_accesses);
 
 					for (k = 0; k < bt.field_dim; ++k) {
 						AST_Biop *assign =
-							create_assign(AST_BASE(
-								create_access_for_member_array(
+							create_assign(
+								AST_BASE(create_access_for_member_array(
 									copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
 									c_field_size_decl(field_decl),
 									k
-								)), AST_BASE(
-								create_access_for_var(
+								)),
+								AST_BASE(create_access_for_var(
 									alloc_func->params.data[k]
-								)
-							));
+								))
+							);
 						push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(assign));
 					}
 
@@ -723,6 +727,13 @@ INTERNAL void append_c_comment(Array(char) *buf, Token *comment)
 		append_str(buf, "/*%.*s*/", BUF_STR_ARGS(comment->text));
 }
 
+void append_c_stdlib_includes(Array(char) *buf)
+{
+	append_str(buf, "#include <stdio.h>\n");
+	append_str(buf, "#include <stdlib.h>\n");
+	append_str(buf, "\n");
+}
+
 bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 {
 	int i, k;
@@ -785,7 +796,9 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	} break;
 
 	case AST_type: {
-		FAIL(("Type should be handled in declaration, because type and identifier are mixed in C"));
+		/* Print type without identifier (like in casts)*/
+		CASTED_NODE(AST_Type, type, node);
+		append_type_and_ident_str(buf, type, "");
 	} break;
 
 	case AST_type_decl: {
@@ -802,7 +815,7 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_var_decl: {
 		CASTED_NODE(AST_Var_Decl, decl, node);
-		append_type_and_ident_str(buf, decl->type, decl->ident);
+		append_type_and_ident_str(buf, decl->type, decl->ident->text.data);
 		if (decl->value) {
 			append_str(buf, " = ");
 			ast_to_c_str(buf, indent, decl->value);
@@ -815,7 +828,7 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			omitted = true;
 			break;
 		}
-		append_type_and_ident_str(buf, decl->return_type, decl->ident);
+		append_type_and_ident_str(buf, decl->return_type, decl->ident->text.data);
 		append_str(buf, "(");
 		for (i = 0; i < decl->params.size; ++i) {
 			ast_to_c_str(buf, indent, AST_BASE(decl->params.data[i]));
@@ -955,6 +968,15 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			append_str(buf, "\n%*s;", indent + indent_add, "");
 	} break;
 
+	case AST_cast: {
+		CASTED_NODE(AST_Cast, cast, node);
+		append_str(buf, "(");
+		ast_to_c_str(buf, indent, AST_BASE(cast->type));
+		append_str(buf, ")");
+		ast_to_c_str(buf, indent, cast->target);
+
+	} break;
+
 	default: FAIL(("ast_to_c_str: Unknown node type: %i", node->type));
 	}
 
@@ -970,8 +992,7 @@ Array(char) gen_c_code(AST_Scope *root)
 	add_builtin_c_decls_to_global_scope(modified_ast, true);
 	apply_c_operator_overloading(modified_ast, true);
 
-	append_str(&gen_src, "#include <stdio.h>\n");
-	append_str(&gen_src, "#include <stdlib.h>\n");
+	append_c_stdlib_includes(&gen_src);
 	ast_to_c_str(&gen_src, 0, AST_BASE(modified_ast));
 	destroy_ast(modified_ast);
 	return gen_src;

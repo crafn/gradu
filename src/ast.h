@@ -18,7 +18,8 @@ typedef enum {
 	AST_call,
 	AST_access,
 	AST_cond,
-	AST_loop
+	AST_loop,
+	AST_cast
 } AST_Node_Type;
 
 struct AST_Node;
@@ -225,6 +226,13 @@ typedef struct AST_Loop {
 	/* @todo do-while */
 } AST_Loop;
 
+typedef struct AST_Cast {
+	AST_Node b;
+
+	AST_Type *type;
+	AST_Node *target;
+} AST_Cast;
+
 /* Usage: CASTED_NODE(AST_Ident, ident, generic_node); printf("%c", ident->text_buf[0]); */
 #define CASTED_NODE(type, name, assign) \
 	type *name = (type*)assign
@@ -250,6 +258,7 @@ AST_Call *create_call_node();
 AST_Access *create_access_node();
 AST_Cond *create_cond_node();
 AST_Loop *create_loop_node();
+AST_Cast *create_cast_node();
 
 /* Copies only stuff in AST_Node structure. Useful for copying comments to another node, for example. */
 void copy_ast_node_base(AST_Node *dst, AST_Node *src);
@@ -275,6 +284,7 @@ void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **
 void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_Node **args, int arg_count);
 void copy_cond_node(AST_Cond *copy, AST_Cond *cond, AST_Node *expr, AST_Node *body, AST_Node *after_else);
 void copy_loop_node(AST_Loop *copy, AST_Loop *loop, AST_Node *init, AST_Node *cond, AST_Node *incr, AST_Node *body);
+void copy_cast_node(AST_Cast *copy, AST_Cast *cast, AST_Node *type, AST_Node *target);
 
 /* Recursive */
 /* @todo Use destroy_ast for this */
@@ -321,6 +331,9 @@ AST_Biop *create_sizeof(AST_Node *expr);
 AST_Biop *create_deref(AST_Node *expr);
 AST_Biop *create_assign(AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_mul(AST_Node *lhs, AST_Node *rhs);
+AST_Cast *create_cast(AST_Type *type, AST_Node *target);
+AST_Type *create_builtin_type(Builtin_Type bt, int ptr_depth, AST_Scope *root);
+AST_Type *copy_and_modify_type(AST_Type *type, int delta_ptr_depth);
 
 Builtin_Type void_builtin_type();
 Builtin_Type int_builtin_type();

@@ -1,6 +1,7 @@
 #include "backend_cuda.h"
 #include "backend_c.h"
 
+#if 0
 INTERNAL void apply_cuda_operator_overloading(AST_Scope *root)
 {
 	int i, k;
@@ -240,6 +241,7 @@ INTERNAL void apply_cuda_operator_overloading(AST_Scope *root)
 	destroy_array(AST_Node_Ptr)(&replace_list_new);
 	destroy_array(AST_Node_Ptr)(&kernel_decls);
 }
+#endif
 
 Array(char) gen_cuda_code(AST_Scope *root)
 {
@@ -247,9 +249,11 @@ Array(char) gen_cuda_code(AST_Scope *root)
 	AST_Scope *modified_ast = (AST_Scope*)copy_ast(AST_BASE(root));
 
 	lift_types_and_funcs_to_global_scope(modified_ast);
-	add_builtin_c_decls_to_global_scope(modified_ast, false);
-	apply_c_operator_overloading(modified_ast, false);
-	apply_cuda_operator_overloading(modified_ast);
+	add_builtin_c_decls_to_global_scope(modified_ast, true);
+	apply_c_operator_overloading(modified_ast, true);
+	/*apply_cuda_operator_overloading(modified_ast);*/
+
+	append_c_stdlib_includes(&gen_src);
 	ast_to_c_str(&gen_src, 0, AST_BASE(modified_ast));
 
 	destroy_ast(modified_ast);

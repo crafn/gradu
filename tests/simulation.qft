@@ -6,10 +6,10 @@ int main(int argc, char **argv)
 	int field(2 + 1) test_field;
 	float matrix(2, 2) field(2) test_field2;
 
-	int matrix(3, 3) mat1;
-	int matrix(3, 3) mat2;
-	int matrix(3, 3) mat3;
-	int matrix(3, 3) result;
+	int matrix(2, 2) mat1;
+	int matrix(2, 2) mat2;
+	int matrix(2, 2) mat3;
+	int matrix(2, 2) result;
 	float matrix(2, 2) test;
 
 	mat1(0, 0) = 1;

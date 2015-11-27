@@ -29,7 +29,7 @@ INTERNAL Token_Type single_char_tokentype(char ch)
 		case '\\': return Token_rdiv;
 		case '%': return Token_mod;
 		case '.': return Token_dot;
-		case '&': return Token_amp;
+		case '&': return Token_addrof;
 		case '^': return Token_hat;
 		case '?': return Token_question;
 		case '~': return Token_tilde;
@@ -65,6 +65,10 @@ INTERNAL Token_Type double_char_tokentype(char ch1, char ch2)
 			default:;
 		}
 	}
+	if (ch1 == '+' && ch2 == '+')
+		return Token_incr;
+	if (ch1 == '-' && ch2 == '-')
+		return Token_decr;
 
 	return Token_unknown;
 }
@@ -110,6 +114,8 @@ INTERNAL Token_Type kw_tokentype(const char *buf, int size)
 		return Token_kw_false;
 	if (str_equals_buf("sizeof", buf, size))
 		return Token_kw_sizeof;
+	if (str_equals_buf("typedef", buf, size))
+		return Token_kw_typedef;
 	if (str_equals_buf("void", buf, size))
 		return Token_kw_void;
 	if (str_equals_buf("int", buf, size))
@@ -331,10 +337,12 @@ const char* tokentype_str(Token_Type type)
 		case Token_sub: return "sub";
 		case Token_mul: return "mul";
 		case Token_div: return "div";
+		case Token_incr: return "incr";
+		case Token_decr: return "decr";
 		case Token_rdiv: return "rdiv";
 		case Token_mod: return "mod";
 		case Token_dot: return "dot";
-		case Token_amp: return "amp";
+		case Token_addrof: return "addrof";
 		case Token_hat: return "hat";
 		case Token_question: return "question";
 		case Token_tilde: return "tilde";
@@ -353,6 +361,7 @@ const char* tokentype_str(Token_Type type)
 		case Token_kw_true: return "kw_true";
 		case Token_kw_false: return "kw_false";
 		case Token_kw_sizeof: return "kw_sizeof";
+		case Token_kw_typedef: return "kw_typedef";
 		case Token_kw_void: return "kw_void";
 		case Token_kw_int: return "kw_int";
 		case Token_kw_size_t: return "kw_size_t";
@@ -396,10 +405,12 @@ const char* tokentype_codestr(Token_Type type)
 		case Token_sub: return "-";
 		case Token_mul: return "*";
 		case Token_div: return "/";
+		case Token_incr: return "++";
+		case Token_decr: return "--";
 		case Token_rdiv: return "\\";
 		case Token_mod: return "%";
 		case Token_dot: return ".";
-		case Token_amp: return "&";
+		case Token_addrof: return "&";
 		case Token_hat: return "^";
 		case Token_question: return "?";
 		case Token_tilde: return "~";
@@ -419,6 +430,7 @@ const char* tokentype_codestr(Token_Type type)
 		case Token_kw_true: return "true";
 		case Token_kw_false: return "false";
 		case Token_kw_sizeof: return "sizeof";
+		case Token_kw_typedef: return "typedef";
 		case Token_kw_void: return "void";
 		case Token_kw_int: return "int";
 		case Token_kw_size_t: return "size_t";

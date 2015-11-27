@@ -1,50 +1,41 @@
 int printf(const char *fmt, ..);
 
+typedef float field(2) Field;
+
 int main(int argc, char **argv)
 {
-	// Not yet a simulation!
-	int field(2 + 1) test_field;
-	float matrix(2, 2) field(2) test_field2;
+	Field a;
+	Field b;
+	int i;
+	a = alloc_field(20, 20);
+	b = alloc_field(20, 20);
 
-	int matrix(2, 2) mat1;
-	int matrix(2, 2) mat2;
-	int matrix(2, 2) mat3;
-	int matrix(2, 2) result;
-	float matrix(2, 2) test;
+	for (i = 0; i < 10; ++i) {
+		Field *input = &a;
+		Field *output = &b;
 
-	mat1(0, 0) = 1;
-	mat1(1, 0) = -1 + -2 * -3;
-	mat1(0, 1) = 3;
-	mat1(1, 1) = 4;
+		// Swap
+		if (i % 2 == 1) {
+			Field *tmp = output;
+			output = input;
+			input = output;
+		}
 
-	mat2(0, 0) = 5;
-	mat2(1, 0) = 5;
-	mat2(0, 1) = 5;
-	mat2(1, 1) = 6;
+		/*
+		for_fields (*output, *input) {
+			// Some kind of diffusion for test simulation
+			output(x, y) =	input(x, y) +
+							input(x + 1, y) +
+							input(x + 1, y + 1) +
+							input(x, y + 1);
+			output(x, y) /= 4.0;
+		}
+		*/
 
-	mat3(0, 0) = 1;
-	mat3(1, 0) = 1;
-	mat3(0, 1) = 2;
-	mat3(1, 1) = 3;
+	}
 
-
-	test_field = alloc_field(100, 100, 100);
-	test_field2 = alloc_field(200, 200);
-
-	test_field(1, 2, 3) = 4;
-	test_field2(1, 2) = test;
-
-	test_field2(13, 37)(1, 0) = 3;
-
-	// This comment should survive to the generated code
-	result = mat1 * mat2 * mat3;
-	test = test_field2(0, 0) * test_field2(1, 1);
-
-	printf("(%i, %i)\n(%i, %i)\n", result(0, 0), result(1, 0), result(0, 1), result(1, 1));
-
-	free_field(test_field);
-	free_field(test_field2);
-
+	free_field(a);
+	free_field(b);
 	return 0;
 }
 

@@ -94,12 +94,18 @@ INTERNAL void append_type_and_ident_str(Array(char) *buf, AST_Type *type, const 
 	int i;
 	if (type->is_const)
 		append_str(buf, "const ");
-	if (type->base_type_decl->is_builtin) {
-		append_builtin_type_c_str(buf, type->base_type_decl->builtin_type);
-		append_str(buf, " ");
+
+	if (type->base_typedef) {
+		append_str(buf, "%s ", type->base_typedef->ident->text.data);
 	} else {
-		append_str(buf, "%s ", type->base_type_decl->ident->text.data);
+		if (type->base_type_decl->is_builtin) {
+			append_builtin_type_c_str(buf, type->base_type_decl->builtin_type);
+			append_str(buf, " ");
+		} else {
+			append_str(buf, "%s ", type->base_type_decl->ident->text.data);
+		}
 	}
+
 	for (i = 0; i < type->ptr_depth; ++i)
 		append_str(buf, "*");
 	append_str(buf, "%s", ident);
@@ -858,6 +864,9 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		case Literal_string:
 			append_str(buf, "\"%.*s\"", literal->value.string.len, literal->value.string.buf);
 		break;
+		case Literal_null:
+			append_str(buf, "NULL");
+		break;
 		default: FAIL(("Unknown literal type: %i", literal->type));
 		}
 	} break;
@@ -921,7 +930,7 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			ast_to_c_str(buf, indent, access->args.data[0]);
 			append_str(buf, "]");
 		} else if (access->is_element_access) {
-			FAIL(("All element accesses should be transformed to member + array accesses"));
+			/* Plain access */
 		}
 	} break;
 
@@ -975,6 +984,12 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		append_str(buf, ")");
 		ast_to_c_str(buf, indent, cast->target);
 
+	} break;
+
+	case AST_typedef: {
+		CASTED_NODE(AST_Typedef, def, node);
+		append_str(buf, "typedef ");
+		append_type_and_ident_str(buf, def->type, def->ident->text.data);
 	} break;
 
 	default: FAIL(("ast_to_c_str: Unknown node type: %i", node->type));

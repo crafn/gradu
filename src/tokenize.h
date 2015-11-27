@@ -33,9 +33,11 @@ typedef enum {
 	Token_sub, /* - */
 	Token_mul, /* * */
 	Token_div, /* / */
+	Token_incr, /* ++ */
+	Token_decr, /* -- */
 	Token_mod, /* % */
 	Token_dot, /* . */
-	Token_amp, /* & */
+	Token_addrof, /* & */
 	Token_hat, /* ^ */
 	Token_tilde, /* ~ */
 	Token_ellipsis, /* .. */ /* @todo Three dots */
@@ -56,6 +58,7 @@ typedef enum {
 	Token_kw_true, /* true */
 	Token_kw_false, /* false */
 	Token_kw_sizeof, /* sizeof */
+	Token_kw_typedef, /* typedef */
 	/* Type-related */
 	Token_kw_void,
 	Token_kw_int,

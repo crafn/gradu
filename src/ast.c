@@ -651,12 +651,14 @@ bool eval_const_expr(AST_Literal *ret, AST_Node *expr)
 			case Token_add:
 				switch (lhs.type) {
 				case Literal_int: ret->value.integer = lhs.value.integer + rhs.value.integer; break;
+				case Literal_float: ret->value.floating = lhs.value.floating + rhs.value.floating; break;
 				default: FAIL(("Unhandled literal type %i", lhs.type));
 				}
 			break;
 			case Token_sub:
 				switch (lhs.type) {
 				case Literal_int: ret->value.integer = lhs.value.integer - rhs.value.integer; break;
+				case Literal_float: ret->value.floating = lhs.value.floating - rhs.value.floating; break;
 				default: FAIL(("Unhandled literal type %i", lhs.type));
 				}
 			break;
@@ -1063,6 +1065,7 @@ void print_ast(AST_Node *node, int indent)
 		printf("literal: ");
 		switch (literal->type) {
 			case Literal_int: printf("%i\n", literal->value.integer); break;
+			case Literal_float: printf("%f\n", literal->value.floating); break;
 			case Literal_string: printf("%.*s\n", literal->value.string.len, literal->value.string.buf); break;
 			case Literal_null: printf("NULL\n"); break;
 			default: FAIL(("Unknown literal type: %i", literal->type));
@@ -1270,6 +1273,14 @@ Builtin_Type int_builtin_type()
 {
 	Builtin_Type bt = {0};
 	bt.is_integer = true;
+	return bt;
+}
+
+Builtin_Type float_builtin_type()
+{
+	Builtin_Type bt = {0};
+	bt.is_float = true;
+	bt.bitness = 32;
 	return bt;
 }
 

@@ -244,24 +244,19 @@ Array(Token) tokenize(const char* src, int src_size)
 			break;
 			case Tok_State_number_after_dot:
 			case Tok_State_number:
-				if (	whitespace(*cur) ||
-						single_char_tokentype(*cur) != Token_unknown) {
-					if (t.state == Tok_State_number_after_dot) {
-						/* `123.` <- last dot is detected and removed, */
-						/* because `.>` is a token */
-						commit_token(&t, tok_begin, cur - 1, Token_number);
-						cur -= 2;
-						break;
-					} else if (*cur != '.') {
-						commit_token(&t, tok_begin, cur, Token_number);
-						--cur;
-						break;
-					}
+				if ((*cur < '0' || *cur > '9') && *cur != '.') {
+					Token_Type type = Token_int;
+					if (t.state == Tok_State_number_after_dot)
+						type = Token_float;
+
+					commit_token(&t, tok_begin, cur, type);
+					--cur;
+					break;
 				}
 
 				if (*cur == '.')
 					t.state = Tok_State_number_after_dot;
-				else
+				else if (t.state != Tok_State_number_after_dot)
 					t.state = Tok_State_number;
 			break;
 			case Tok_State_name:
@@ -312,7 +307,8 @@ const char* tokentype_str(Token_Type type)
 	switch (type) {
 		case Token_eof: return "eof";
 		case Token_name: return "name";
-		case Token_number: return "number";
+		case Token_int: return "int";
+		case Token_float: return "float";
 		case Token_assign: return "assign";
 		case Token_semi: return "semi";
 		case Token_comma: return "comma";
@@ -380,7 +376,8 @@ const char* tokentype_codestr(Token_Type type)
 	switch (type) {
 		case Token_eof: return "";
 		case Token_name: return "";
-		case Token_number: return "";
+		case Token_int: return "";
+		case Token_float: return "";
 		case Token_assign: return "=";
 		case Token_semi: return ";";
 		case Token_comma: return ",";

@@ -7,46 +7,91 @@ int str_to_int(Buf_Str text)
 	int value = 0;
 	int sign = 1;
 	if (*c == '+' || *c == '-') {
-		if(*c == '-')
+		if (*c == '-')
 			sign = -1;
 		c++;
 	}
 	while (c < end) {
 		value *= 10;
+		ASSERT(*c >= '0' && *c <= '9');
 		value += (int)(*c - '0');
 		c++;
 	}
-	return value * sign;
+	return value*sign;
+}
+
+double str_to_float(Buf_Str text)
+{
+	const char *c = text.buf;
+	const char *end = c + text.len;
+	double value = 0.0;
+	int sign = 1;
+	int decimal_div = 1;
+
+	if (*c == '+' || *c == '-') {
+		if (*c == '-')
+			sign = -1;
+		c++;
+	}
+
+	while (c < end && *c != '.') {
+		value *= 10;
+		ASSERT(*c >= '0' && *c <= '9');
+		value += (double)(*c - '0');
+		++c;
+	}
+
+	++c;
+
+	while (c < end) {
+		value += (double)(*c - '0')/decimal_div;
+		decimal_div *= 10;
+		++c;
+	}
+
+	return value*sign;
 }
 
 #define UOP_PRECEDENCE 100000
-int op_prec(Token_Type type)
+/* Not all of the accepted tokens are actually binary operators. They're here for similar precedence handling. */
+int biop_prec(Token_Type type)
 {
+	/* Order should match with C operator precedence */
 	int prec = 1;
 	switch (type) {
-		case Token_mul: 
-		case Token_div: ++prec;
-		case Token_add: 
-		case Token_sub: ++prec;
-		case Token_mod: ++prec;
 
-		case Token_leq:
-		case Token_geq:
-		case Token_less:
-		case Token_greater: ++prec;
+	case Token_open_paren: ++prec; /* Function call */
 
-		case Token_equals: ++prec;
+	case Token_dot:
+	case Token_right_arrow: ++prec;
 
-		case Token_assign: ++prec;
+	case Token_mul: 
+	case Token_div: ++prec;
+	case Token_mod: ++prec;
+	case Token_add: 
+	case Token_sub: ++prec;
 
-		break;
-		default: return -1;
+	case Token_leq:
+	case Token_geq:
+	case Token_less:
+	case Token_greater: ++prec;
+
+	case Token_equals: ++prec;
+
+	case Token_assign: ++prec;
+	case Token_add_assign:
+	case Token_sub_assign:
+	case Token_mul_assign:
+	case Token_div_assign: ++prec;
+
+	break;
+	default: return -1;
 	}
 	return prec;
 }
 
 /* -1 left, 1 right */
-int op_assoc(Token_Type type)
+int biop_assoc(Token_Type type)
 {
 	switch (type) {
 		case Token_assign: return 1; /* a = b = c  <=>  (a = (b = c)) */
@@ -54,8 +99,32 @@ int op_assoc(Token_Type type)
 	}
 }
 
-bool is_op(Token_Type type)
-{ return op_prec(type) >= 0; }
+bool is_binary_op(Token_Type type)
+{
+	switch (type) {
+
+	case Token_mul: 
+	case Token_div:
+	case Token_mod:
+	case Token_add: 
+	case Token_sub:
+
+	case Token_leq:
+	case Token_geq:
+	case Token_less:
+	case Token_greater:
+
+	case Token_equals:
+
+	case Token_assign:
+	case Token_add_assign:
+	case Token_sub_assign:
+	case Token_mul_assign:
+	case Token_div_assign:
+		return true;
+	default: return false;
+	}
+}
 
 bool is_unary_op(Token_Type type)
 {
@@ -66,6 +135,7 @@ bool is_unary_op(Token_Type type)
 		case Token_incr:
 		case Token_decr:
 		case Token_addrof:
+		case Token_mul: /* deref */
 			return true;
 		default: return false;
 	}
@@ -310,7 +380,7 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_block(Parse_Ctx *ctx, AST_Scope **ret);
 INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret);
-INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type *type_hint);
+INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type *type_hint, bool semi);
 INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret);
@@ -621,7 +691,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 
 				{ /* Parse dimension list */
 					/* @todo Support constant expressions */
-					while (cur_tok(ctx)->type == Token_number) {
+					while (cur_tok(ctx)->type == Token_int) {
 						int dim = str_to_int(cur_tok(ctx)->text);
 						bt.matrix_dim[bt.matrix_rank++] = dim;
 						advance_tok(ctx);
@@ -754,7 +824,7 @@ INTERNAL bool parse_var_decl(Parse_Ctx *ctx, AST_Node **ret, bool is_param_decl)
 
 	if (!is_param_decl) {
 		if (accept_tok(ctx, Token_assign)) {
-			if (!parse_expr(ctx, &decl->value, 0, NULL))
+			if (!parse_expr(ctx, &decl->value, 0, NULL, true))
 				goto mismatch;
 		} else if (!accept_tok(ctx, Token_semi)) {
 			report_error_expected(ctx, "';'", cur_tok(ctx));
@@ -865,10 +935,15 @@ INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret)
 	begin_node_parsing(ctx, (AST_Node**)&literal);
 
 	switch (tok->type) {
-		case Token_number:
+		case Token_int:
 			literal->type = Literal_int;
 			literal->value.integer = str_to_int(tok->text);
 			literal->base_type_decl = create_builtin_decl(ctx, int_builtin_type());
+		break;
+		case Token_float:
+			literal->type = Literal_float;
+			literal->value.floating = str_to_float(tok->text);
+			literal->base_type_decl = create_builtin_decl(ctx, float_builtin_type());
 		break;
 		case Token_string:
 			literal->type = Literal_string;
@@ -902,7 +977,7 @@ INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret)
 		if (cur_tok(ctx)->type == Token_comma)
 			advance_tok(ctx);
 
-		if (!parse_expr(ctx, (AST_Node**)&arg, 0, NULL))
+		if (!parse_expr(ctx, (AST_Node**)&arg, 0, NULL, false))
 			goto mismatch;
 
 		push_array(AST_Node_Ptr)(ret, arg);
@@ -927,7 +1002,7 @@ INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret)
 		goto mismatch;
 	}
 
-	if (!parse_expr(ctx, ret, 0, NULL))
+	if (!parse_expr(ctx, ret, 0, NULL, false))
 		goto mismatch;
 
 	if (!accept_tok(ctx, Token_close_paren)) {
@@ -1030,7 +1105,7 @@ mismatch:
 }
 
 /* Parse example: var = 5 + 3 * 2; */
-INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type *type_hint)
+INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type *type_hint, bool semi)
 {
 	AST_Node *expr = NULL;
 
@@ -1049,31 +1124,28 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type 
 		advance_tok(ctx);
 
 		/* The precedence should be higher than any binary operation, because -1 op 2 != -(1 op 2) */
-		if (!parse_expr(ctx, &biop->rhs, UOP_PRECEDENCE, NULL)) {
+		if (!parse_expr(ctx, &biop->rhs, UOP_PRECEDENCE, NULL, false)) {
 			goto mismatch;
 		}
 		expr = AST_BASE(biop);
 	} else if (parse_literal(ctx, &expr)) {
 		;
+	} else if (parse_expr_inside_parens(ctx, &expr)) {
+		;
 	} else {
 		report_error_expected(ctx, "identifier or literal", cur_tok(ctx));
 		goto mismatch;
 	}
-	/* @todo Parse parens */
 
-	while (	(is_op(cur_tok(ctx)->type) &&
-			op_prec(cur_tok(ctx)->type) >= min_prec) ||
-			cur_tok(ctx)->type == Token_open_paren ||
-			cur_tok(ctx)->type == Token_dot ||
-			cur_tok(ctx)->type == Token_right_arrow) {
+	while (biop_prec(cur_tok(ctx)->type) >= min_prec) {
 
-		if (is_op(cur_tok(ctx)->type)) {
+		if (is_binary_op(cur_tok(ctx)->type)) {
 			AST_Node *rhs = NULL;
 			Token *tok = cur_tok(ctx);
 			AST_Type new_type_hint;
 			AST_Type *new_type_hint_ptr = NULL;
-			int prec = op_prec(tok->type);
-			int assoc = op_assoc(tok->type);
+			int prec = biop_prec(tok->type);
+			int assoc = biop_assoc(tok->type);
 			int next_min_prec;
 			if (assoc == -1)
 				next_min_prec = prec + 1;
@@ -1084,7 +1156,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type 
 			/* E.g. LHS of 'field = alloc_field(1);' chooses the allocation function through type hint */ 
 			if (expr_type(&new_type_hint, expr))
 				new_type_hint_ptr = &new_type_hint;
-			if (!parse_expr(ctx, &rhs, next_min_prec, new_type_hint_ptr))
+			if (!parse_expr(ctx, &rhs, next_min_prec, new_type_hint_ptr, false))
 				goto mismatch;
 
 			{
@@ -1140,8 +1212,10 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type 
 		}
 	}
 
-	/* @todo Demand semi for top-level expressions */
-	accept_tok(ctx, Token_semi);
+	if (semi && !accept_tok(ctx, Token_semi)) {
+		report_error_expected(ctx, "';'", cur_tok(ctx));
+		goto mismatch;
+	}
 
 	if (expr->type == AST_ident) {
 		CASTED_NODE(AST_Ident, ident, expr);
@@ -1273,13 +1347,13 @@ INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret)
 			goto mismatch;
 		}
 
-		if (!parse_expr(ctx, &loop->init, 0, NULL))
+		if (!parse_expr(ctx, &loop->init, 0, NULL, true))
 			goto mismatch;
 
-		if (!parse_expr(ctx, &loop->cond, 0, NULL))
+		if (!parse_expr(ctx, &loop->cond, 0, NULL, true))
 			goto mismatch;
 
-		if (!parse_expr(ctx, &loop->incr, 0, NULL)) {
+		if (!parse_expr(ctx, &loop->incr, 0, NULL, false)) {
 			printf("asd\n");
 			goto mismatch;
 		}
@@ -1342,7 +1416,7 @@ INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret)
 		;
 	else if (parse_func_decl(ctx, &result))
 		;
-	else if (parse_expr(ctx, &result, 0, NULL))
+	else if (parse_expr(ctx, &result, 0, NULL, true))
 		;
 	else if (parse_control(ctx, &result))
 		;

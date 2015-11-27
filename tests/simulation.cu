@@ -10,7 +10,7 @@ typedef struct floatfield2
 floatfield2 alloc_field_floatfield2(int size_0, int size_1)
 {
     floatfield2 field;
-    field.m = (float *)malloc(sizeof(*field.m) * size_0 * size_1);
+    field.m = (float *)malloc((sizeof(*field.m)) * size_0 * size_1);
     field.size[0] = size_0;
     field.size[1] = size_1;
     return field;
@@ -27,13 +27,24 @@ typedef floatfield2 Field;
 
 int main(int argc, char **argv)
 {
-    Field a;
-    Field b;
+    int size_x = 20;
+    int size_y = 20;
+    Field a = alloc_field_floatfield2(size_x, size_y);
+    Field b = alloc_field_floatfield2(size_x, size_y);
     int i;
-    a = alloc_field_floatfield2(20, 20);
-    b = alloc_field_floatfield2(20, 20);
 
-    for (i = 0; i < 10; ++i) {
+    {
+        int x;
+        int y;
+        for (x = 0; x < size_x; ++x) {
+            for (y = 0; y < size_y; ++y) {
+                (a).m[1 * x + (a).size[0] * y] = 0;
+            }
+        }
+        (a).m[1 * size_x / 2 + (a).size[0] * size_y / 2] = 1000;
+    }
+
+    for (i = 0; i < 20; ++i) {
         Field *input = &a;
         Field *output = &b;
 
@@ -41,7 +52,43 @@ int main(int argc, char **argv)
         if (i % 2 == 1) {
             Field *tmp = output;
             output = input;
-            input = output;
+            input = tmp;
+        }
+
+        {
+            int x;
+            int y;
+            for (x = 0; x < size_x; ++x) {
+                for (y = 0; y < size_y; ++y) {
+                    int nx = (x + 1) % size_x;
+                    int ny = (y + 1) % size_y;
+                    int px = (x - 1 + size_x) % size_x;
+                    int py = (y - 1 + size_y) % size_y;
+
+                    /* Some kind of diffusion */
+                    (*output).m[1 * x + (*output).size[0] * y] = (*input).m[1 * x + (*input).size[0] * y] + (*input).m[1 * nx + (*input).size[0] * y] + (*input).m[1 * px + (*input).size[0] * y] + (*input).m[1 * x + (*input).size[0] * ny] + (*input).m[1 * x + (*input).size[0] * py];
+                    (*output).m[1 * x + (*output).size[0] * y] /= 5;
+                }
+            }
+        }
+
+        {
+            int x;
+            int y;
+            for (y = 0; y < size_y; ++y) {
+                for (x = 0; x < size_x; ++x) {
+                    char *ch = " ";
+                    if ((*output).m[1 * x + (*output).size[0] * y] > 5.000000) {
+                        ch = "#";
+                    } else if ((*output).m[1 * x + (*output).size[0] * y] > 1.000000) {
+                        ch = ".";
+                    }
+
+                    printf("%s", ch);
+                }
+                printf("\n");
+            }
+            printf("\n");
         }
     }
 

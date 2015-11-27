@@ -6,7 +6,8 @@
 typedef enum {
 	Token_eof,
 	Token_name, /* single_word_like_this */
-	Token_number, /* 2538 */
+	Token_int, /* 2538 */
+	Token_float, /* 2538.0 */
 	Token_string, /* "something" */
 	Token_assign, /* = */
 	Token_semi, /* ; */

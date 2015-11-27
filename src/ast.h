@@ -142,6 +142,7 @@ typedef struct AST_Func_Decl {
 
 typedef enum {
 	Literal_int,
+	Literal_float,
 	Literal_string,
 	Literal_null
 } Literal_Type;
@@ -153,6 +154,7 @@ typedef struct AST_Literal {
 	union {
 		/* @todo Different integer sizes etc */
 		int integer;
+		double floating;
 		Buf_Str string;
 	} value;
 
@@ -350,6 +352,7 @@ AST_Type *copy_and_modify_type(AST_Type *type, int delta_ptr_depth);
 
 Builtin_Type void_builtin_type();
 Builtin_Type int_builtin_type();
+Builtin_Type float_builtin_type();
 Builtin_Type char_builtin_type();
 
 /* elem[0] chainop elem[1] */

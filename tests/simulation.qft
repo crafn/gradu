@@ -4,13 +4,24 @@ typedef float field(2) Field;
 
 int main(int argc, char **argv)
 {
-	Field a;
-	Field b;
+	int size_x = 20;
+	int size_y = 20;
+	Field a = alloc_field(size_x, size_y);
+	Field b = alloc_field(size_x, size_y);
 	int i;
-	a = alloc_field(20, 20);
-	b = alloc_field(20, 20);
 
-	for (i = 0; i < 10; ++i) {
+	{ // Init field
+		int x;
+		int y;
+		for (x = 0; x < size_x; ++x) {
+			for (y = 0; y < size_y; ++y) {	
+				a(x, y) = 0;
+			}
+		}
+		a(size_x/2, size_y/2) = 1000;
+	}
+
+	for (i = 0; i < 20; ++i) {
 		Field *input = &a;
 		Field *output = &b;
 
@@ -18,20 +29,47 @@ int main(int argc, char **argv)
 		if (i % 2 == 1) {
 			Field *tmp = output;
 			output = input;
-			input = output;
+			input = tmp;
 		}
 
-		/*
-		for_fields (*output, *input) {
-			// Some kind of diffusion for test simulation
-			output(x, y) =	input(x, y) +
-							input(x + 1, y) +
-							input(x + 1, y + 1) +
-							input(x, y + 1);
-			output(x, y) /= 4.0;
-		}
-		*/
+		{ // @todo Turn to some for_fields construct
+			int x;
+			int y;
+			for (x = 0; x < size_x; ++x) {
+				for (y = 0; y < size_y; ++y) {	
+					int nx = (x + 1) % size_x;
+					int ny = (y + 1) % size_y;
+					int px = (x - 1 + size_x) % size_x;
+					int py = (y - 1 + size_y) % size_y;
 
+					// Some kind of diffusion
+					*output(x, y) =	*input(x, y) +
+									*input(nx, y) +
+									*input(px, y) +
+									*input(x, ny) +
+									*input(x, py);
+					*output(x, y) /= 5;
+				}
+			}
+		}
+
+		{ // Print current state
+			int x;
+			int y;
+			for (y = 0; y < size_y; ++y) {
+				for (x = 0; x < size_x; ++x) {	
+					char *ch = " ";
+					if ((*output)(x, y) > 0.5)
+						ch = "#";
+					else if ((*output)(x, y) > 0.1)
+						ch = ".";
+
+					printf("%s", ch);
+				}
+				printf("\n");
+			}
+			printf("\n");
+		}
 	}
 
 	free_field(a);

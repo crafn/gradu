@@ -1,5 +1,17 @@
 #include "backend_c.h"
 
+INTERNAL bool nested_expr_needs_parens(AST_Node *expr, AST_Node *nested)
+{
+	if (expr->type != AST_biop || nested->type != AST_biop)
+		return false;
+	{
+		CASTED_NODE(AST_Biop, op, expr);
+		CASTED_NODE(AST_Biop, subop, nested);
+
+		return biop_prec(op->type) > biop_prec(subop->type);
+	}
+}
+
 INTERNAL bool is_builtin_decl(AST_Node *node)
 {
 	if (node->type == AST_type_decl) {
@@ -858,15 +870,10 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	case AST_literal: {
 		CASTED_NODE(AST_Literal, literal, node);
 		switch (literal->type) {
-		case Literal_int:
-			append_str(buf, "%i", literal->value.integer);
-		break;
-		case Literal_string:
-			append_str(buf, "\"%.*s\"", literal->value.string.len, literal->value.string.buf);
-		break;
-		case Literal_null:
-			append_str(buf, "NULL");
-		break;
+		case Literal_int: append_str(buf, "%i", literal->value.integer); break;
+		case Literal_float: append_str(buf, "%f", literal->value.floating); break;
+		case Literal_string: append_str(buf, "\"%.*s\"", literal->value.string.len, literal->value.string.buf); break;
+		case Literal_null: append_str(buf, "NULL"); break;
 		default: FAIL(("Unknown literal type: %i", literal->type));
 		}
 	} break;
@@ -874,18 +881,31 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	case AST_biop: {
 		CASTED_NODE(AST_Biop, biop, node);
 		if (biop->lhs && biop->rhs) {
+			bool lhs_parens = nested_expr_needs_parens(node, biop->lhs);
+			bool rhs_parens = nested_expr_needs_parens(node, biop->rhs);
+			if (lhs_parens)
+				append_str(buf, "(");
 			ast_to_c_str(buf, indent, biop->lhs);
+			if (lhs_parens)
+				append_str(buf, ")");
+
 			append_str(buf, " %s ", tokentype_codestr(biop->type));
+
+			if (rhs_parens)
+				append_str(buf, "(");
 			ast_to_c_str(buf, indent, biop->rhs);
+			if (rhs_parens)
+				append_str(buf, ")");
 		} else {
-			bool parens = (biop->type == Token_kw_sizeof);
+			bool parens_inside = (biop->type == Token_kw_sizeof);
+
 			/* Unary op */
 			append_str(buf, "%s", tokentype_codestr(biop->type));
 			
-			if (parens)
+			if (parens_inside)
 				append_str(buf, "(");
 			ast_to_c_str(buf, indent, biop->rhs);
-			if (parens)
+			if (parens_inside)
 				append_str(buf, ")");
 		}
 	} break;
@@ -919,18 +939,26 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
-		ast_to_c_str(buf, indent, access->base);
 		if (access->is_member_access) {
+			bool parens = (access->base->type != AST_ident);
+			if (parens)
+				append_str(buf, "(");
+			ast_to_c_str(buf, indent, access->base);
+			if (parens)
+				append_str(buf, ")");
 			append_str(buf, ".");
 			ASSERT(access->args.size == 1);
 			ast_to_c_str(buf, indent, access->args.data[0]);
 		} else if (access->is_array_access) {
+			ast_to_c_str(buf, indent, access->base);
 			append_str(buf, "[");
 			ASSERT(access->args.size == 1);
 			ast_to_c_str(buf, indent, access->args.data[0]);
 			append_str(buf, "]");
 		} else if (access->is_element_access) {
-			/* Plain access */
+			FAIL(("C does not support builtin element access (bug: these should be converted)"));
+		} else {
+			ast_to_c_str(buf, indent, access->base);
 		}
 	} break;
 

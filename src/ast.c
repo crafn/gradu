@@ -370,6 +370,7 @@ void copy_access_node(AST_Access *copy, AST_Access *access, AST_Node *base, AST_
 	copy->is_member_access = access->is_member_access;
 	copy->is_element_access = access->is_element_access;
 	copy->is_array_access = access->is_array_access;
+	copy->implicit_deref = access->implicit_deref;
 }
 
 void copy_cond_node(AST_Cond *copy, AST_Cond *cond, AST_Node *expr, AST_Node *body, AST_Node *after_else)
@@ -609,7 +610,18 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 	case AST_biop: {
 		CASTED_NODE(AST_Biop, biop, expr);
 		/* @todo Operation can yield different types than either of operands (2x1 * 1x2 matrices for example) */
-		success = expr_type(ret, biop->rhs);
+		if (biop->lhs && biop->rhs) {
+			success = expr_type(ret, biop->rhs);
+		} else if (biop->rhs) {
+			/* op value */
+			success = expr_type(ret, biop->rhs);
+			if (biop->type == Token_mul) { /* Deref */
+				--ret->ptr_depth;
+			}
+		} else if (biop->lhs) {
+			/* value op */
+			success = expr_type(ret, biop->lhs);
+		}
 	} break;
 
 	default:;

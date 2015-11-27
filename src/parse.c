@@ -1201,9 +1201,22 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type 
 			/* Parse element access */
 			/* @todo Move to own function for clarity */
 			AST_Access *access = create_access_node();
+			AST_Type base_type;
 			access->is_element_access = true;
 			access->base = expr;
 			expr = AST_BASE(access);
+
+			if (!expr_type(&base_type, access->base)) {
+				report_error(ctx, "Invalid type");
+				goto mismatch;
+			}
+
+			if (base_type.ptr_depth == 1) {
+				access->implicit_deref = true;
+			} else if (base_type.ptr_depth > 1) {
+				report_error(ctx, "Trying to access elements of ptr (depth %i). Only 1 level of implicit dereferencing allowed.", base_type.ptr_depth);
+				goto mismatch;
+			}
 
 			if (!parse_arg_list(ctx, &access->args))
 				goto mismatch;

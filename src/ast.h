@@ -202,6 +202,8 @@ typedef struct AST_Access {
 	bool is_element_access; /* Matrix or field element access */
 	bool is_array_access;
 
+	bool implicit_deref; /* 'a->b' or 'field_ptr(1, 2)' */
+
 	/* @todo Field access etc. */
 } AST_Access;
 

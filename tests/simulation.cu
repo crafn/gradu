@@ -38,10 +38,10 @@ int main(int argc, char **argv)
         int y;
         for (x = 0; x < size_x; ++x) {
             for (y = 0; y < size_y; ++y) {
-                (a).m[1 * x + (a).size[0] * y] = 0;
+                a.m[1 * x + a.size[0] * y] = 0;
             }
         }
-        (a).m[1 * size_x / 2 + (a).size[0] * size_y / 2] = 1000;
+        a.m[1 * size_x / 2 + a.size[0] * size_y / 2] = 1000;
     }
 
     for (i = 0; i < 20; ++i) {
@@ -66,8 +66,8 @@ int main(int argc, char **argv)
                     int py = (y - 1 + size_y) % size_y;
 
                     /* Some kind of diffusion */
-                    (*output).m[1 * x + (*output).size[0] * y] = (*input).m[1 * x + (*input).size[0] * y] + (*input).m[1 * nx + (*input).size[0] * y] + (*input).m[1 * px + (*input).size[0] * y] + (*input).m[1 * x + (*input).size[0] * ny] + (*input).m[1 * x + (*input).size[0] * py];
-                    (*output).m[1 * x + (*output).size[0] * y] /= 5;
+                    output->m[1 * x + output->size[0] * y] = input->m[1 * x + input->size[0] * y] + input->m[1 * nx + input->size[0] * y] + input->m[1 * px + input->size[0] * y] + input->m[1 * x + input->size[0] * ny] + input->m[1 * x + input->size[0] * py];
+                    output->m[1 * x + output->size[0] * y] /= 5;
                 }
             }
         }
@@ -78,9 +78,9 @@ int main(int argc, char **argv)
             for (y = 0; y < size_y; ++y) {
                 for (x = 0; x < size_x; ++x) {
                     char *ch = " ";
-                    if ((*output).m[1 * x + (*output).size[0] * y] > 5.000000) {
+                    if (output->m[1 * x + output->size[0] * y] > 5.000000) {
                         ch = "#";
-                    } else if ((*output).m[1 * x + (*output).size[0] * y] > 1.000000) {
+                    } else if (output->m[1 * x + output->size[0] * y] > 1.000000) {
                         ch = ".";
                     }
 

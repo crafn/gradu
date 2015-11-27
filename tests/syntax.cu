@@ -15,8 +15,8 @@ typedef struct LocalType
 void local_func()
 {
     LocalType bug_test; /* Just to test that identifier lookup works */
-    (bug_test).foo = 123;
-    aaaaa = (bug_test).foo;
+    bug_test.foo = 123;
+    aaaaa = bug_test.foo;
 }
 
 int main(int argc, const char **argv)

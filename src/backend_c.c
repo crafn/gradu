@@ -162,9 +162,10 @@ INTERNAL AST_Access *create_access_for_member(AST_Node *base, AST_Var_Decl *memb
 	return access;
 }
 
-INTERNAL AST_Access *create_access_for_member_array(AST_Node *base, AST_Var_Decl *member_decl, int index)
+INTERNAL AST_Access *create_access_for_member_array(AST_Node *base, AST_Var_Decl *member_decl, int index, bool deref)
 {
 	AST_Access *member = create_access_for_member(base, member_decl);
+	member->implicit_deref = deref;
 	return create_access_for_array(AST_BASE(member), index);
 }
 
@@ -541,7 +542,8 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 								AST_BASE(create_access_for_member_array(
 									copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
 									c_field_size_decl(field_decl),
-									k
+									k,
+									false
 								)),
 								AST_BASE(create_access_for_var(
 									alloc_func->params.data[k]
@@ -669,6 +671,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 
 				member_access->base = access->base;
 				push_array(AST_Node_Ptr)(&member_access->args, copy_ast(AST_BASE(member_decl->ident)));
+				member_access->implicit_deref = access->implicit_deref;
 				member_access->is_member_access = true;
 
 				array_access->base = AST_BASE(member_access);
@@ -684,7 +687,9 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 							push_array(AST_Node_Ptr)(&multipliers, AST_BASE(create_integer_literal(1)));
 						} else {
 							AST_Node *field_access = copy_ast(access->base);
-							AST_Access *size_access = create_access_for_member_array(field_access, size_member_decl, k - 1);
+							AST_Access *size_access =
+								create_access_for_member_array(field_access, size_member_decl, k - 1, access->implicit_deref);
+
 							if (k == 1) {
 								push_array(AST_Node_Ptr)(&multipliers, AST_BASE(size_access));
 							} else {
@@ -940,13 +945,16 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
 		if (access->is_member_access) {
-			bool parens = (access->base->type != AST_ident);
+			bool parens = (access->base->type != AST_ident && access->base->type != AST_access);
 			if (parens)
 				append_str(buf, "(");
 			ast_to_c_str(buf, indent, access->base);
 			if (parens)
 				append_str(buf, ")");
-			append_str(buf, ".");
+			if (access->implicit_deref)
+				append_str(buf, "->");
+			else
+				append_str(buf, ".");
 			ASSERT(access->args.size == 1);
 			ast_to_c_str(buf, indent, access->args.data[0]);
 		} else if (access->is_array_access) {

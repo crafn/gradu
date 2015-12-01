@@ -18,13 +18,10 @@ void local_func()
     bug_test.foo = 123;
     aaaaa = bug_test.foo;
 }
-
 int main(int argc, const char **argv)
 {
     int temp_var;
     int i;
-
-    /* Testing expression parsing */
     temp_var = 1 + 2 * 3;
 
     {
@@ -44,12 +41,13 @@ int main(int argc, const char **argv)
     } else {
         /* Bar */
         if (1) {
-            i = 2; /* Comment */
+            i = 2;
         }
         while (i) {
-            i = i - 1; /* @todo --i and i-- */
+            i = i - 1;
         }
     }
 
     return 0;
 }
+

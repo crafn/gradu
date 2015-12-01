@@ -10,7 +10,8 @@ int main(int argc, char **argv)
 	Field b = alloc_field(size_x, size_y);
 	int i;
 
-	{ // Init field
+	// Init field
+	{
 		int x;
 		int y;
 		for (x = 0; x < size_x; ++x) {
@@ -32,28 +33,25 @@ int main(int argc, char **argv)
 			input = tmp;
 		}
 
-		{ // @todo Turn to some for_fields construct
-			int x;
-			int y;
-			for (x = 0; x < size_x; ++x) {
-				for (y = 0; y < size_y; ++y) {	
-					int nx = (x + 1) % size_x;
-					int ny = (y + 1) % size_y;
-					int px = (x - 1 + size_x) % size_x;
-					int py = (y - 1 + size_y) % size_y;
+		// Diffusion!
+		for_field (*output; *input) {
+			int x = id(0);
+			int y = id(1);
+			int nx = (x + 1) % size_x;
+			int ny = (y + 1) % size_y;
+			int px = (x - 1 + size_x) % size_x;
+			int py = (y - 1 + size_y) % size_y;
 
-					// Some kind of diffusion
-					output(x, y) =	input(x, y) +
-									input(nx, y) +
-									input(px, y) +
-									input(x, ny) +
-									input(x, py);
-					output(x, y) /= 5;
-				}
-			}
+			output(x, y) =	input(x, y) +
+							input(nx, y) +
+							input(px, y) +
+							input(x, ny) +
+							input(x, py);
+			output(x, y) /= 5.0;
 		}
 
-		{ // Print current state
+		// Print current state
+		{
 			int x;
 			int y;
 			for (y = 0; y < size_y; ++y) {

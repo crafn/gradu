@@ -60,6 +60,7 @@ typedef enum {
 	Token_kw_false, /* false */
 	Token_kw_sizeof, /* sizeof */
 	Token_kw_typedef, /* typedef */
+	Token_kw_parallel, /* for_field */
 	/* Type-related */
 	Token_kw_void,
 	Token_kw_int,

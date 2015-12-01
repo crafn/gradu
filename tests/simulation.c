@@ -21,10 +21,19 @@ void free_field_floatfield2(floatfield2 field)
     free(field.m);
 }
 
+int size_floatfield2(floatfield2 field, int index)
+{
+    return field.size[index];
+}
+
+typedef struct intmat2
+{
+    int m[2];
+} intmat2;
+
 int printf(const char *fmt, ...);
 
 typedef floatfield2 Field;
-
 int main(int argc, char **argv)
 {
     int size_x = 20;
@@ -32,7 +41,6 @@ int main(int argc, char **argv)
     Field a = alloc_field_floatfield2(size_x, size_y);
     Field b = alloc_field_floatfield2(size_x, size_y);
     int i;
-
     {
         int x;
         int y;
@@ -43,7 +51,6 @@ int main(int argc, char **argv)
         }
         a.m[1 * size_x / 2 + a.size[0] * size_y / 2] = 1000;
     }
-
     for (i = 0; i < 20; ++i) {
         Field *input = &a;
         Field *output = &b;
@@ -54,24 +61,25 @@ int main(int argc, char **argv)
             output = input;
             input = tmp;
         }
-
         {
-            int x;
-            int y;
-            for (x = 0; x < size_x; ++x) {
-                for (y = 0; y < size_y; ++y) {
+            for (int id_0 = 0; id_0 < size_floatfield2(*output, 0); ++id_0) {
+                for (int id_1 = 0; id_1 < size_floatfield2(*output, 1); ++id_1) {
+                    intmat2 id;
+                    id.m[1 * 0] = id_0;
+                    id.m[1 * 1] = id_1;
+                    int x = id.m[1 * 0];
+                    int y = id.m[1 * 1];
                     int nx = (x + 1) % size_x;
                     int ny = (y + 1) % size_y;
                     int px = (x - 1 + size_x) % size_x;
                     int py = (y - 1 + size_y) % size_y;
-
-                    /* Some kind of diffusion */
                     output->m[1 * x + output->size[0] * y] = input->m[1 * x + input->size[0] * y] + input->m[1 * nx + input->size[0] * y] + input->m[1 * px + input->size[0] * y] + input->m[1 * x + input->size[0] * ny] + input->m[1 * x + input->size[0] * py];
-                    output->m[1 * x + output->size[0] * y] /= 5;
+                    output->m[1 * x + output->size[0] * y] /= 5.000000;
                 }
             }
         }
 
+        /* Print current state */
         {
             int x;
             int y;
@@ -83,7 +91,6 @@ int main(int argc, char **argv)
                     } else if (output->m[1 * x + output->size[0] * y] > 1.000000) {
                         ch = ".";
                     }
-
                     printf("%s", ch);
                 }
                 printf("\n");
@@ -91,8 +98,8 @@ int main(int argc, char **argv)
             printf("\n");
         }
     }
-
     free_field_floatfield2(a);
     free_field_floatfield2(b);
     return 0;
 }
+

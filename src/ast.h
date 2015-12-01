@@ -20,7 +20,8 @@ typedef enum {
 	AST_cond,
 	AST_loop,
 	AST_cast,
-	AST_typedef
+	AST_typedef,
+	AST_parallel
 } AST_Node_Type;
 
 struct AST_Node;
@@ -248,6 +249,18 @@ typedef struct AST_Typedef {
 	AST_Ident *ident;
 } AST_Typedef;
 
+/* for_field */
+typedef struct AST_Parallel {
+	AST_Node b;
+
+	AST_Node *output;
+	AST_Node *input;
+
+	AST_Scope *body;
+
+	int dim; /* Essentially output field dimension */
+} AST_Parallel;
+
 /* Usage: CASTED_NODE(AST_Ident, ident, generic_node); printf("%c", ident->text_buf[0]); */
 #define CASTED_NODE(type, name, assign) \
 	type *name = (type*)assign
@@ -275,6 +288,7 @@ AST_Cond *create_cond_node();
 AST_Loop *create_loop_node();
 AST_Cast *create_cast_node();
 AST_Typedef *create_typedef_node();
+AST_Parallel *create_parallel_node();
 
 /* Copies only stuff in AST_Node structure. Useful for copying comments to another node, for example. */
 void copy_ast_node_base(AST_Node *dst, AST_Node *src);
@@ -302,6 +316,7 @@ void copy_cond_node(AST_Cond *copy, AST_Cond *cond, AST_Node *expr, AST_Node *bo
 void copy_loop_node(AST_Loop *copy, AST_Loop *loop, AST_Node *init, AST_Node *cond, AST_Node *incr, AST_Node *body);
 void copy_cast_node(AST_Cast *copy, AST_Cast *cast, AST_Node *type, AST_Node *target);
 void copy_typedef_node(AST_Typedef *copy, AST_Typedef *def, AST_Node *type, AST_Node *ident);
+void copy_parallel_node(AST_Parallel *copy, AST_Parallel *parallel, AST_Node *output, AST_Node *input, AST_Node *body);
 
 /* Recursive */
 /* @todo Use destroy_ast for this */
@@ -316,7 +331,28 @@ void shallow_destroy_node(AST_Node *node);
 bool expr_type(AST_Type *ret, AST_Node *expr);
 bool eval_const_expr(AST_Literal *ret, AST_Node *expr);
 
+bool is_decl(AST_Node *node);
+AST_Ident *decl_ident(AST_Node *node);
+
+
 /* AST traversing utils */
+
+typedef struct AST_Parent_Map {
+	Hash_Table(AST_Node_Ptr, AST_Node_Ptr) table; /* Use find_- and set_parent_node to access */
+	Array(AST_Node_Ptr) builtin_decls; /* Builtin decls are separate, because they're created during parsing */
+	/* @todo That ^ could maybe be removed. */
+} AST_Parent_Map;
+
+AST_Parent_Map create_parent_map(AST_Node *root);
+void destroy_parent_map(AST_Parent_Map *map);
+AST_Node *find_parent_node(AST_Parent_Map *map, AST_Node *node);
+void set_parent_node(AST_Parent_Map *map, AST_Node *sub, AST_Node *parent);
+
+AST_Ident *resolve_ident(AST_Parent_Map *map, AST_Ident *ident);
+/* Resolves call to specific overload */
+AST_Call *resolve_call(AST_Parent_Map *map, AST_Call *call, AST_Type *return_type_hint);
+/* Resove all unresolved things in AST. Call this after inserting unresolved nodes into AST. */
+void resolve_ast(AST_Scope *root);
 
 
 void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
@@ -338,19 +374,29 @@ void print_ast(AST_Node *node, int indent);
 
 /* Convenience functions */
 
-AST_Ident *create_ident_with_text(const char *fmt, ...);
+AST_Ident *create_ident_with_text(AST_Node *decl, const char *fmt, ...);
 AST_Var_Decl *create_simple_var_decl(AST_Type_Decl *type_decl, const char *ident);
+AST_Var_Decl *create_var_decl(AST_Type_Decl *type_decl, AST_Ident *ident, AST_Node *value);
 AST_Type_Decl *find_builtin_type_decl(Builtin_Type bt, AST_Scope *root);
-AST_Literal *create_integer_literal(int value);
+AST_Literal *create_integer_literal(int value, AST_Scope *root);
 AST_Call *create_call_1(AST_Ident *ident, AST_Node *arg);
+AST_Call *create_call_2(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2);
 AST_Control *create_return(AST_Node *expr);
 AST_Biop *create_sizeof(AST_Node *expr);
 AST_Biop *create_deref(AST_Node *expr);
+AST_Biop *create_biop(Token_Type type, AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_assign(AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_mul(AST_Node *lhs, AST_Node *rhs);
+AST_Biop *create_less_than(AST_Node *lhs, AST_Node *rhs);
+AST_Biop *create_pre_increment(AST_Node *expr);
 AST_Cast *create_cast(AST_Type *type, AST_Node *target);
 AST_Type *create_builtin_type(Builtin_Type bt, int ptr_depth, AST_Scope *root);
 AST_Type *copy_and_modify_type(AST_Type *type, int delta_ptr_depth);
+AST_Type *create_simple_type(AST_Type_Decl *type_decl);
+AST_Loop *create_for_loop(AST_Var_Decl *index, AST_Node *max_expr, AST_Scope *body);
+AST_Node *try_create_access(AST_Node *node);
+AST_Access *create_element_access_1(AST_Node *base, AST_Node *arg);
+AST_Scope *create_scope_1(AST_Node *expr);
 
 Builtin_Type void_builtin_type();
 Builtin_Type int_builtin_type();

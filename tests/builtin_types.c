@@ -36,7 +36,6 @@ floatmat3x3 floatmat3x3_mul(floatmat3x3 lhs, floatmat3x3 rhs)
     return ret;
 }
 
-
 int main(int argc, char **argv)
 {
     intmat2x2 mat1;
@@ -45,12 +44,10 @@ int main(int argc, char **argv)
     floatmat3x3 mat4;
     int i;
     int k;
-
     mat1.m[1 * 0 + 2 * 0] = 0;
     mat1.m[1 * 1 + 2 * 0] = 1;
     mat1.m[1 * 1 + 2 * 1] = 2;
     mat1.m[1 * 0 + 2 * 1] = 3;
-
     mat2.m[1 * 0 + 2 * 0] = 0;
     mat2.m[1 * 1 + 2 * 0] = 1;
     mat2.m[1 * 1 + 2 * 1] = 2;
@@ -62,10 +59,9 @@ int main(int argc, char **argv)
             mat4.m[1 * i + 3 * k] = 2;
         }
     }
-
-    /* This comment should survive to the generated code */
     mat1 = intmat2x2_mul(mat1, mat2);
     mat3 = floatmat3x3_mul(floatmat3x3_mul(floatmat3x3_mul(mat4, mat3), mat3), mat3);
 
     return 0;
 }
+

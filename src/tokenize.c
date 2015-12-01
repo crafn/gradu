@@ -81,7 +81,7 @@ INTERNAL bool str_equals_buf(const char *c_str, const char *buf, int buf_size)
 		if (c_str[i] != buf[i])
 			return false;
 	}
-	return c_str[i] == '\0';
+	return c_str[i] == '\0' && i == buf_size;
 }
 
 INTERNAL Token_Type kw_tokentype(const char *buf, int size)
@@ -116,6 +116,8 @@ INTERNAL Token_Type kw_tokentype(const char *buf, int size)
 		return Token_kw_sizeof;
 	if (str_equals_buf("typedef", buf, size))
 		return Token_kw_typedef;
+	if (str_equals_buf("for_field", buf, size))
+		return Token_kw_parallel;
 	if (str_equals_buf("void", buf, size))
 		return Token_kw_void;
 	if (str_equals_buf("int", buf, size))
@@ -358,6 +360,7 @@ const char* tokentype_str(Token_Type type)
 		case Token_kw_false: return "kw_false";
 		case Token_kw_sizeof: return "kw_sizeof";
 		case Token_kw_typedef: return "kw_typedef";
+		case Token_kw_parallel: return "kw_parallel";
 		case Token_kw_void: return "kw_void";
 		case Token_kw_int: return "kw_int";
 		case Token_kw_size_t: return "kw_size_t";
@@ -428,6 +431,7 @@ const char* tokentype_codestr(Token_Type type)
 		case Token_kw_false: return "false";
 		case Token_kw_sizeof: return "sizeof";
 		case Token_kw_typedef: return "typedef";
+		case Token_kw_parallel: return "for_field";
 		case Token_kw_void: return "void";
 		case Token_kw_int: return "int";
 		case Token_kw_size_t: return "size_t";

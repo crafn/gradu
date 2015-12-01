@@ -162,6 +162,7 @@ static U32 hash(Void_Ptr)(Void_Ptr value) { return (U32)(((U64)value)/2); }
 
 
 /* Hash table */
+/* @todo Automatic resizing */
 
 /* Key_Value */
 #define KV(K, V) JOIN3(K, _, V)
@@ -204,7 +205,7 @@ Hash_Table_Entry(K, V) null_tbl_entry(K, V)(Hash_Table(K, V) *tbl)\
 	return e;\
 }\
 \
-Hash_Table(K, V) create_tbl(K, V)(	K null_key, V null_value, int max_size)\
+Hash_Table(K, V) create_tbl(K, V)(K null_key, V null_value, int max_size)\
 {\
 	int i;\
 	Hash_Table(K, V) tbl = {0};\

@@ -61,6 +61,7 @@ AST_Node *create_ast_node(AST_Node_Type type)
 		case AST_loop: return AST_BASE(create_loop_node());
 		case AST_cast: return AST_BASE(create_cast_node());
 		case AST_typedef: return AST_BASE(create_typedef_node());
+		case AST_parallel: return AST_BASE(create_parallel_node());
 		default: FAIL(("create_ast_node: Unknown node type %i", type));
 	}
 }
@@ -126,6 +127,9 @@ AST_Cast *create_cast_node()
 
 AST_Typedef *create_typedef_node()
 { return CREATE_NODE(AST_Typedef, AST_typedef); }
+
+AST_Parallel *create_parallel_node()
+{ return CREATE_NODE(AST_Parallel, AST_parallel); }
 
 
 /* Node copying */
@@ -221,6 +225,11 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 		case AST_typedef: {
 			ASSERT(subnode_count == 2 && refnode_count == 0);
 			copy_typedef_node((AST_Typedef*)copy, (AST_Typedef*)node, subnodes[0], subnodes[1]);
+		} break;
+
+		case AST_parallel: {
+			ASSERT(subnode_count == 3 && refnode_count == 0);
+			copy_parallel_node((AST_Parallel*)copy, (AST_Parallel*)node, subnodes[0], subnodes[1], subnodes[2]);
 		} break;
 		default: FAIL(("copy_ast_node: Unknown node type %i", node->type));
 	}
@@ -411,6 +420,16 @@ void copy_typedef_node(AST_Typedef *copy, AST_Typedef *def, AST_Node *type, AST_
 	copy->ident = (AST_Ident*)ident;
 }
 
+void copy_parallel_node(AST_Parallel *copy, AST_Parallel *parallel, AST_Node *output, AST_Node *input, AST_Node *body)
+{
+	copy_ast_node_base(AST_BASE(copy), AST_BASE(parallel));
+	ASSERT(!body || body->type == AST_scope);
+	copy->output = output;
+	copy->input = input;
+	copy->body = (AST_Scope*)body;
+	copy->dim = parallel->dim;
+}
+
 void destroy_node(AST_Node *node)
 {
 	int i;
@@ -507,6 +526,13 @@ void destroy_node(AST_Node *node)
 		destroy_node(AST_BASE(def->ident));
 	} break;
 
+	case AST_parallel: {
+		CASTED_NODE(AST_Parallel, parallel, node);
+		destroy_node(parallel->output);
+		destroy_node(parallel->input);
+		destroy_node(AST_BASE(parallel->body));
+	} break;
+
 	default: FAIL(("destroy_node: Unknown node type %i", node->type));
 	}
 	shallow_destroy_node(node);
@@ -552,6 +578,7 @@ void shallow_destroy_node(AST_Node *node)
 	case AST_loop: break;
 	case AST_cast: break;
 	case AST_typedef: break;
+	case AST_parallel: break;
 
 	default: FAIL(("shallow_destroy_node: Unknown node type %i", node->type));
 	};
@@ -687,6 +714,38 @@ bool eval_const_expr(AST_Literal *ret, AST_Node *expr)
 	return success;
 }
 
+bool is_decl(AST_Node *node)
+{ return	node->type == AST_type_decl ||
+			node->type == AST_var_decl ||
+			node->type == AST_func_decl ||
+			node->type == AST_typedef; }
+
+AST_Ident *decl_ident(AST_Node *node)
+{
+	ASSERT(is_decl(node));
+	switch (node->type) {
+		case AST_type_decl: {
+			CASTED_NODE(AST_Type_Decl, decl, node);
+			return decl->ident;
+		} break;
+		case AST_var_decl: {
+			CASTED_NODE(AST_Var_Decl, decl, node);
+			return decl->ident;
+		} break;
+		case AST_func_decl: {
+			CASTED_NODE(AST_Func_Decl, decl, node);
+			return decl->ident;
+		} break;
+		case AST_typedef: {
+			CASTED_NODE(AST_Typedef, def, node);
+			return def->ident;
+		} break;
+		default: FAIL(("decl_ident: invalid node type %i", node->type));
+	}
+}
+
+
+
 AST_Scope *create_ast()
 {
 	AST_Scope *root = create_scope_node();
@@ -774,6 +833,234 @@ void move_ast(AST_Scope *dst, AST_Scope *src)
 
 INTERNAL void print_indent(int indent)
 { printf("%*s", indent, ""); }
+
+INTERNAL void populate_parent_map(AST_Parent_Map *map, AST_Node *root)
+{
+	int i;
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	push_immediate_subnodes(&subnodes, root);
+
+	for (i = 0; i < subnodes.size; ++i) {
+		if (!subnodes.data[i])
+			continue;
+
+		/* @todo Add builtin decls to 'builtin_decls' */
+		set_parent_node(map, subnodes.data[i], root);
+		populate_parent_map(map, subnodes.data[i]);
+	}
+
+	destroy_array(AST_Node_Ptr)(&subnodes);
+}
+
+AST_Parent_Map create_parent_map(AST_Node *root)
+{
+	AST_Parent_Map map;
+	memset(&map, 0, sizeof(map));
+	map.table = create_tbl(AST_Node_Ptr, AST_Node_Ptr)(NULL, NULL, 2048);
+	map.builtin_decls = create_array(AST_Node_Ptr)(32);
+
+	populate_parent_map(&map, root);
+
+	return map;
+}
+
+void destroy_parent_map(AST_Parent_Map *map)
+{
+	destroy_array(AST_Node_Ptr)(&map->builtin_decls);
+	destroy_tbl(AST_Node_Ptr, AST_Node_Ptr)(&map->table);
+}
+
+/* @todo Not very elegant with 'hint' */
+void find_decls_scoped(AST_Parent_Map *map, Array(AST_Node_Ptr) *ret, AST_Node *node, Buf_Str name, AST_Type *hint)
+{
+	int i;
+	AST_Node *stack_node = node;
+	while ((stack_node = find_parent_node(map, stack_node))) {
+		if (stack_node->type != AST_scope)
+			continue;
+
+		{
+			CASTED_NODE(AST_Scope, scope, stack_node);
+			for (i = 0; i < scope->nodes.size; ++i) {
+				AST_Node *node = scope->nodes.data[i];
+				if (!is_decl(node))
+					continue;
+
+				{
+					AST_Ident *ident = decl_ident(node);
+					if (!ident || !buf_str_equals(c_str_to_buf_str(ident->text.data), name))
+						continue;
+
+					/* Found declaration for the name */
+					push_array(AST_Node_Ptr)(ret, node);
+				}
+			}
+		}
+	}
+
+	/* Look from builtin funcs. */
+	/* This doesn't find types, only functions, because e.g. decl
+	 * 'float matrix(2,2)' doesn't have an identifier */
+	for (i = 0; i < map->builtin_decls.size; ++i) {
+		AST_Node *node = map->builtin_decls.data[i];
+		if (node->type != AST_func_decl)
+			continue;
+
+		{
+			CASTED_NODE(AST_Func_Decl, decl, node);
+			if (!buf_str_equals(c_str_to_buf_str(decl->ident->text.data), name))
+				continue;
+
+			if (hint && !type_node_equals(*hint, *decl->return_type))
+				continue;
+
+			push_array(AST_Node_Ptr)(ret, node);
+		}
+	}
+}
+
+AST_Node *find_parent_node(AST_Parent_Map *map, AST_Node *node)
+{
+	AST_Node *parent = get_tbl(AST_Node_Ptr, AST_Node_Ptr)(&map->table, node);
+	ASSERT(!parent || parent != node);
+	return parent;
+}
+
+void set_parent_node(AST_Parent_Map *map, AST_Node *sub, AST_Node *parent)
+{
+	ASSERT(sub != parent);
+	ASSERT(find_parent_node(map, parent) != sub && "AST turning cyclic");
+	set_tbl(AST_Node_Ptr, AST_Node_Ptr)(&map->table, sub, parent);
+}
+
+/* @todo Split to multiple functions */
+/* Use 'arg_count = -1' for non-function identifier resolution */
+bool resolve_node(AST_Parent_Map *map, AST_Ident *ident, AST_Type *hint, AST_Type *arg_types, int arg_count)
+{
+	Array(AST_Node_Ptr) decls = create_array(AST_Node_Ptr)(0);
+	int i, k;
+	AST_Node *best_match = NULL;
+
+	ident->decl = NULL;
+	find_decls_scoped(map, &decls, AST_BASE(ident), c_str_to_buf_str(ident->text.data), hint);
+
+	for (i = 0; i < decls.size; ++i) {
+		AST_Node *decl = decls.data[i];
+		if (!best_match) {
+			best_match = decl;
+			continue;
+		}
+
+		/* Match decl type with 'hint' */
+		if (hint && decl->type == AST_var_decl && arg_count == -1) {
+			CASTED_NODE(AST_Var_Decl, var_decl, decl);
+			if (!type_node_equals(*hint, *var_decl->type))
+				continue;
+
+			best_match = decl;
+			break;
+		} else if (decl->type == AST_func_decl) {
+			CASTED_NODE(AST_Func_Decl, func_decl, decl);
+			bool arg_types_matched = true;
+
+			if (hint && !type_node_equals(*hint, *func_decl->return_type))
+				continue;
+
+			if (func_decl->params.size != arg_count)
+				continue;
+
+			/* Match argument types */
+			for (k = 0; k < arg_count; ++k) {
+				if (!type_node_equals(*func_decl->params.data[k]->type, arg_types[k])) {
+					arg_types_matched = false;
+					break;
+				}
+			}
+			if (!arg_types_matched)
+				continue;
+
+			best_match = decl;
+			break;
+		} else {
+		}
+	}
+
+	ident->decl = best_match;
+
+	destroy_array(AST_Node_Ptr)(&decls);
+	return ident->decl != NULL;
+}
+
+AST_Ident *resolve_ident(AST_Parent_Map *map, AST_Ident *ident)
+{
+	if (resolve_node(map, ident, NULL, NULL, -1))
+		return ident;
+	else
+		return NULL;
+}
+
+DECLARE_ARRAY(AST_Type)
+DEFINE_ARRAY(AST_Type)
+
+AST_Call *resolve_call(AST_Parent_Map *map, AST_Call *call, AST_Type *return_type_hint)
+{
+	int i;
+	bool success = true;
+	Array(AST_Type) types = create_array(AST_Type)(call->args.size);
+	for (i = 0; i < call->args.size; ++i) {
+		AST_Type type;
+		if (!expr_type(&type, call->args.data[i])) {
+			success = false;
+			break;
+		}
+		push_array(AST_Type)(&types, type);
+	}
+	if (!resolve_node(map, call->ident, return_type_hint, types.data, types.size))
+		success = false;
+
+	destroy_array(AST_Type)(&types);
+
+	if (success)
+		return call;
+	else
+		return NULL;
+}
+
+void resolve_ast(AST_Scope *root)
+{
+	int i;
+	AST_Parent_Map parent_map = create_parent_map(AST_BASE(root));
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	push_subnodes(&subnodes, AST_BASE(root), false);
+
+	for (i = 0; i < subnodes.size; ++i) {
+		AST_Node *node = subnodes.data[i];
+		if (node->type != AST_ident)
+			continue;
+		/* @todo Other nodes might also need resolving (literals at least) */
+		{
+			CASTED_NODE(AST_Ident, ident, node);
+			if (ident->decl)
+				continue; /* Already resolved */
+			{
+				AST_Node *parent = find_parent_node(&parent_map, node);
+				ASSERT(parent);
+				switch (parent->type) {
+				case AST_call: {
+					CASTED_NODE(AST_Call, call, parent);
+					/* @todo Return type hint (bake into parent map?) */
+					resolve_call(&parent_map, call, NULL);
+				} break;
+				default:;
+					resolve_ident(&parent_map, ident);
+				}
+			}
+		}
+	}
+
+	destroy_array(AST_Node_Ptr)(&subnodes);
+	destroy_parent_map(&parent_map);
+}
 
 void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 {
@@ -870,6 +1157,13 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 		push_array(AST_Node_Ptr)(ret, AST_BASE(def->ident));
 	} break;
 
+	case AST_parallel: {
+		CASTED_NODE(AST_Parallel, parallel, node);
+		push_array(AST_Node_Ptr)(ret, parallel->output);
+		push_array(AST_Node_Ptr)(ret, parallel->input);
+		push_array(AST_Node_Ptr)(ret, AST_BASE(parallel->body));
+	} break;
+
 	default: FAIL(("push_immediate_subnodes: Unknown node type: %i", node->type));
 	}
 }
@@ -919,6 +1213,7 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 	case AST_loop: break;
 	case AST_cast: break;
 	case AST_typedef: break;
+	case AST_parallel: break;
 
 	default: FAIL(("push_immediate_refnodes: Unknown node type: %i", node->type));
 	}
@@ -954,7 +1249,7 @@ AST_Node *replace_nodes_in_ast(AST_Node *node, AST_Node **old_nodes, AST_Node **
 		return node;
 
 	/* @todo Use Hash_Table to eliminate O(n^2) */
-	/* Replacing happens before recursing, so that old_nodes in contained new_nodes are also replaced */
+	/* Replacing happens before recursing, so that old_nodes contained in new_nodes are also replaced */
 	for (i = 0; i < node_count; ++i) {
 		if (node == old_nodes[i]) {
 			node = new_nodes[i];
@@ -1069,6 +1364,8 @@ void print_ast(AST_Node *node, int indent)
 		printf("func_decl\n");
 		print_ast(AST_BASE(decl->return_type), indent + 2);
 		print_ast(AST_BASE(decl->ident), indent + 2);
+		for (i = 0; i < decl->params.size; ++i)
+			print_ast(AST_BASE(decl->params.data[i]), indent + 2);
 		print_ast(AST_BASE(decl->body), indent + 2);
 	} break;
 
@@ -1112,7 +1409,14 @@ void print_ast(AST_Node *node, int indent)
 
 	case AST_access: {
 		CASTED_NODE(AST_Access, access, node);
-		printf("access\n");
+		printf("access ");
+		if (access->is_member_access)
+			printf("member");
+		if (access->is_element_access)
+			printf("element");
+		if (access->is_array_access)
+			printf("array");
+		printf("\n");
 		print_ast(access->base, indent + 2);
 		for (i = 0; i < access->args.size; ++i)
 			print_ast(access->args.data[i], indent + 2);
@@ -1149,26 +1453,41 @@ void print_ast(AST_Node *node, int indent)
 		print_ast(AST_BASE(def->ident), indent + 2);
 	} break;
 
+	case AST_parallel: {
+		CASTED_NODE(AST_Parallel, parallel, node);
+		printf("parallel\n");
+		print_ast(parallel->input, indent + 2);
+		print_ast(parallel->output, indent + 2);
+		print_ast(AST_BASE(parallel->body), indent + 2);
+	} break;
+
 	default: FAIL(("print_ast: Unknown node type %i", node->type));
 	};
 }
 
-AST_Ident *create_ident_with_text(const char *fmt, ...)
+AST_Ident *create_ident_with_text(AST_Node *decl, const char *fmt, ...)
 {
 	AST_Ident *ident = create_ident_node();
 	va_list args;
 	va_start(args, fmt);
 	safe_vsprintf(&ident->text, fmt, args);
 	va_end(args);
+
+	ident->decl = decl;
 	return ident;
 }
 
 AST_Var_Decl *create_simple_var_decl(AST_Type_Decl *type_decl, const char *ident)
+{ return create_var_decl(type_decl, create_ident_with_text(NULL, ident), NULL); }
+
+AST_Var_Decl *create_var_decl(AST_Type_Decl *type_decl, AST_Ident *ident, AST_Node *value)
 {
 	AST_Var_Decl *decl = create_var_decl_node();
 	decl->type = create_type_node();
 	decl->type->base_type_decl = type_decl;
-	decl->ident = create_ident_with_text(ident);
+	decl->ident = ident;
+	decl->ident->decl = AST_BASE(decl);
+	decl->value = value;
 	return decl;
 }
 
@@ -1192,11 +1511,13 @@ AST_Type_Decl *find_builtin_type_decl(Builtin_Type bt, AST_Scope *root)
 	return NULL;
 }
 
-AST_Literal *create_integer_literal(int value)
+AST_Literal *create_integer_literal(int value, AST_Scope *root)
 {
 	AST_Literal *literal = create_literal_node();
 	literal->type = Literal_int;
 	literal->value.integer = value;
+	if (root) /* @todo Don't accept NULL */
+		literal->base_type_decl = find_builtin_type_decl(int_builtin_type(), root);
 	return literal;
 }
 
@@ -1205,6 +1526,13 @@ AST_Call *create_call_1(AST_Ident *ident, AST_Node *arg)
 	AST_Call *call = create_call_node();
 	call->ident = ident;
 	push_array(AST_Node_Ptr)(&call->args, arg);
+	return call;
+}
+
+AST_Call *create_call_2(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2)
+{
+	AST_Call *call = create_call_1(ident, arg1);
+	push_array(AST_Node_Ptr)(&call->args, arg2);
 	return call;
 }
 
@@ -1232,23 +1560,29 @@ AST_Biop *create_deref(AST_Node *expr)
 	return op;
 }
 
-AST_Biop *create_assign(AST_Node *lhs, AST_Node *rhs)
+AST_Biop *create_biop(Token_Type type, AST_Node *lhs, AST_Node *rhs)
 {
 	AST_Biop *op = create_biop_node();
-	op->type = Token_assign;
+	op->type = type;
 	op->lhs = lhs;
 	op->rhs = rhs;
 	return op;
 }
 
+AST_Biop *create_assign(AST_Node *lhs, AST_Node *rhs)
+{ return create_biop(Token_assign, lhs, rhs); }
+
 AST_Biop *create_mul(AST_Node *lhs, AST_Node *rhs)
+{ return create_biop(Token_mul, lhs, rhs); }
+
+AST_Biop *create_less_than(AST_Node *lhs, AST_Node *rhs)
 {
-	AST_Biop *op = create_biop_node();
-	op->type = Token_mul;
-	op->lhs = lhs;
-	op->rhs = rhs;
-	return op;
+	ASSERT(lhs && rhs);
+	return create_biop(Token_less, lhs, rhs);
 }
+
+AST_Biop *create_pre_increment(AST_Node *expr)
+{ return create_biop(Token_incr, NULL, expr); }
 
 AST_Cast *create_cast(AST_Type *type, AST_Node *target)
 {
@@ -1261,7 +1595,7 @@ AST_Cast *create_cast(AST_Type *type, AST_Node *target)
 AST_Type *create_builtin_type(Builtin_Type bt, int ptr_depth, AST_Scope *root)
 {
 	AST_Type *type = create_type_node();
-	type->base_type_decl = find_builtin_type_decl(bt, root);;
+	type->base_type_decl = find_builtin_type_decl(bt, root);
 	type->ptr_depth = ptr_depth;
 	ASSERT(type->base_type_decl);
 	return type;
@@ -1272,6 +1606,49 @@ AST_Type *copy_and_modify_type(AST_Type *type, int delta_ptr_depth)
 	AST_Type *copy = (AST_Type*)copy_ast(AST_BASE(type));
 	copy->ptr_depth += delta_ptr_depth;
 	return copy;
+}
+
+AST_Type *create_simple_type(AST_Type_Decl *type_decl)
+{
+	AST_Type *type = create_type_node();
+	type->base_type_decl = type_decl;
+	return type;
+}
+
+AST_Loop *create_for_loop(AST_Var_Decl *index, AST_Node *max_expr, AST_Scope *body)
+{
+	AST_Loop *loop = create_loop_node();
+	loop->init = AST_BASE(index);
+	loop->cond = AST_BASE(create_less_than(copy_ast(AST_BASE(index->ident)), max_expr));
+	loop->incr = AST_BASE(create_pre_increment(copy_ast(AST_BASE(index->ident))));
+	loop->body = body;
+	return loop;
+}
+
+AST_Node *try_create_access(AST_Node *node)
+{
+	if (node->type == AST_ident) {
+		AST_Access *access = create_access_node();
+		access->base = node;
+		return AST_BASE(access);
+	}
+	return node;
+}
+
+AST_Access *create_element_access_1(AST_Node *base, AST_Node *arg)
+{
+	AST_Access *access = create_access_node();
+	access->base = base;
+	push_array(AST_Node_Ptr)(&access->args, arg);
+	access->is_element_access = true;
+	return access;
+}
+
+AST_Scope *create_scope_1(AST_Node *expr)
+{
+	AST_Scope *scope = create_scope_node();
+	push_array(AST_Node_Ptr)(&scope->nodes, expr);
+	return scope;
 }
 
 Builtin_Type void_builtin_type()

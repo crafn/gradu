@@ -870,32 +870,41 @@ void destroy_parent_map(AST_Parent_Map *map)
 	destroy_tbl(AST_Node_Ptr, AST_Node_Ptr)(&map->table);
 }
 
+
+/* Part of 'find_decls_scoped' */
+INTERNAL void match_and_add(Array(AST_Node_Ptr) *ret, Buf_Str name, AST_Node *decl)
+{
+	AST_Ident *ident = decl_ident(decl);
+	if (!ident || !buf_str_equals(c_str_to_buf_str(ident->text.data), name))
+		return;
+
+	/* Found declaration for the name */
+	push_array(AST_Node_Ptr)(ret, decl);
+}
+
 /* @todo Not very elegant with 'hint' */
 void find_decls_scoped(AST_Parent_Map *map, Array(AST_Node_Ptr) *ret, AST_Node *node, Buf_Str name, AST_Type *hint)
 {
 	int i;
 	AST_Node *stack_node = node;
 	while ((stack_node = find_parent_node(map, stack_node))) {
-		if (stack_node->type != AST_scope)
-			continue;
-
-		{
+		if (stack_node->type == AST_scope) {
 			CASTED_NODE(AST_Scope, scope, stack_node);
 			for (i = 0; i < scope->nodes.size; ++i) {
 				AST_Node *node = scope->nodes.data[i];
 				if (!is_decl(node))
 					continue;
 
-				{
-					AST_Ident *ident = decl_ident(node);
-					if (!ident || !buf_str_equals(c_str_to_buf_str(ident->text.data), name))
-						continue;
-
-					/* Found declaration for the name */
-					push_array(AST_Node_Ptr)(ret, node);
-				}
+				match_and_add(ret, name, node);
 			}
+		} else if (stack_node->type == AST_loop) {
+			CASTED_NODE(AST_Loop, loop, stack_node);
+			if (!loop->init || !is_decl(loop->init))
+				continue;
+
+			match_and_add(ret, name, loop->init);
 		}
+
 	}
 
 	/* Look from builtin funcs. */
@@ -931,6 +940,16 @@ void set_parent_node(AST_Parent_Map *map, AST_Node *sub, AST_Node *parent)
 	ASSERT(sub != parent);
 	ASSERT(find_parent_node(map, parent) != sub && "AST turning cyclic");
 	set_tbl(AST_Node_Ptr, AST_Node_Ptr)(&map->table, sub, parent);
+}
+
+int find_in_scope(AST_Scope *scope, AST_Node *needle)
+{
+	int i;
+	for (i = 0; i < scope->nodes.size; ++i) {
+		if (scope->nodes.data[i] == needle)
+			return i;
+	}
+	return -1;
 }
 
 /* @todo Split to multiple functions */

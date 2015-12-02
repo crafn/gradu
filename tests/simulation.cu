@@ -40,18 +40,15 @@ int main(int argc, char **argv)
     int size_y = 20;
     Field a = alloc_field_floatfield2(size_x, size_y);
     Field b = alloc_field_floatfield2(size_x, size_y);
-    int i;
     {
-        int x;
-        int y;
-        for (x = 0; x < size_x; ++x) {
-            for (y = 0; y < size_y; ++y) {
+        for (int x = 0; x < size_x; ++x) {
+            for (int y = 0; y < size_y; ++y) {
                 a.m[1 * x + a.size[0] * y] = 0;
             }
         }
         a.m[1 * size_x / 2 + a.size[0] * size_y / 2] = 1000;
     }
-    for (i = 0; i < 20; ++i) {
+    for (int i = 0; i < 20; ++i) {
         Field *input = &a;
         Field *output = &b;
 
@@ -80,23 +77,19 @@ int main(int argc, char **argv)
         }
 
         /* Print current state */
-        {
-            int x;
-            int y;
-            for (y = 0; y < size_y; ++y) {
-                for (x = 0; x < size_x; ++x) {
-                    char *ch = " ";
-                    if (output->m[1 * x + output->size[0] * y] > 5.000000) {
-                        ch = "#";
-                    } else if (output->m[1 * x + output->size[0] * y] > 1.000000) {
-                        ch = ".";
-                    }
-                    printf("%s", ch);
+        for (int y = 0; y < size_y; ++y) {
+            for (int x = 0; x < size_x; ++x) {
+                char *ch = " ";
+                if (output->m[1 * x + output->size[0] * y] > 5.000000) {
+                    ch = "#";
+                } else if (output->m[1 * x + output->size[0] * y] > 1.000000) {
+                    ch = ".";
                 }
-                printf("\n");
+                printf("%s", ch);
             }
             printf("\n");
         }
+        printf("\n");
     }
     free_field_floatfield2(a);
     free_field_floatfield2(b);

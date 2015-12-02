@@ -347,6 +347,7 @@ AST_Parent_Map create_parent_map(AST_Node *root);
 void destroy_parent_map(AST_Parent_Map *map);
 AST_Node *find_parent_node(AST_Parent_Map *map, AST_Node *node);
 void set_parent_node(AST_Parent_Map *map, AST_Node *sub, AST_Node *parent);
+int find_in_scope(AST_Scope *scope, AST_Node *needle);
 
 AST_Ident *resolve_ident(AST_Parent_Map *map, AST_Ident *ident);
 /* Resolves call to specific overload */

@@ -231,6 +231,179 @@ INTERNAL AST_Node *create_matrix_mul_expr(AST_Var_Decl *lhs, AST_Var_Decl *rhs, 
 	return expr;
 }
 
+void parallel_loops_to_ordinary(AST_Scope *root)
+{
+	int i, k;
+	Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	find_subnodes_of_type(&subnodes, AST_parallel, AST_BASE(root));
+
+	for (i = 0; i < subnodes.size; ++i) {
+		CASTED_NODE(AST_Parallel, parallel, subnodes.data[i]);
+		AST_Scope *scope = create_scope_node();
+		AST_Loop *outer_loop = NULL;
+		AST_Loop *inner_loop = NULL;
+		copy_ast_node_base(AST_BASE(scope), AST_BASE(parallel));
+
+		/* Create nested loops */
+		for (k = 0; k < parallel->dim; ++k) {
+			AST_Var_Decl *index_decl =
+				create_var_decl(
+						find_builtin_type_decl(int_builtin_type(), root),
+						create_ident_with_text(NULL, "id_%i", k),
+						AST_BASE(create_integer_literal(0, root)));
+			AST_Loop *loop =
+				create_for_loop(
+					index_decl,
+					AST_BASE(create_call_2(
+						create_ident_with_text(NULL, "size"),
+						copy_ast(parallel->output),
+						AST_BASE(create_integer_literal(k, root))
+					)),
+					NULL
+				);
+
+			if (!outer_loop)
+				outer_loop = loop;
+
+			if (inner_loop) {
+				inner_loop->body = create_scope_node();
+				push_array(AST_Node_Ptr)(&inner_loop->body->nodes, AST_BASE(loop));
+			}
+			inner_loop = loop;
+		}
+
+		{ /* Add innermost loop content */
+			inner_loop->body = (AST_Scope*)copy_ast(AST_BASE(parallel->body));
+
+			/* Insert init of 'id' var right after its declaration */
+			ASSERT(inner_loop->body->nodes.size >= 1);
+			ASSERT(inner_loop->body->nodes.data[0]->type == AST_var_decl);
+			{
+				CASTED_NODE(AST_Var_Decl, id_decl, inner_loop->body->nodes.data[0]);
+				Array(AST_Node_Ptr) assignments = create_array(AST_Node_Ptr)(0);
+
+				for (k = 0; k < parallel->dim; ++k) {
+					AST_Biop *assign =
+						create_assign(
+							AST_BASE(create_element_access_1(
+								try_create_access(copy_ast(AST_BASE(id_decl->ident))),
+								AST_BASE(create_integer_literal(k, root))
+							)),
+							try_create_access(
+								AST_BASE(create_ident_with_text(NULL, "id_%i", k))
+							)
+						);
+
+					push_array(AST_Node_Ptr)(&assignments, AST_BASE(assign));
+				}
+
+				insert_array(AST_Node_Ptr)(&inner_loop->body->nodes, 1, assignments.data, assignments.size);
+				destroy_array(AST_Node_Ptr)(&assignments);
+			}
+		}
+
+		push_array(AST_Node_Ptr)(&scope->nodes, AST_BASE(outer_loop));
+
+		push_array(AST_Node_Ptr)(&replace_list_old, AST_BASE(parallel));
+		push_array(AST_Node_Ptr)(&replace_list_new, AST_BASE(scope));
+	}
+
+	{ /* Replace old nodes with new nodes */
+		ASSERT(replace_list_new.size == replace_list_old.size);
+		replace_nodes_in_ast(AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
+
+		/* Subnodes should be deep-copied */
+		for (i = 0; i < replace_list_old.size; ++i)
+			destroy_node(replace_list_old.data[i]);
+	}
+
+	/* Resolve calls of 'size' to corresponding functions */
+	resolve_ast(root);
+
+	destroy_array(AST_Node_Ptr)(&subnodes);
+	destroy_array(AST_Node_Ptr)(&replace_list_old);
+	destroy_array(AST_Node_Ptr)(&replace_list_new);
+}
+
+
+void lift_var_decls(AST_Scope *root)
+{
+	int i;
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	AST_Parent_Map map = create_parent_map(AST_BASE(root));
+
+	find_subnodes_of_type(&subnodes, AST_var_decl, AST_BASE(root));
+
+	for (i = 0; i < subnodes.size; ++i) {
+		CASTED_NODE(AST_Var_Decl, decl, subnodes.data[i]);
+		AST_Node *parent = find_parent_node(&map, AST_BASE(decl));
+		ASSERT(parent);
+
+		switch (parent->type) {
+		case AST_loop: {
+			CASTED_NODE(AST_Loop, loop, parent);
+			AST_Node *loop_parent = find_parent_node(&map, AST_BASE(loop));
+			ASSERT(loop_parent);
+			ASSERT(loop_parent->type == AST_scope);
+			{
+				CASTED_NODE(AST_Scope, scope, loop_parent);
+				ASSERT(decl->value);
+
+				/* Do variable initialization (not decl) in the for loop. */
+				loop->init =
+					AST_BASE(create_assign(
+						try_create_access(copy_ast(AST_BASE(decl->ident))),
+						decl->value /* Note: no copy */
+					));
+				decl->value = NULL; /* Moved to assign */
+
+				/* Insert decl to the beginning of the scope containing the loop */
+				insert_array(AST_Node_Ptr)(&scope->nodes, 0, (AST_Node**)&decl, 1);
+			}
+		} break;
+		case AST_scope: {
+			CASTED_NODE(AST_Scope, scope, parent);
+			int ix = find_in_scope(scope, AST_BASE(decl));
+			int target_ix = 0;
+			ASSERT(ix >= 0);
+
+			while (target_ix < ix) {
+				AST_Node_Type t = scope->nodes.data[target_ix]->type;
+				if (t != AST_var_decl && t != AST_type_decl)
+					break;
+				++target_ix;
+			}
+
+			if (target_ix == ix)
+				break;
+
+			if (decl->value) {
+				/* Change former decl to be the initialization. */
+				scope->nodes.data[ix] =
+					AST_BASE(create_assign(
+						try_create_access(copy_ast(AST_BASE(decl->ident))),
+						decl->value /* Note: no copy */
+					));
+				decl->value = NULL; /* Moved to assign node */
+			} else {
+				erase_array(AST_Node_Ptr)(&scope->nodes, ix, 1);
+			}
+
+			/* Lift variable declaration to be the last decl of the scope. */
+			ASSERT(ix > target_ix);
+			insert_array(AST_Node_Ptr)(&scope->nodes, target_ix, (AST_Node**)&decl, 1);
+			
+		} break;
+		default:;
+		}
+	}
+
+	destroy_parent_map(&map);
+	destroy_array(AST_Node_Ptr)(&subnodes);
+}
+
 typedef struct Trav_Ctx {
 	int depth;
 	/* Maps nodes from source AST tree to copied/modified AST tree */
@@ -781,101 +954,6 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 	destroy_array(AST_Node_Ptr)(&replace_list_new);
 }
 
-INTERNAL void parallel_loops_to_ordinary(AST_Scope *root)
-{
-	int i, k;
-	Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
-	find_subnodes_of_type(&subnodes, AST_parallel, AST_BASE(root));
-
-	for (i = 0; i < subnodes.size; ++i) {
-		CASTED_NODE(AST_Parallel, parallel, subnodes.data[i]);
-		AST_Scope *scope = create_scope_node();
-		AST_Loop *outer_loop = NULL;
-		AST_Loop *inner_loop = NULL;
-		copy_ast_node_base(AST_BASE(scope), AST_BASE(parallel));
-
-		for (k = 0; k < parallel->dim; ++k) {
-			AST_Var_Decl *index_decl =
-				create_var_decl(
-						find_builtin_type_decl(int_builtin_type(), root),
-						create_ident_with_text(NULL, "id_%i", k),
-						AST_BASE(create_integer_literal(0, root)));
-			AST_Loop *loop =
-				create_for_loop(
-					index_decl,
-					AST_BASE(create_call_2(
-						create_ident_with_text(NULL, "size"),
-						copy_ast(parallel->output),
-						AST_BASE(create_integer_literal(k, root))
-					)),
-					NULL
-				);
-
-			if (!outer_loop)
-				outer_loop = loop;
-
-			if (inner_loop) {
-				inner_loop->body = create_scope_node();
-				push_array(AST_Node_Ptr)(&inner_loop->body->nodes, AST_BASE(loop));
-			}
-			inner_loop = loop;
-		}
-
-		{ /* Add innermost loop content */
-			inner_loop->body = (AST_Scope*)copy_ast(AST_BASE(parallel->body));
-
-			/* Insert init of 'id' var right after its declaration */
-			ASSERT(inner_loop->body->nodes.size >= 1);
-			ASSERT(inner_loop->body->nodes.data[0]->type == AST_var_decl);
-			{
-				CASTED_NODE(AST_Var_Decl, id_decl, inner_loop->body->nodes.data[0]);
-				Array(AST_Node_Ptr) assignments = create_array(AST_Node_Ptr)(0);
-
-				for (k = 0; k < parallel->dim; ++k) {
-					AST_Biop *assign =
-						create_assign(
-							AST_BASE(create_element_access_1(
-								try_create_access(copy_ast(AST_BASE(id_decl->ident))),
-								AST_BASE(create_integer_literal(k, root))
-							)),
-							try_create_access(
-								AST_BASE(create_ident_with_text(NULL, "id_%i", k))
-							)
-						);
-
-					push_array(AST_Node_Ptr)(&assignments, AST_BASE(assign));
-				}
-
-				insert_array(AST_Node_Ptr)(&inner_loop->body->nodes, 1, assignments.data, assignments.size);
-				destroy_array(AST_Node_Ptr)(&assignments);
-			}
-		}
-
-		push_array(AST_Node_Ptr)(&scope->nodes, AST_BASE(outer_loop));
-
-		push_array(AST_Node_Ptr)(&replace_list_old, AST_BASE(parallel));
-		push_array(AST_Node_Ptr)(&replace_list_new, AST_BASE(scope));
-	}
-
-	{ /* Replace old nodes with new nodes */
-		ASSERT(replace_list_new.size == replace_list_old.size);
-		replace_nodes_in_ast(AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
-
-		/* Subnodes should be deep-copied */
-		for (i = 0; i < replace_list_old.size; ++i)
-			destroy_node(replace_list_old.data[i]);
-	}
-
-	/* Resolve calls of 'size' to corresponding functions */
-	resolve_ast(root);
-
-	destroy_array(AST_Node_Ptr)(&subnodes);
-	destroy_array(AST_Node_Ptr)(&replace_list_old);
-	destroy_array(AST_Node_Ptr)(&replace_list_new);
-}
-
 INTERNAL void append_c_comment(Array(char) *buf, Token *comment)
 {
 	if (comment->type == Token_line_comment)
@@ -1127,13 +1205,15 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_loop: {
 		CASTED_NODE(AST_Loop, loop, node);
-		if (loop->init) {
+		if (loop->init || loop->incr) {
 			append_str(buf, "for (");
-			ast_to_c_str(buf, indent, loop->init);
+			if (loop->init)
+				ast_to_c_str(buf, indent, loop->init);
 			append_str(buf, "; ");
 			ast_to_c_str(buf, indent, loop->cond);
 			append_str(buf, "; ");
-			ast_to_c_str(buf, indent, loop->incr);
+			if (loop->incr)
+				ast_to_c_str(buf, indent, loop->incr);
 			append_str(buf, ") ");
 		} else {
 			append_str(buf, "while (");
@@ -1178,6 +1258,7 @@ Array(char) gen_c_code(AST_Scope *root)
 
 	AST_Scope *modified_ast = (AST_Scope*)copy_ast(AST_BASE(root));
 	parallel_loops_to_ordinary(modified_ast);
+	lift_var_decls(modified_ast);
 	lift_types_and_funcs_to_global_scope(modified_ast);
 	add_builtin_c_decls_to_global_scope(modified_ast, true);
 	apply_c_operator_overloading(modified_ast, true);

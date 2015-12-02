@@ -57,6 +57,7 @@ Buf_Str c_str_to_buf_str(const char* str);
 #define push_array(V) JOIN3(push_, V, _array)
 #define pop_array(V) JOIN3(pop_, V, _array)
 #define insert_array(V) JOIN3(insert_, V, _array)
+#define erase_array(V) JOIN3(erase_, V, _array)
 #define copy_array(V) JOIN3(copy_, V, _array)
 #define clear_array(V) JOIN3(clear_, V, _array)
 /* Internal */
@@ -75,6 +76,7 @@ V *release_array(V)(Array(V) *arr);\
 void push_array(V)(Array(V) *arr, V value);\
 V pop_array(V)(Array(V) *arr);\
 void insert_array(V)(Array(V) *arr, int at_place, V *values, int value_count);\
+void erase_array(V)(Array(V) *arr, int at_place, int erase_count);\
 Array(V) copy_array(V)(Array(V) *arr);\
 void clear_array(V)(Array(V) *arr);\
 
@@ -127,6 +129,15 @@ void insert_array(V)(Array(V) *arr, int at_place, V *values, int value_count)\
 	memmove(arr->data + at_place + value_count, arr->data + at_place, sizeof(*arr->data)*move_count);\
 	memcpy(arr->data + at_place, values, sizeof(*arr->data)*value_count);\
 	arr->size += value_count;\
+}\
+void erase_array(V)(Array(V) *arr, int at_place, int erase_count)\
+{\
+	ASSERT(arr);\
+	ASSERT(at_place >= 0 && at_place < arr->size);\
+	ASSERT(at_place + erase_count <= arr->size);\
+	ASSERT(erase_count >= 0);\
+	memmove(arr->data + at_place, arr->data + at_place + erase_count, sizeof(*arr->data)*erase_count);\
+	arr->size -= erase_count;\
 }\
 V pop_array(V)(Array(V) *arr)\
 {\

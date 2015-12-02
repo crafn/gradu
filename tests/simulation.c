@@ -36,15 +36,15 @@ int printf(const char *fmt, ...);
 typedef floatfield2 Field;
 int main(int argc, char **argv)
 {
+    int i;
     int size_x = 20;
     int size_y = 20;
     Field a = alloc_field_floatfield2(size_x, size_y);
     Field b = alloc_field_floatfield2(size_x, size_y);
-    int i;
     {
         int x;
-        int y;
         for (x = 0; x < size_x; ++x) {
+            int y;
             for (y = 0; y < size_y; ++y) {
                 a.m[1 * x + a.size[0] * y] = 0;
             }
@@ -52,6 +52,7 @@ int main(int argc, char **argv)
         a.m[1 * size_x / 2 + a.size[0] * size_y / 2] = 1000;
     }
     for (i = 0; i < 20; ++i) {
+        int y;
         Field *input = &a;
         Field *output = &b;
 
@@ -62,17 +63,25 @@ int main(int argc, char **argv)
             input = tmp;
         }
         {
-            for (int id_0 = 0; id_0 < size_floatfield2(*output, 0); ++id_0) {
-                for (int id_1 = 0; id_1 < size_floatfield2(*output, 1); ++id_1) {
+            int id_0;
+            for (id_0 = 0; id_0 < size_floatfield2(*output, 0); ++id_0) {
+                int id_1;
+                for (id_1 = 0; id_1 < size_floatfield2(*output, 1); ++id_1) {
                     intmat2 id;
+                    int x;
+                    int y;
+                    int nx;
+                    int ny;
+                    int px;
+                    int py;
                     id.m[1 * 0] = id_0;
                     id.m[1 * 1] = id_1;
-                    int x = id.m[1 * 0];
-                    int y = id.m[1 * 1];
-                    int nx = (x + 1) % size_x;
-                    int ny = (y + 1) % size_y;
-                    int px = (x - 1 + size_x) % size_x;
-                    int py = (y - 1 + size_y) % size_y;
+                    x = id.m[1 * 0];
+                    y = id.m[1 * 1];
+                    nx = (x + 1) % size_x;
+                    ny = (y + 1) % size_y;
+                    px = (x - 1 + size_x) % size_x;
+                    py = (y - 1 + size_y) % size_y;
                     output->m[1 * x + output->size[0] * y] = input->m[1 * x + input->size[0] * y] + input->m[1 * nx + input->size[0] * y] + input->m[1 * px + input->size[0] * y] + input->m[1 * x + input->size[0] * ny] + input->m[1 * x + input->size[0] * py];
                     output->m[1 * x + output->size[0] * y] /= 5.000000;
                 }
@@ -80,23 +89,20 @@ int main(int argc, char **argv)
         }
 
         /* Print current state */
-        {
+        for (y = 0; y < size_y; ++y) {
             int x;
-            int y;
-            for (y = 0; y < size_y; ++y) {
-                for (x = 0; x < size_x; ++x) {
-                    char *ch = " ";
-                    if (output->m[1 * x + output->size[0] * y] > 5.000000) {
-                        ch = "#";
-                    } else if (output->m[1 * x + output->size[0] * y] > 1.000000) {
-                        ch = ".";
-                    }
-                    printf("%s", ch);
+            for (x = 0; x < size_x; ++x) {
+                char *ch = " ";
+                if (output->m[1 * x + output->size[0] * y] > 5.000000) {
+                    ch = "#";
+                } else if (output->m[1 * x + output->size[0] * y] > 1.000000) {
+                    ch = ".";
                 }
-                printf("\n");
+                printf("%s", ch);
             }
             printf("\n");
         }
+        printf("\n");
     }
     free_field_floatfield2(a);
     free_field_floatfield2(b);

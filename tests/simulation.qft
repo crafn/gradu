@@ -8,21 +8,18 @@ int main(int argc, char **argv)
 	int size_y = 20;
 	Field a = alloc_field(size_x, size_y);
 	Field b = alloc_field(size_x, size_y);
-	int i;
 
 	// Init field
 	{
-		int x;
-		int y;
-		for (x = 0; x < size_x; ++x) {
-			for (y = 0; y < size_y; ++y) {	
+		for (int x = 0; x < size_x; ++x) {
+			for (int y = 0; y < size_y; ++y) {	
 				a(x, y) = 0;
 			}
 		}
 		a(size_x/2, size_y/2) = 1000;
 	}
 
-	for (i = 0; i < 20; ++i) {
+	for (int i = 0; i < 20; ++i) {
 		Field *input = &a;
 		Field *output = &b;
 
@@ -51,23 +48,19 @@ int main(int argc, char **argv)
 		}
 
 		// Print current state
-		{
-			int x;
-			int y;
-			for (y = 0; y < size_y; ++y) {
-				for (x = 0; x < size_x; ++x) {	
-					char *ch = " ";
-					if (output(x, y) > 0.5)
-						ch = "#";
-					else if (output(x, y) > 0.1)
-						ch = ".";
+		for (int y = 0; y < size_y; ++y) {
+			for (int x = 0; x < size_x; ++x) {	
+				char *ch = " ";
+				if (output(x, y) > 0.5)
+					ch = "#";
+				else if (output(x, y) > 0.1)
+					ch = ".";
 
-					printf("%s", ch);
-				}
-				printf("\n");
+				printf("%s", ch);
 			}
 			printf("\n");
 		}
+		printf("\n");
 	}
 
 	free_field(a);

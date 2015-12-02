@@ -1304,7 +1304,7 @@ INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret)
 			goto mismatch;
 		}
 
-		if (!parse_expr(ctx, &loop->init, 0, NULL, true))
+		if (!parse_element(ctx, &loop->init))
 			goto mismatch;
 
 		if (!parse_expr(ctx, &loop->cond, 0, NULL, true))

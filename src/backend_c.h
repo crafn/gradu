@@ -5,6 +5,8 @@
 #include "parse.h"
 
 /* Utils for other c-like backends */
+void lift_var_decls(AST_Scope *root);
+void parallel_loops_to_ordinary(AST_Scope *root);
 void lift_types_and_funcs_to_global_scope(AST_Scope *root);
 void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls);
 void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr);

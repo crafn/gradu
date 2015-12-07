@@ -136,7 +136,7 @@ void erase_array(V)(Array(V) *arr, int at_place, int erase_count)\
 	ASSERT(at_place >= 0 && at_place < arr->size);\
 	ASSERT(at_place + erase_count <= arr->size);\
 	ASSERT(erase_count >= 0);\
-	memmove(arr->data + at_place, arr->data + at_place + erase_count, sizeof(*arr->data)*erase_count);\
+	memmove(arr->data + at_place, arr->data + at_place + erase_count, sizeof(*arr->data)*(arr->size - at_place - erase_count));\
 	arr->size -= erase_count;\
 }\
 V pop_array(V)(Array(V) *arr)\

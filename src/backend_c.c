@@ -275,33 +275,13 @@ void parallel_loops_to_ordinary(AST_Scope *root)
 		}
 
 		{ /* Add innermost loop content */
-			inner_loop->body = (AST_Scope*)copy_ast(AST_BASE(parallel->body));
-
-			/* Insert init of 'id' var right after its declaration */
-			ASSERT(inner_loop->body->nodes.size >= 1);
-			ASSERT(inner_loop->body->nodes.data[0]->type == AST_var_decl);
-			{
-				CASTED_NODE(AST_Var_Decl, id_decl, inner_loop->body->nodes.data[0]);
-				Array(AST_Node_Ptr) assignments = create_array(AST_Node_Ptr)(0);
-
-				for (k = 0; k < parallel->dim; ++k) {
-					AST_Biop *assign =
-						create_assign(
-							AST_BASE(create_element_access_1(
-								try_create_access(copy_ast(AST_BASE(id_decl->ident))),
-								AST_BASE(create_integer_literal(k, root))
-							)),
-							try_create_access(
-								AST_BASE(create_ident_with_text(NULL, "id_%i", k))
-							)
-						);
-
-					push_array(AST_Node_Ptr)(&assignments, AST_BASE(assign));
-				}
-
-				insert_array(AST_Node_Ptr)(&inner_loop->body->nodes, 1, assignments.data, assignments.size);
-				destroy_array(AST_Node_Ptr)(&assignments);
+			for (k = 0; k < parallel->dim; ++k) {
+				add_parallel_id_init(root, parallel, k,
+						try_create_access(
+							AST_BASE(create_ident_with_text(NULL, "id_%i", k))));
 			}
+
+			inner_loop->body = (AST_Scope*)copy_ast(AST_BASE(parallel->body));
 		}
 
 		push_array(AST_Node_Ptr)(&scope->nodes, AST_BASE(outer_loop));
@@ -863,7 +843,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 			if (!access->is_element_access)
 				continue;
 			if (!expr_type(&type, access->base))
-				FAIL(("Failed to eval expr type"));
+				FAIL(("expr_type failed for access"));
 			if (!type.base_type_decl->is_builtin)
 				continue;
 			bt = type.base_type_decl->builtin_type;
@@ -1176,7 +1156,7 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			ast_to_c_str(buf, indent, access->args.data[0]);
 			append_str(buf, "]");
 		} else if (access->is_element_access) {
-			/*FAIL(("C does not support builtin element access (bug: these should be converted)"));*/
+			FAIL(("C does not support builtin element access (bug: these should be converted)"));
 		} else {
 			ast_to_c_str(buf, indent, access->base);
 		}

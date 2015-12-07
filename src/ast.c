@@ -744,7 +744,14 @@ AST_Ident *decl_ident(AST_Node *node)
 	}
 }
 
+AST_Ident *access_ident(AST_Access *access)
+{
+	if (access->base->type == AST_ident)
+		return (AST_Ident*)access->base;
 
+	ASSERT(access->base->type == AST_access);
+	return access_ident((AST_Access*)access->base);
+}
 
 AST_Scope *create_ast()
 {
@@ -888,7 +895,8 @@ void find_decls_scoped(AST_Parent_Map *map, Array(AST_Node_Ptr) *ret, AST_Node *
 	int i;
 	AST_Node *stack_node = node;
 	while ((stack_node = find_parent_node(map, stack_node))) {
-		if (stack_node->type == AST_scope) {
+		switch (stack_node->type) {
+		case AST_scope: {
 			CASTED_NODE(AST_Scope, scope, stack_node);
 			for (i = 0; i < scope->nodes.size; ++i) {
 				AST_Node *node = scope->nodes.data[i];
@@ -897,14 +905,26 @@ void find_decls_scoped(AST_Parent_Map *map, Array(AST_Node_Ptr) *ret, AST_Node *
 
 				match_and_add(ret, name, node);
 			}
-		} else if (stack_node->type == AST_loop) {
+		} break;
+		case AST_loop: {
 			CASTED_NODE(AST_Loop, loop, stack_node);
 			if (!loop->init || !is_decl(loop->init))
 				continue;
 
 			match_and_add(ret, name, loop->init);
-		}
+		} break;
+		case AST_func_decl: {
+			CASTED_NODE(AST_Func_Decl, decl, stack_node);
+			for (i = 0; i < decl->params.size; ++i) {
+				AST_Node *node = AST_BASE(decl->params.data[i]);
+				if (!is_decl(node))
+					continue;
 
+				match_and_add(ret, name, node);
+			}
+		} break;
+		default:;
+		}
 	}
 
 	/* Look from builtin funcs. */
@@ -950,6 +970,25 @@ int find_in_scope(AST_Scope *scope, AST_Node *needle)
 			return i;
 	}
 	return -1;
+}
+
+AST_Func_Decl *find_enclosing_func(AST_Parent_Map *map, AST_Node *node)
+{
+	AST_Node *parent = find_parent_node(map, node);
+	while (parent && parent->type != AST_func_decl)
+		parent = find_parent_node(map, parent);
+	return (AST_Func_Decl*)parent;
+}
+
+bool is_subnode(AST_Parent_Map *map, AST_Node *parent, AST_Node *sub)
+{
+	AST_Node *p = find_parent_node(map, sub);
+	while (p) {
+		if (p == parent)
+			return true;
+		p = find_parent_node(map, p);
+	}
+	return false;
 }
 
 /* @todo Split to multiple functions */
@@ -1079,6 +1118,29 @@ void resolve_ast(AST_Scope *root)
 
 	destroy_array(AST_Node_Ptr)(&subnodes);
 	destroy_parent_map(&parent_map);
+}
+
+void unresolve_ast(AST_Node *root)
+{
+	int i;
+	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	push_subnodes(&subnodes, root, false);
+
+	for (i = 0; i < subnodes.size; ++i) {
+		AST_Node *node = subnodes.data[i];
+		if (!node)
+			continue;
+		switch (node->type) {
+			case AST_ident: {
+				CASTED_NODE(AST_Ident, ident, node);
+				ident->decl = NULL;
+			} break;
+			/* @todo Unresolve everything, literal base types etc. */
+			default:;
+		}
+	}
+
+	destroy_array(AST_Node_Ptr)(&subnodes);
 }
 
 void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
@@ -1740,4 +1802,24 @@ AST_Node *create_chained_expr_2(AST_Node **lhs_elems, AST_Node **rhs_elems, int 
 		}
 	}
 	return ret;
+}
+
+void add_parallel_id_init(AST_Scope *root, AST_Parallel *parallel, int ix, AST_Node *value)
+{
+	/* Insert init of 'id' var right after its declaration */
+	ASSERT(parallel->body->nodes.size >= 1);
+	ASSERT(parallel->body->nodes.data[0]->type == AST_var_decl);
+	{
+		CASTED_NODE(AST_Var_Decl, id_decl, parallel->body->nodes.data[0]);
+		AST_Biop *assign =
+			create_assign(
+				AST_BASE(create_element_access_1(
+					try_create_access(copy_ast(AST_BASE(id_decl->ident))),
+					AST_BASE(create_integer_literal(ix, root))
+				)),
+				value
+			);
+
+		insert_array(AST_Node_Ptr)(&parallel->body->nodes, 1, (AST_Node**)&assign, 1);
+	}
 }

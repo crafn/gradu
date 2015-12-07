@@ -333,6 +333,7 @@ bool eval_const_expr(AST_Literal *ret, AST_Node *expr);
 
 bool is_decl(AST_Node *node);
 AST_Ident *decl_ident(AST_Node *node);
+AST_Ident *access_ident(AST_Access *access);
 
 
 /* AST traversing utils */
@@ -348,12 +349,16 @@ void destroy_parent_map(AST_Parent_Map *map);
 AST_Node *find_parent_node(AST_Parent_Map *map, AST_Node *node);
 void set_parent_node(AST_Parent_Map *map, AST_Node *sub, AST_Node *parent);
 int find_in_scope(AST_Scope *scope, AST_Node *needle);
+AST_Func_Decl *find_enclosing_func(AST_Parent_Map *map, AST_Node *node);
+bool is_subnode(AST_Parent_Map *map, AST_Node *parent, AST_Node *sub);
 
 AST_Ident *resolve_ident(AST_Parent_Map *map, AST_Ident *ident);
 /* Resolves call to specific overload */
 AST_Call *resolve_call(AST_Parent_Map *map, AST_Call *call, AST_Type *return_type_hint);
 /* Resove all unresolved things in AST. Call this after inserting unresolved nodes into AST. */
 void resolve_ast(AST_Scope *root);
+/* Break all resolved things. Call this when e.g. moving blocks of code around. */
+void unresolve_ast(AST_Node *node);
 
 
 void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
@@ -409,5 +414,7 @@ AST_Node *create_chained_expr(AST_Node **elems, int elem_count, Token_Type chain
 
 /* (lhs[0] biop rhs[0]) chainop (lhs[1] biop rhs[1]) */
 AST_Node *create_chained_expr_2(AST_Node **lhs_elems, AST_Node **rhs_elems, int elem_count, Token_Type biop, Token_Type chainop);
+
+void add_parallel_id_init(AST_Scope *root, AST_Parallel *parallel, int ix, AST_Node *value);
 
 #endif

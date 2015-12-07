@@ -74,8 +74,8 @@ int main(int argc, char **argv)
                     int ny;
                     int px;
                     int py;
-                    id.m[1 * 0] = id_0;
                     id.m[1 * 1] = id_1;
+                    id.m[1 * 0] = id_0;
                     x = id.m[1 * 0];
                     y = id.m[1 * 1];
                     nx = (x + 1) % size_x;

@@ -12,17 +12,18 @@ typedef struct LocalType
 {
     int foo;
 } LocalType;
-void local_func()
+void local_func(int p)
 {
     LocalType bug_test; /* Just to test that identifier lookup works */
     bug_test.foo = 123;
-    aaaaa = bug_test.foo;
+    aaaaa = bug_test.foo + p;
 }
 int main(int argc, const char **argv)
 {
     int temp_var;
     int i;
     temp_var = 1 + 2 * 3;
+    local_func(10);
 
     {
         int test;

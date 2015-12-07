@@ -16,12 +16,14 @@ int main(int argc, const char **argv)
 	struct LocalType {
 		int foo;
 	}
-	void local_func()
+	void local_func(int p)
 	{
 		LocalType bug_test; // Just to test that identifier lookup works
 		bug_test.foo = 123;
-		aaaaa = bug_test.foo;
+		aaaaa = bug_test.foo + p;
 	}
+
+	local_func(10);
 
 	{ /* Useless inner scope */
 		int test;

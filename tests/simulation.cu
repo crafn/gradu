@@ -34,6 +34,21 @@ typedef struct intmat2
 int printf(const char *fmt, ...);
 
 typedef floatfield2 Field;
+void TODO_proper_kernel_name(floatfield2 output, floatfield2 input, int size_x, int size_y)
+{
+    intmat2 id;
+    id.m[1 * 1] = threadIdx.y;
+    id.m[1 * 0] = threadIdx.x;
+    int x = id.m[1 * 0];
+    int y = id.m[1 * 1];
+    int nx = (x + 1) % size_x;
+    int ny = (y + 1) % size_y;
+    int px = (x - 1 + size_x) % size_x;
+    int py = (y - 1 + size_y) % size_y;
+    output.m[1 * x + output.size[0] * y] = input.m[1 * x + input.size[0] * y] + input.m[1 * nx + input.size[0] * y] + input.m[1 * px + input.size[0] * y] + input.m[1 * x + input.size[0] * ny] + input.m[1 * x + input.size[0] * py];
+    output.m[1 * x + output.size[0] * y] /= 5.000000;
+}
+
 int main(int argc, char **argv)
 {
     int size_x = 20;
@@ -59,21 +74,11 @@ int main(int argc, char **argv)
             input = tmp;
         }
         {
-            for (int id_0 = 0; id_0 < size_floatfield2(*output, 0); ++id_0) {
-                for (int id_1 = 0; id_1 < size_floatfield2(*output, 1); ++id_1) {
-                    intmat2 id;
-                    id.m[1 * 0] = id_0;
-                    id.m[1 * 1] = id_1;
-                    int x = id.m[1 * 0];
-                    int y = id.m[1 * 1];
-                    int nx = (x + 1) % size_x;
-                    int ny = (y + 1) % size_y;
-                    int px = (x - 1 + size_x) % size_x;
-                    int py = (y - 1 + size_y) % size_y;
-                    output->m[1 * x + output->size[0] * y] = input->m[1 * x + input->size[0] * y] + input->m[1 * nx + input->size[0] * y] + input->m[1 * px + input->size[0] * y] + input->m[1 * x + input->size[0] * ny] + input->m[1 * x + input->size[0] * py];
-                    output->m[1 * x + output->size[0] * y] /= 5.000000;
-                }
-            }
+            floatfield2 output;
+            floatfield2 input;
+            int size_x;
+            int size_y;
+            TODO_proper_kernel_name<<<dim_grid, dim_block>>>();
         }
 
         /* Print current state */

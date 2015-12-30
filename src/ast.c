@@ -146,6 +146,7 @@ void copy_ast_node_base(AST_Node *dst, AST_Node *src)
 		push_array(Token_Ptr)(&dst->pre_comments, src->pre_comments.data[i]);
 	for (i = 0; i < src->post_comments.size; ++i)
 		push_array(Token_Ptr)(&dst->post_comments, src->post_comments.data[i]);
+	dst->attribute = src->attribute;
 }
 
 void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subnode_count, AST_Node **refnodes, int refnode_count)

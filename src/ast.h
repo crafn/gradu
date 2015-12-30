@@ -46,6 +46,8 @@ typedef struct AST_Node {
 	/* Comments on the previous line(s) (like this comment) */
 	Array(Token_Ptr) pre_comments;
 	Array(Token_Ptr) post_comments; /* On the same line (like this comment) */
+
+	const char *attribute; /* Just a quick test for __global__ */
 } AST_Node;
 
 /* { ... } */

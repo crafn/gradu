@@ -451,45 +451,65 @@ AST_Type_Decl *create_builtin_decl(Parse_Ctx *ctx, Builtin_Type bt)
 		push_array(AST_Node_Ptr)(&ctx->parent_map.builtin_decls, AST_BASE(tdecl));
 
 		if (bt.is_field) {
-			{ /* Create field alloc func */
+			int type;
+			/* Create field alloc funcs */
+			for (type = 0; type < 2; ++type) { 
+				const char *names[2] = { "alloc_field", "alloc_device_field" };
 				AST_Func_Decl *fdecl = create_func_decl_node();
 				fdecl->is_builtin = true;
 
 				fdecl->return_type = create_type_node();
 				fdecl->return_type->base_type_decl = tdecl;
 
-				fdecl->ident = create_ident_with_text(AST_BASE(fdecl), "alloc_field");
+				fdecl->ident = create_ident_with_text(AST_BASE(fdecl), names[type]);
 
 				for (i = 0; i < bt.field_dim; ++i) {
 					AST_Var_Decl *param = create_var_decl_node();
 					param->type = create_type_node();
 					param->type->base_type_decl = create_builtin_decl(ctx, int_builtin_type());
-
 					param->ident = create_ident_with_text(AST_BASE(param), "size_%i", i);
-
 					push_array(AST_Var_Decl_Ptr)(&fdecl->params, param);
 				}
 
 				push_array(AST_Node_Ptr)(&ctx->parent_map.builtin_decls, AST_BASE(fdecl));
 			}
 
-			{ /* Create field free func */
+			/* Create field free funcs */
+			for (type = 0; type < 2; ++type) { 
+				const char *names[2] = { "free_field", "free_device_field" };
 				AST_Func_Decl *fdecl = create_func_decl_node();
 				fdecl->is_builtin = true;
 
 				fdecl->return_type = create_type_node();
 				fdecl->return_type->base_type_decl = create_builtin_decl(ctx, void_builtin_type());
 
-				fdecl->ident = create_ident_with_text(AST_BASE(fdecl), "free_field");
+				fdecl->ident = create_ident_with_text(AST_BASE(fdecl), names[type]);
 
 				{
 					AST_Var_Decl *param = create_var_decl_node();
 					param->type = create_type_node();
 					param->type->base_type_decl = tdecl;
-
 					param->ident = create_ident_with_text(AST_BASE(param), "field");
-
 					push_array(AST_Var_Decl_Ptr)(&fdecl->params, param);
+				}
+
+				push_array(AST_Node_Ptr)(&ctx->parent_map.builtin_decls, AST_BASE(fdecl));
+			}
+
+			{ /* Create field memcpy func */
+				AST_Func_Decl *fdecl = create_func_decl_node();
+				fdecl->is_builtin = true;
+
+				fdecl->return_type = create_type_node();
+				fdecl->return_type->base_type_decl = create_builtin_decl(ctx, void_builtin_type());
+
+				fdecl->ident = create_ident_with_text(AST_BASE(fdecl), "memcpy_field");
+
+				{
+					AST_Var_Decl *dst = create_simple_var_decl(tdecl, "dst");
+					AST_Var_Decl *src = create_simple_var_decl(tdecl, "src");
+					push_array(AST_Var_Decl_Ptr)(&fdecl->params, dst);
+					push_array(AST_Var_Decl_Ptr)(&fdecl->params, src);
 				}
 
 				push_array(AST_Node_Ptr)(&ctx->parent_map.builtin_decls, AST_BASE(fdecl));

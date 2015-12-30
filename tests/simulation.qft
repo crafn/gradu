@@ -6,22 +6,23 @@ int main(int argc, char **argv)
 {
 	int size_x = 20;
 	int size_y = 20;
-	Field a = alloc_field(size_x, size_y);
-	Field b = alloc_field(size_x, size_y);
+	Field host_field = alloc_field(size_x, size_y);
+	Field device_field_1 = alloc_device_field(size_x, size_y);
+	Field device_field_2 = alloc_device_field(size_x, size_y);
 
 	// Init field
 	{
 		for (int x = 0; x < size_x; ++x) {
 			for (int y = 0; y < size_y; ++y) {	
-				a(x, y) = 0;
+				host_field(x, y) = 0;
 			}
 		}
-		a(size_x/2, size_y/2) = 1000;
+		host_field(size_x/2, size_y/2) = 1000;
 	}
 
 	for (int i = 0; i < 20; ++i) {
-		Field *input = &a;
-		Field *output = &b;
+		Field *input = &device_field_1;
+		Field *output = &device_field_2;
 
 		// Swap
 		if (i % 2 == 1) {
@@ -48,12 +49,13 @@ int main(int argc, char **argv)
 		}
 
 		// Print current state
+		memcpy_field(host_field, *output);
 		for (int y = 0; y < size_y; ++y) {
 			for (int x = 0; x < size_x; ++x) {	
 				char *ch = " ";
-				if (output(x, y) > 0.5)
+				if (host_field(x, y) > 0.5)
 					ch = "#";
-				else if (output(x, y) > 0.1)
+				else if (host_field(x, y) > 0.1)
 					ch = ".";
 
 				printf("%s", ch);
@@ -63,8 +65,9 @@ int main(int argc, char **argv)
 		printf("\n");
 	}
 
-	free_field(a);
-	free_field(b);
+	free_field(host_field);
+	free_device_field(device_field_1);
+	free_device_field(device_field_2);
 	return 0;
 }
 

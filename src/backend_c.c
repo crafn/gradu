@@ -12,6 +12,7 @@ INTERNAL bool nested_expr_needs_parens(AST_Node *expr, AST_Node *nested)
 	}
 }
 
+#if 0
 INTERNAL bool is_builtin_decl(AST_Node *node)
 {
 	if (node->type == AST_type_decl) {
@@ -24,6 +25,7 @@ INTERNAL bool is_builtin_decl(AST_Node *node)
 
 	return false;
 }
+#endif
 
 void append_builtin_type_c_str(Array(char) *buf, Builtin_Type bt)
 {
@@ -503,15 +505,15 @@ void lift_types_and_funcs_to_global_scope(AST_Scope *root)
 void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 {
 	int i, k;
-	Array(AST_Node_Ptr) generated_decls = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
-	push_subnodes(&subnodes, AST_BASE(root), false);
 
 	/* Create c decls for matrix and field builtin types */
-	for (i = 0; i < subnodes.size; ++i) {
+	for (i = 0; i < root->nodes.size; ++i) {
+		AST_Node *node = root->nodes.data[i];
+		AST_Node *generated[4] = {0};
+
 		/* Matrix and field type processing */
-		if (subnodes.data[i]->type == AST_type_decl) {
-			CASTED_NODE(AST_Type_Decl, decl, subnodes.data[i]);
+		if (node->type == AST_type_decl) {
+			CASTED_NODE(AST_Type_Decl, decl, node);
 			int elem_count = 1;
 			AST_Type_Decl *mat_decl = NULL; /* Created C matrix type decl */
 			AST_Var_Decl *member_decl = NULL; /* Member array decl of matrix */
@@ -562,16 +564,16 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 
 						s_decl = create_simple_var_decl(s_type_decl, "size");
 						s_decl->type->array_size = bt.field_dim;
-						push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(s_type_decl));
 						push_array(AST_Node_Ptr)(&mat_decl->body->nodes, AST_BASE(s_decl));
+						generated[0] = AST_BASE(s_type_decl);
 					}
 
 					ASSERT(m_type_decl);
-					push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(m_type_decl));
+					generated[1] = AST_BASE(m_type_decl);
 				}
 
 				ASSERT(mat_decl);
-				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(mat_decl));
+				generated[2] = AST_BASE(mat_decl);
 			}
 
 			/* Create matrix multiplication func */
@@ -626,12 +628,12 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 					push_array(AST_Node_Ptr)(&mul_decl->body->nodes, AST_BASE(return_stmt));
 				}
 
-				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(mul_decl));
+				generated[3] = AST_BASE(mul_decl);
 			}
-		} else if (subnodes.data[i]->type == AST_func_decl && func_decls) {
+		} else if (node->type == AST_func_decl && func_decls) {
 			/* Create concrete field alloc and dealloc funcs */
 
-			CASTED_NODE(AST_Func_Decl, func_decl, subnodes.data[i]);
+			CASTED_NODE(AST_Func_Decl, func_decl, node);
 			if (!func_decl->is_builtin)
 				continue;
 
@@ -716,7 +718,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(ret_stmt));
 				}
 
-				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(alloc_func));
+				generated[0] = AST_BASE(alloc_func);
 			} else if (!strcmp(func_decl->ident->text.data, "free_field")) {
 				AST_Func_Decl *free_func = (AST_Func_Decl*)copy_ast(AST_BASE(func_decl));
 				AST_Type_Decl *field_decl = free_func->params.data[0]->type->base_type_decl;
@@ -743,7 +745,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 					push_array(AST_Node_Ptr)(&free_func->body->nodes, AST_BASE(libc_free_call));
 				}
 
-				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(free_func));
+				generated[0] = AST_BASE(free_func);
 			} else if (!strcmp(func_decl->ident->text.data, "size")) {
 				AST_Func_Decl *size_func = (AST_Func_Decl*)copy_ast(AST_BASE(func_decl));
 				AST_Type_Decl *field_decl = size_func->params.data[0]->type->base_type_decl;
@@ -770,23 +772,24 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 						))
 					);
 
-				push_array(AST_Node_Ptr)(&generated_decls, AST_BASE(size_func));
+				generated[0] = AST_BASE(size_func);
 			} else {
-				FAIL((	"add_builtin_c_decls_to_global_scope: Unknown field function: %s",
-						func_decl->ident->text.data));
+
+				/* @todo Make post-pass for ast which shows error for unresolved/implemented symbols */
+				/*FAIL((	"add_builtin_c_decls_to_global_scope: Unknown field function: %s",
+						func_decl->ident->text.data));*/
 			}
 		}
-	}
 
-	{ /* Add C-compatible matrices and operations on top of the source */
-		int place = 0;
-		while (place < root->nodes.size && is_builtin_decl(root->nodes.data[place]))
-			++place;
-		insert_array(AST_Node_Ptr)(&root->nodes, place, generated_decls.data, generated_decls.size);
-	}
+		for (k = 0; k < (int)(sizeof(generated)/sizeof(*generated)); ++k) {
+			if (!generated[k])
+				continue;
 
-	destroy_array(AST_Node_Ptr)(&subnodes);
-	destroy_array(AST_Node_Ptr)(&generated_decls);
+			/* Insert after current node */
+			insert_array(AST_Node_Ptr)(&root->nodes, i + 1, &generated[k], 1);
+			++i;
+		}
+	}
 }
 
 void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
@@ -954,6 +957,9 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	int i, k;
 	bool omitted = false;
 	int indent_add = 4;
+
+	if (node->attribute)
+		append_str(buf, "%s ", node->attribute);
 
 	switch (node->type) {
 	case AST_scope: {

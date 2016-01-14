@@ -1618,6 +1618,13 @@ AST_Call *create_call_2(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2)
 	return call;
 }
 
+AST_Call *create_call_3(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2, AST_Node *arg3)
+{
+	AST_Call *call = create_call_2(ident, arg1, arg2);
+	push_array(AST_Node_Ptr)(&call->args, arg3);
+	return call;
+}
+
 AST_Control *create_return(AST_Node *expr)
 {
 	AST_Control *ret = create_control_node();

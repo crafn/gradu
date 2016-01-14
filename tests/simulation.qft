@@ -19,6 +19,7 @@ int main(int argc, char **argv)
 		}
 		host_field(size_x/2, size_y/2) = 1000;
 	}
+	memcpy_field(device_field_1, host_field);
 
 	for (int i = 0; i < 20; ++i) {
 		Field *input = &device_field_1;

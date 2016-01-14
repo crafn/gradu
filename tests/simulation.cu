@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h> /* memcpy */
 
 typedef struct floatfield2
 {
@@ -36,6 +37,11 @@ void free_device_field_floatfield2(floatfield2 field)
 }
 
 void memcpy_field_floatfield2(floatfield2 dst, floatfield2 src);
+
+void memcpy_field_floatfield2(floatfield2 dst, floatfield2 src)
+{
+    memcpy(dst.m, src.m, (sizeof(*dst.m)) * dst.size[0] * dst.size[1]);
+}
 
 int size_floatfield2(floatfield2 field, int index)
 {
@@ -80,6 +86,7 @@ int main(int argc, char **argv)
         }
         host_field.m[1 * size_x / 2 + host_field.size[0] * size_y / 2] = 1000;
     }
+    memcpy_field_floatfield2(device_field_1, host_field);
     for (int i = 0; i < 20; ++i) {
         Field *input = &device_field_1;
         Field *output = &device_field_2;

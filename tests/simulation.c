@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h> /* memcpy */
 
 typedef struct floatfield2
 {
@@ -21,6 +22,11 @@ void free_field_floatfield2(floatfield2 field)
     free(field.m);
 }
 
+void memcpy_field_floatfield2(floatfield2 dst, floatfield2 src)
+{
+    memcpy(dst.m, src.m, (sizeof(*dst.m)) * dst.size[0] * dst.size[1]);
+}
+
 int size_floatfield2(floatfield2 field, int index)
 {
     return field.size[index];
@@ -39,22 +45,24 @@ int main(int argc, char **argv)
     int i;
     int size_x = 20;
     int size_y = 20;
-    Field a = alloc_field_floatfield2(size_x, size_y);
-    Field b = alloc_field_floatfield2(size_x, size_y);
+    Field host_field = alloc_field_floatfield2(size_x, size_y);
+    Field device_field_1 = alloc_field_floatfield2(size_x, size_y);
+    Field device_field_2 = alloc_field_floatfield2(size_x, size_y);
     {
         int x;
         for (x = 0; x < size_x; ++x) {
             int y;
             for (y = 0; y < size_y; ++y) {
-                a.m[1 * x + a.size[0] * y] = 0;
+                host_field.m[1 * x + host_field.size[0] * y] = 0;
             }
         }
-        a.m[1 * size_x / 2 + a.size[0] * size_y / 2] = 1000;
+        host_field.m[1 * size_x / 2 + host_field.size[0] * size_y / 2] = 1000;
     }
+    memcpy_field_floatfield2(device_field_1, host_field);
     for (i = 0; i < 20; ++i) {
         int y;
-        Field *input = &a;
-        Field *output = &b;
+        Field *input = &device_field_1;
+        Field *output = &device_field_2;
 
         /* Swap */
         if (i % 2 == 1) {
@@ -87,15 +95,14 @@ int main(int argc, char **argv)
                 }
             }
         }
-
-        /* Print current state */
+        memcpy_field_floatfield2(host_field, *output);
         for (y = 0; y < size_y; ++y) {
             int x;
             for (x = 0; x < size_x; ++x) {
                 char *ch = " ";
-                if (output->m[1 * x + output->size[0] * y] > 5.000000) {
+                if (host_field.m[1 * x + host_field.size[0] * y] > 5.000000) {
                     ch = "#";
-                } else if (output->m[1 * x + output->size[0] * y] > 1.000000) {
+                } else if (host_field.m[1 * x + host_field.size[0] * y] > 1.000000) {
                     ch = ".";
                 }
                 printf("%s", ch);
@@ -104,8 +111,9 @@ int main(int argc, char **argv)
         }
         printf("\n");
     }
-    free_field_floatfield2(a);
-    free_field_floatfield2(b);
+    free_field_floatfield2(host_field);
+    free_field_floatfield2(device_field_1);
+    free_field_floatfield2(device_field_2);
     return 0;
 }
 

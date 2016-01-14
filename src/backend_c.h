@@ -8,7 +8,7 @@
 void lift_var_decls(AST_Scope *root);
 void parallel_loops_to_ordinary(AST_Scope *root);
 void lift_types_and_funcs_to_global_scope(AST_Scope *root);
-void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls);
+void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl);
 void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr);
 /* Type name for builtin type */
 void append_builtin_type_c_str(Array(char) *buf, Builtin_Type bt);

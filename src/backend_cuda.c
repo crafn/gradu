@@ -326,6 +326,7 @@ void parallel_loops_to_cuda(AST_Scope *root)
 			{ /* Write generated nodes to scope in correct order */
 				/*for (k = 0; k < cuda_var_decls.size; ++k)
 					push_array(AST_Node_Ptr)(&scope->nodes, cuda_var_decls.data[k]);*/
+				int w = -1, h = -1;
 				for (k = 0; k < malloc_calls.size; ++k)
 					push_array(AST_Node_Ptr)(&scope->nodes, malloc_calls.data[k]);
 				for (k = 0; k < memcpy_to_device_calls.size; ++k)
@@ -337,7 +338,7 @@ void parallel_loops_to_cuda(AST_Scope *root)
 							AST_BASE(create_ident_with_text(NULL, "dim3 dim_grid(1, 1, 1)")));
 				push_array(AST_Node_Ptr)(
 							&scope->nodes,
-							AST_BASE(create_ident_with_text(NULL, "dim3 dim_block(-1, -1, 1)"))); /* @todo Correct size */
+							AST_BASE(create_ident_with_text(NULL, "dim3 dim_block(%i, %i, 1)", w, h))); /* @todo Correct size */
 
 				push_array(AST_Node_Ptr)(&scope->nodes, AST_BASE(cuda_call));
 

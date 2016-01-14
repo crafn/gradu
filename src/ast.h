@@ -389,6 +389,7 @@ AST_Type_Decl *find_builtin_type_decl(Builtin_Type bt, AST_Scope *root);
 AST_Literal *create_integer_literal(int value, AST_Scope *root);
 AST_Call *create_call_1(AST_Ident *ident, AST_Node *arg);
 AST_Call *create_call_2(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2);
+AST_Call *create_call_3(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2, AST_Node *arg3);
 AST_Control *create_return(AST_Node *expr);
 AST_Biop *create_sizeof(AST_Node *expr);
 AST_Biop *create_deref(AST_Node *expr);

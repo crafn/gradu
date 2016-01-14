@@ -174,17 +174,53 @@ INTERNAL AST_Access *create_member_array_access(AST_Node *base, AST_Var_Decl *me
 /* Matrix or field */
 INTERNAL AST_Var_Decl *c_mat_elements_decl(AST_Type_Decl *mat_decl)
 {
-	AST_Node *m = mat_decl->body->nodes.data[0];
-	ASSERT(m->type == AST_var_decl);
-	return (AST_Var_Decl*)m;
+	if (mat_decl->builtin_concrete_decl) /* Work with builtin matrix and concrete struct */
+		mat_decl = mat_decl->builtin_concrete_decl;
+
+	{
+		AST_Node *m = mat_decl->body->nodes.data[0];
+		ASSERT(m->type == AST_var_decl);
+		return (AST_Var_Decl*)m;
+	}
 }
 
 INTERNAL AST_Var_Decl *c_field_size_decl(AST_Type_Decl *field_decl)
 {
-	AST_Node *m = field_decl->body->nodes.data[1];
-	ASSERT(m->type == AST_var_decl);
-	return (AST_Var_Decl*)m;
+	if (field_decl->builtin_concrete_decl) /* Work with builtin field and concrete struct */
+		field_decl = field_decl->builtin_concrete_decl;
+
+	{
+		AST_Node *m = field_decl->body->nodes.data[1];
+		ASSERT(m->type == AST_var_decl);
+		return (AST_Var_Decl*)m;
+	}
 }
+
+/* field.size[dim_i] */
+INTERNAL AST_Access *c_create_field_dim_size(AST_Var_Decl *field, int dim_i)
+{
+	return create_member_array_access(
+		copy_ast(AST_BASE(field->ident)), /* @todo Access var */
+		c_field_size_decl(field->type->base_type_decl),
+		AST_BASE(create_integer_literal(dim_i, NULL)),
+		false
+	);
+}
+
+/* Matrix or field */
+/* sizeof(*mat.m) */
+INTERNAL AST_Biop *c_create_mat_element_sizeof(AST_Var_Decl *mat)
+{
+	return create_sizeof(
+		AST_BASE(create_deref(
+			AST_BASE(create_member_access(
+				copy_ast(AST_BASE(mat->ident)), /* @todo Access var */
+				c_mat_elements_decl(mat->type->base_type_decl)
+			))
+		))
+	);
+}
+
 
 INTERNAL AST_Type_Decl *concrete_type_decl(Builtin_Type bt, AST_Scope *root)
 {
@@ -502,9 +538,11 @@ void lift_types_and_funcs_to_global_scope(AST_Scope *root)
 }
 
 /* Modifies the AST */
-void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
+void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 {
 	int i, k;
+	AST_Func_Decl *last_alloc_field_func = NULL;
+	AST_Func_Decl *last_free_field_func = NULL;
 
 	/* Create c decls for matrix and field builtin types */
 	for (i = 0; i < root->nodes.size; ++i) {
@@ -577,7 +615,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 			}
 
 			/* Create matrix multiplication func */
-			if (func_decls && !bt.is_field &&
+			if (!bt.is_field &&
 					bt.matrix_rank == 2) { /* @todo General multiplication algo */
 				AST_Func_Decl *mul_decl = create_func_decl_node();
 				AST_Var_Decl *lhs_decl = NULL;
@@ -630,7 +668,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 
 				generated[3] = AST_BASE(mul_decl);
 			}
-		} else if (node->type == AST_func_decl && func_decls) {
+		} else if (node->type == AST_func_decl) {
 			/* Create concrete field alloc and dealloc funcs */
 
 			CASTED_NODE(AST_Func_Decl, func_decl, node);
@@ -663,15 +701,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 					field_var_decl = create_simple_var_decl(field_decl, "field");
 					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(field_var_decl));
 
-					sizeof_expr =
-						create_sizeof(
-							AST_BASE(create_deref(
-								AST_BASE(create_member_access(
-									copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
-									c_mat_elements_decl(field_decl)
-								))
-							))
-						);
+					sizeof_expr = c_create_mat_element_sizeof(field_var_decl);
 					push_array(AST_Node_Ptr)(&size_accesses, AST_BASE(sizeof_expr));
 					for (k = 0; k < alloc_func->params.size; ++k) {
 						push_array(AST_Node_Ptr)(&size_accesses,
@@ -698,12 +728,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 					for (k = 0; k < bt.field_dim; ++k) {
 						AST_Biop *assign =
 							create_assign(
-								AST_BASE(create_member_array_access(
-									copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
-									c_field_size_decl(field_decl),
-									AST_BASE(create_integer_literal(k, NULL)),
-									false
-								)),
+								AST_BASE(c_create_field_dim_size(field_var_decl, k)),
 								AST_BASE(create_access_for_var(
 									alloc_func->params.data[k]
 								))
@@ -718,6 +743,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(ret_stmt));
 				}
 
+				last_alloc_field_func = alloc_func;
 				generated[0] = AST_BASE(alloc_func);
 			} else if (!strcmp(func_decl->ident->text.data, "free_field")) {
 				AST_Func_Decl *free_func = (AST_Func_Decl*)copy_ast(AST_BASE(func_decl));
@@ -745,7 +771,62 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool func_decls)
 					push_array(AST_Node_Ptr)(&free_func->body->nodes, AST_BASE(libc_free_call));
 				}
 
+				last_free_field_func = free_func;
 				generated[0] = AST_BASE(free_func);
+			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "alloc_device_field")) {
+				/* @todo Call to alloc_field */
+				ASSERT(last_alloc_field_func);
+				func_decl->builtin_concrete_decl = last_alloc_field_func;
+			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "free_device_field")) {
+				/* @todo Call to free_field */
+				ASSERT(last_free_field_func);
+				func_decl->builtin_concrete_decl = last_free_field_func;
+			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "memcpy_field")) {
+				AST_Func_Decl *memcpy_func = (AST_Func_Decl*)copy_ast(AST_BASE(func_decl));
+				AST_Var_Decl *dst_field_var_decl = memcpy_func->params.data[0];
+				AST_Type_Decl *field_decl = dst_field_var_decl->type->base_type_decl;
+				Builtin_Type bt = field_decl->builtin_type;
+				field_decl = field_decl->builtin_concrete_decl; /* From builtin to struct decl */
+
+				memcpy_func->is_builtin = false;
+				func_decl->builtin_concrete_decl = memcpy_func;
+
+				append_str(&memcpy_func->ident->text, "_");
+				append_builtin_type_c_str(&memcpy_func->ident->text, bt);
+
+				{ /* Function contents */
+					/* @todo Generate matching size assert */
+					AST_Access *access_dst_field = create_member_access(
+							copy_ast(AST_BASE(memcpy_func->params.data[0]->ident)),
+							c_mat_elements_decl(field_decl));
+					AST_Access *access_src_field = create_member_access(
+							copy_ast(AST_BASE(memcpy_func->params.data[1]->ident)),
+							c_mat_elements_decl(field_decl));
+					AST_Call *libc_free_call;
+
+					Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(3);
+					push_array(AST_Node_Ptr)(&size_accesses,
+							AST_BASE(c_create_mat_element_sizeof(dst_field_var_decl)));
+					for (k = 0; k < bt.field_dim; ++k) {
+						push_array(AST_Node_Ptr)(&size_accesses, 
+							AST_BASE(c_create_field_dim_size(dst_field_var_decl, k)));
+					}
+
+					
+					libc_free_call = create_call_3(
+							create_ident_with_text(NULL, "memcpy"),
+							AST_BASE(access_dst_field),
+							AST_BASE(access_src_field),
+							create_chained_expr(size_accesses.data, size_accesses.size, Token_mul)
+							);
+
+					destroy_array(AST_Node_Ptr)(&size_accesses);
+
+					memcpy_func->body = create_scope_node();
+					push_array(AST_Node_Ptr)(&memcpy_func->body->nodes, AST_BASE(libc_free_call));
+				}
+
+				generated[0] = AST_BASE(memcpy_func);
 			} else if (!strcmp(func_decl->ident->text.data, "size")) {
 				AST_Func_Decl *size_func = (AST_Func_Decl*)copy_ast(AST_BASE(func_decl));
 				AST_Type_Decl *field_decl = size_func->params.data[0]->type->base_type_decl;
@@ -949,6 +1030,7 @@ void append_c_stdlib_includes(Array(char) *buf)
 {
 	append_str(buf, "#include <stdio.h>\n");
 	append_str(buf, "#include <stdlib.h>\n");
+	append_str(buf, "#include <string.h> /* memcpy */\n");
 	append_str(buf, "\n");
 }
 

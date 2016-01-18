@@ -151,6 +151,7 @@ INTERNAL AST_Access *create_array_access(AST_Node *expr, AST_Node *index)
 	return access;
 }
 
+/* @todo Remove, use create_plain_member_access */
 INTERNAL AST_Access *create_member_access(AST_Node *base, AST_Var_Decl *member_decl)
 {
 	AST_Access *access = create_access_node();
@@ -196,12 +197,28 @@ INTERNAL AST_Var_Decl *c_field_size_decl(AST_Type_Decl *field_decl)
 	}
 }
 
-/* field.size[dim_i] */
-INTERNAL AST_Access *c_create_field_dim_size(AST_Var_Decl *field, int dim_i)
+AST_Var_Decl *is_device_field_member_decl(AST_Type_Decl *field_decl)
 {
+	if (field_decl->builtin_concrete_decl) /* Work with builtin field and concrete struct */
+		field_decl = field_decl->builtin_concrete_decl;
+
+	{
+		AST_Node *m = field_decl->body->nodes.data[2];
+		ASSERT(m->type == AST_var_decl);
+		return (AST_Var_Decl*)m;
+	}
+}
+
+/* field.size[dim_i] */
+INTERNAL AST_Access *c_create_field_dim_size(AST_Access *field_access, int dim_i)
+{
+	AST_Type type;
+	if (!expr_type(&type, AST_BASE(field_access)))
+		FAIL(("c_create_field_dim_size: expr_type failed"));
+
 	return create_member_array_access(
-		copy_ast(AST_BASE(field->ident)), /* @todo Access var */
-		c_field_size_decl(field->type->base_type_decl),
+		create_full_deref(AST_BASE(field_access)),
+		c_field_size_decl(type.base_type_decl),
 		AST_BASE(create_integer_literal(dim_i, NULL)),
 		false
 	);
@@ -573,7 +590,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 				mat_decl->body = create_scope_node();
 				decl->builtin_concrete_decl = mat_decl;
 
-				{ /* struct member */
+				{ /* struct members */
 					AST_Type_Decl *m_type_decl = create_type_decl_node(); /* @todo Use existing type decl */
 
 					/* Copy base type from matrix type for the struct member */
@@ -592,18 +609,27 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 					push_array(AST_Node_Ptr)(&mat_decl->body->nodes, AST_BASE(member_decl));
 
 					if (bt.is_field) {
-						/* Field has runtime size */
-						AST_Type_Decl *s_type_decl = create_type_decl_node(); /* @todo Use existing type decl */
-						AST_Var_Decl *s_decl;
+						{ /* Field has runtime size */
+							AST_Type_Decl *s_type_decl = create_type_decl_node(); /* @todo Use existing type decl */
+							AST_Var_Decl *s_decl;
 
-						/* Copy base type from matrix type for the struct member */
-						s_type_decl->is_builtin = true;
-						s_type_decl->builtin_type.is_integer = true;
+							/* Copy base type from matrix type for the struct member */
+							s_type_decl->is_builtin = true;
+							s_type_decl->builtin_type.is_integer = true;
 
-						s_decl = create_simple_var_decl(s_type_decl, "size");
-						s_decl->type->array_size = bt.field_dim;
-						push_array(AST_Node_Ptr)(&mat_decl->body->nodes, AST_BASE(s_decl));
-						generated[0] = AST_BASE(s_type_decl);
+							s_decl = create_simple_var_decl(s_type_decl, "size");
+							s_decl->type->array_size = bt.field_dim;
+							push_array(AST_Node_Ptr)(&mat_decl->body->nodes, AST_BASE(s_decl));
+							generated[0] = AST_BASE(s_type_decl);
+						}
+
+						{ /* Field has a flag telling if it's a device or a host field */
+							AST_Var_Decl *flag_decl =
+								create_simple_var_decl(	find_builtin_type_decl(int_builtin_type(), root),
+														"is_device_field");
+
+							push_array(AST_Node_Ptr)(&mat_decl->body->nodes, AST_BASE(flag_decl));
+						}
 					}
 
 					ASSERT(m_type_decl);
@@ -694,6 +720,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 					AST_Biop *sizeof_expr;
 					Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(alloc_func->params.size);
 					AST_Biop *elements_assign;
+					AST_Biop *is_device_field_assign;
 					AST_Control *ret_stmt;
 
 					alloc_func->body = create_scope_node();
@@ -728,13 +755,23 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 					for (k = 0; k < bt.field_dim; ++k) {
 						AST_Biop *assign =
 							create_assign(
-								AST_BASE(c_create_field_dim_size(field_var_decl, k)),
+								AST_BASE(c_create_field_dim_size(create_simple_access(field_var_decl), k)),
 								AST_BASE(create_access_for_var(
 									alloc_func->params.data[k]
 								))
 							);
 						push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(assign));
 					}
+
+					is_device_field_assign =
+						create_assign(
+							AST_BASE(create_simple_member_access(
+								field_var_decl,
+								is_device_field_member_decl(field_decl)
+							)),
+							AST_BASE(create_integer_literal(0, root))
+						);
+					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(is_device_field_assign));
 
 					ret_stmt =
 						create_return(AST_BASE(
@@ -809,10 +846,9 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 							AST_BASE(c_create_mat_element_sizeof(dst_field_var_decl)));
 					for (k = 0; k < bt.field_dim; ++k) {
 						push_array(AST_Node_Ptr)(&size_accesses, 
-							AST_BASE(c_create_field_dim_size(dst_field_var_decl, k)));
+							AST_BASE(c_create_field_dim_size(create_simple_access(dst_field_var_decl), k)));
 					}
 
-					
 					libc_free_call = create_call_3(
 							create_ident_with_text(NULL, "memcpy"),
 							AST_BASE(access_dst_field),

@@ -78,6 +78,9 @@ int biop_prec(Token_Type type)
 
 	case Token_equals: ++prec;
 
+	case Token_and: ++prec;
+	case Token_or: ++prec;
+
 	case Token_assign: ++prec;
 	case Token_add_assign:
 	case Token_sub_assign:
@@ -115,6 +118,9 @@ bool is_binary_op(Token_Type type)
 	case Token_greater:
 
 	case Token_equals:
+
+	case Token_and:
+	case Token_or:
 
 	case Token_assign:
 	case Token_add_assign:

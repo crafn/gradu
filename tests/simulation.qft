@@ -19,9 +19,11 @@ int main(int argc, char **argv)
 		}
 		host_field(size_x/2, size_y/2) = 1000;
 	}
+
+	// Upload contents of the host field to GPU
 	memcpy_field(device_field_1, host_field);
 
-	for (int i = 0; i < 20; ++i) {
+	for (int i = 0; i < 5; ++i) {
 		Field *input = &device_field_1;
 		Field *output = &device_field_2;
 
@@ -49,8 +51,10 @@ int main(int argc, char **argv)
 			output(x, y) /= 5.0;
 		}
 
-		// Print current state
+		// Download contents of GPU data back to host
 		memcpy_field(host_field, *output);
+
+		// Print current state
 		for (int y = 0; y < size_y; ++y) {
 			for (int x = 0; x < size_x; ++x) {	
 				char *ch = " ";

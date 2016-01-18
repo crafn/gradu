@@ -4,6 +4,8 @@
 #include "core.h"
 #include "parse.h"
 
+AST_Var_Decl *is_device_field_member_decl(AST_Type_Decl *field_decl);
+
 /* Utils for other c-like backends */
 void lift_var_decls(AST_Scope *root);
 void parallel_loops_to_ordinary(AST_Scope *root);
@@ -18,5 +20,6 @@ void append_c_stdlib_includes(Array(char) *buf);
 bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node);
 
 Array(char) gen_c_code(AST_Scope *root);
+
 
 #endif

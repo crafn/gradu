@@ -36,6 +36,8 @@ typedef enum {
 	Token_div, /* / */
 	Token_incr, /* ++ */
 	Token_decr, /* -- */
+	Token_and, /* && */
+	Token_or, /* || */
 	Token_mod, /* % */
 	Token_dot, /* . */
 	Token_addrof, /* & */

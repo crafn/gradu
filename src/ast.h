@@ -199,7 +199,7 @@ typedef struct AST_Access {
 	Array(AST_Node_Ptr) args;
 	/* 'base.sub' -> Access(Access(Ident(base)), Ident(sub))
 	 * 'base' is wrapped in an extra Access, because then '(base + 0)->sub' and '(base)->sub' and 'base.sub'
-	 * are handled uniformly that way (every expression has two Access nodes) */
+	 * are handled uniformly (every expression has two Access nodes) */
 
 	bool is_member_access;
 	bool is_element_access; /* Matrix or field element access */
@@ -390,13 +390,17 @@ AST_Literal *create_integer_literal(int value, AST_Scope *root);
 AST_Call *create_call_1(AST_Ident *ident, AST_Node *arg);
 AST_Call *create_call_2(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2);
 AST_Call *create_call_3(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2, AST_Node *arg3);
+AST_Call *create_call_4(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2, AST_Node *arg3, AST_Node *arg4);
 AST_Control *create_return(AST_Node *expr);
 AST_Biop *create_sizeof(AST_Node *expr);
 AST_Biop *create_deref(AST_Node *expr);
+AST_Biop *create_addrof(AST_Node *expr);
 AST_Biop *create_biop(Token_Type type, AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_assign(AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_mul(AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_less_than(AST_Node *lhs, AST_Node *rhs);
+AST_Biop *create_equals(AST_Node *lhs, AST_Node *rhs);
+AST_Biop *create_and(AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_pre_increment(AST_Node *expr);
 AST_Cast *create_cast(AST_Type *type, AST_Node *target);
 AST_Type *create_builtin_type(Builtin_Type bt, int ptr_depth, AST_Scope *root);
@@ -405,7 +409,11 @@ AST_Type *create_simple_type(AST_Type_Decl *type_decl);
 AST_Loop *create_for_loop(AST_Var_Decl *index, AST_Node *max_expr, AST_Scope *body);
 AST_Node *try_create_access(AST_Node *node);
 AST_Access *create_element_access_1(AST_Node *base, AST_Node *arg);
+AST_Access *create_simple_access(AST_Var_Decl *var);
+AST_Access *create_simple_member_access(AST_Var_Decl *base, AST_Var_Decl *member);
 AST_Scope *create_scope_1(AST_Node *expr);
+AST_Cond *create_if_1(AST_Node *expr, AST_Node *body_expr_1);
+AST_Node *create_full_deref(AST_Node *expr);
 
 Builtin_Type void_builtin_type();
 Builtin_Type int_builtin_type();

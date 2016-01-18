@@ -4,7 +4,7 @@
 /* device field malloc/free and field copying */
 void add_builtin_cuda_funcs(AST_Scope *root)
 {
-	int i, k;
+	int i, k, m;
 
 	for (i = 0; i < root->nodes.size; ++i) {
 		AST_Node *generated = NULL;
@@ -36,6 +36,7 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 					AST_Biop *sizeof_expr;
 					Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(alloc_func->params.size);
 					AST_Call *elements_assign;
+					AST_Biop *is_device_field_assign;
 					AST_Control *ret_stmt;
 
 					alloc_func->body = create_scope_node();
@@ -46,8 +47,8 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 					sizeof_expr =
 						create_sizeof(
 							AST_BASE(create_deref(
-								AST_BASE(create_member_access(
-									copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
+								AST_BASE(create_simple_member_access(
+									field_var_decl,
 									c_mat_elements_decl(field_decl)
 								))
 							))
@@ -62,9 +63,11 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 						create_ident_with_text(NULL, "cudaMalloc"),
 						AST_BASE(create_cast( /* For c++ */
 							create_builtin_type(void_builtin_type(), 2, root),
-							AST_BASE(create_member_access(
-								copy_ast(AST_BASE(field_var_decl->ident)), /* @todo Access var */
-								c_mat_elements_decl(field_decl)
+							AST_BASE(create_addrof(
+								AST_BASE(create_simple_member_access(
+									field_var_decl,
+									c_mat_elements_decl(field_decl)
+								))
 							))
 						)),
 						create_chained_expr(size_accesses.data, size_accesses.size, Token_mul)
@@ -88,6 +91,16 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 							);
 						push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(assign));
 					}
+
+					is_device_field_assign =
+						create_assign(
+							AST_BASE(create_simple_member_access(
+								field_var_decl,
+								is_device_field_member_decl(field_decl)
+							)),
+							AST_BASE(create_integer_literal(1, root))
+						);
+					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(is_device_field_assign));
 
 					ret_stmt =
 						create_return(AST_BASE(
@@ -125,20 +138,82 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 
 				generated = AST_BASE(free_func);
 			} else if (!strcmp(func_decl->ident->text.data, "memcpy_field")) {
-				AST_Func_Decl *size_func = (AST_Func_Decl*)copy_ast(AST_BASE(func_decl));
-				AST_Type_Decl *field_decl = size_func->params.data[0]->type->base_type_decl;
+				AST_Func_Decl *memcpy_func = (AST_Func_Decl*)copy_ast(AST_BASE(func_decl));
+				AST_Var_Decl *dst_field_var_decl = memcpy_func->params.data[0];
+				AST_Var_Decl *src_field_var_decl = memcpy_func->params.data[1];
+				AST_Type_Decl *field_decl = dst_field_var_decl->type->base_type_decl;
 				Builtin_Type bt = field_decl->builtin_type;
 				field_decl = field_decl->builtin_concrete_decl;
 
-				ASSERT(!size_func->body);
-				ASSERT(size_func->params.size == 2);
+				ASSERT(!memcpy_func->body);
+				ASSERT(memcpy_func->params.size == 2);
 
-				size_func->is_builtin = false;
-				func_decl->builtin_concrete_decl = size_func;
-				append_str(&size_func->ident->text, "_");
-				append_builtin_type_c_str(&size_func->ident->text, bt);
+				memcpy_func->is_builtin = false;
+				func_decl->builtin_concrete_decl = memcpy_func;
+				append_str(&memcpy_func->ident->text, "_");
+				append_builtin_type_c_str(&memcpy_func->ident->text, bt);
+				
+				memcpy_func->body = create_scope_node();
 
-				generated = AST_BASE(size_func);
+				{ /* Function contents */
+					/* @todo Generate matching size assert */
+					for (k = 0; k < 4; ++k) {
+						AST_Access *is_dst_device, *is_src_device;
+						AST_Access *access_dst_field, *access_src_field;
+						AST_Cond *cond;
+						int dst_host = k/2;
+						int src_host = k%2;
+						const char *cuda_memcpy_enums[4] = {
+							"cudaMemcpyHostToHost",
+							"cudaMemcpyHostToDevice",
+							"cudaMemcpyDeviceToHost",
+							"cudaMemcpyDeviceToDevice"
+						};
+						Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(3);
+						push_array(AST_Node_Ptr)(&size_accesses,
+								AST_BASE(c_create_mat_element_sizeof(dst_field_var_decl)));
+						for (m = 0; m < bt.field_dim; ++m) {
+							push_array(AST_Node_Ptr)(&size_accesses, 
+								AST_BASE(c_create_field_dim_size(create_simple_access(dst_field_var_decl), m)));
+						}
+
+						access_dst_field =	create_simple_member_access(
+												memcpy_func->params.data[0],
+												c_mat_elements_decl(field_decl));
+						access_src_field =	create_simple_member_access(
+												memcpy_func->params.data[1],
+												c_mat_elements_decl(field_decl));
+						is_dst_device = create_simple_member_access(
+											dst_field_var_decl,
+											is_device_field_member_decl(field_decl)
+										);
+						is_src_device = create_simple_member_access(
+											src_field_var_decl,
+											is_device_field_member_decl(field_decl)
+										);
+
+						cond =	create_if_1(
+								AST_BASE(create_and(
+									AST_BASE(create_equals(	AST_BASE(is_dst_device),
+															AST_BASE(create_integer_literal(src_host, root)))),
+									AST_BASE(create_equals(	AST_BASE(is_src_device),
+															AST_BASE(create_integer_literal(dst_host, root))))
+								)),
+								AST_BASE(create_call_4(
+									create_ident_with_text(NULL, "cudaMemcpy"),
+									AST_BASE(access_dst_field),
+									AST_BASE(access_src_field),
+									create_chained_expr(size_accesses.data, size_accesses.size, Token_mul),
+									AST_BASE(create_ident_with_text(NULL, cuda_memcpy_enums[k]))
+								))
+								);
+
+						push_array(AST_Node_Ptr)(&memcpy_func->body->nodes, AST_BASE(cond));
+						destroy_array(AST_Node_Ptr)(&size_accesses);
+					}
+				}
+
+				generated = AST_BASE(memcpy_func);
 			}
 		}
 
@@ -162,10 +237,11 @@ void parallel_loops_to_cuda(AST_Scope *root)
 
 	for (i = 0; i < subnodes.size; ++i) {
 		CASTED_NODE(AST_Parallel, parallel, subnodes.data[i]);
-		Array(AST_Node_Ptr) var_accesses, cuda_var_decls;
+		Array(AST_Node_Ptr) var_accesses;
+		Array(AST_Var_Decl_Ptr) cuda_var_decls;
 
 		var_accesses = create_array(AST_Node_Ptr)(0);
-		cuda_var_decls = create_array(AST_Node_Ptr)(0);
+		cuda_var_decls = create_array(AST_Var_Decl_Ptr)(0);
 
 		{ /* Find vars used in loop */
 			find_subnodes_of_type(&var_accesses, AST_access, parallel->output);
@@ -219,7 +295,7 @@ void parallel_loops_to_cuda(AST_Scope *root)
 			for (k = 0; k < var_accesses.size; ++k) {
 				CASTED_NODE(AST_Access, access, var_accesses.data[k]);
 				CASTED_NODE(AST_Ident, var, access_ident(access));
-				const char *cuda_var_name;
+				/*const char *cuda_var_name;*/
 				const char *host_var_name = var->text.data;
 				AST_Var_Decl *cuda_var_decl; 
 
@@ -245,14 +321,14 @@ void parallel_loops_to_cuda(AST_Scope *root)
 				{ /* Cuda var declaration */
 					cuda_var_decl = create_simple_var_decl(type.base_type_decl, host_var_name);
 					/*append_str(&cuda_var_decl->ident->text, "_cuda");*/
-					push_array(AST_Node_Ptr)(&cuda_var_decls, AST_BASE(cuda_var_decl));
+					push_array(AST_Var_Decl_Ptr)(&cuda_var_decls, cuda_var_decl);
 				}
 
-				cuda_var_name = cuda_var_decl->ident->text.data;
+				/*cuda_var_name = cuda_var_decl->ident->text.data;*/
 
 				{ /* Cuda kernel argument */
-					push_array(AST_Node_Ptr)(&cuda_call->args,
-							AST_BASE(create_ident_with_text(NULL, cuda_var_name)));
+					AST_Node *deref_cuda_var = create_full_deref(copy_ast(AST_BASE(access)));
+					push_array(AST_Node_Ptr)(&cuda_call->args, deref_cuda_var);
 				}
 
 
@@ -326,19 +402,24 @@ void parallel_loops_to_cuda(AST_Scope *root)
 			{ /* Write generated nodes to scope in correct order */
 				/*for (k = 0; k < cuda_var_decls.size; ++k)
 					push_array(AST_Node_Ptr)(&scope->nodes, cuda_var_decls.data[k]);*/
-				int w = -1, h = -1;
 				for (k = 0; k < malloc_calls.size; ++k)
 					push_array(AST_Node_Ptr)(&scope->nodes, malloc_calls.data[k]);
 				for (k = 0; k < memcpy_to_device_calls.size; ++k)
 					push_array(AST_Node_Ptr)(&scope->nodes, memcpy_to_device_calls.data[k]);
 
 				/* @todo Proper AST */
+				/* @todo Support non-two-dimensional fields! */
 				push_array(AST_Node_Ptr)(
 							&scope->nodes,
 							AST_BASE(create_ident_with_text(NULL, "dim3 dim_grid(1, 1, 1)")));
 				push_array(AST_Node_Ptr)(
 							&scope->nodes,
-							AST_BASE(create_ident_with_text(NULL, "dim3 dim_block(%i, %i, 1)", w, h))); /* @todo Correct size */
+							AST_BASE(create_call_3(
+								create_ident_with_text(NULL, "dim3 dim_block"),
+								AST_BASE(c_create_field_dim_size((AST_Access*)copy_ast(var_accesses.data[0]), 0)),
+								AST_BASE(c_create_field_dim_size((AST_Access*)copy_ast(var_accesses.data[0]), 1)),
+								AST_BASE(create_integer_literal(1, root))
+							)));
 
 				push_array(AST_Node_Ptr)(&scope->nodes, AST_BASE(cuda_call));
 
@@ -370,7 +451,7 @@ void parallel_loops_to_cuda(AST_Scope *root)
 
 			/* Params */
 			for (k = 0; k < cuda_var_decls.size; ++k) {
-				push_array(AST_Var_Decl_Ptr)(&kernel_decl->params, (AST_Var_Decl*)cuda_var_decls.data[k]);
+				push_array(AST_Var_Decl_Ptr)(&kernel_decl->params, cuda_var_decls.data[k]);
 			}
 
 			{ /* Body */
@@ -423,7 +504,7 @@ void parallel_loops_to_cuda(AST_Scope *root)
 		}
 
 		destroy_array(AST_Node_Ptr)(&var_accesses);
-		destroy_array(AST_Node_Ptr)(&cuda_var_decls);
+		destroy_array(AST_Var_Decl_Ptr)(&cuda_var_decls);
 	}
 
 	{ /* Replace old nodes with new nodes */
@@ -448,10 +529,10 @@ Array(char) gen_cuda_code(AST_Scope *root)
 	Array(char) gen_src = create_array(char)(0);
 	AST_Scope *modified_ast = (AST_Scope*)copy_ast(AST_BASE(root));
 	lift_types_and_funcs_to_global_scope(modified_ast);
+	add_builtin_c_decls_to_global_scope(modified_ast, false);
+	add_builtin_cuda_funcs(modified_ast);
 	/* @todo There's something wrong with lift_types_and_funcs_to_global_scope. This can't be before it without some resolving issues. */
 	parallel_loops_to_cuda(modified_ast);
-	add_builtin_c_decls_to_global_scope(modified_ast, true);
-	add_builtin_cuda_funcs(modified_ast);
 	apply_c_operator_overloading(modified_ast, true);
 
 	append_c_stdlib_includes(&gen_src);

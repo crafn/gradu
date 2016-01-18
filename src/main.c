@@ -5,6 +5,8 @@
 #include "parse.h"
 
 /* General todo list
+    - tests with different dimensional fields
+    - cuda error checking
 	- overloading test
 	- attributes to AST (like __global__ in cuda)
 	- handle (ignore but preserve) C preprocessor

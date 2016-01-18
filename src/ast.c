@@ -1625,6 +1625,13 @@ AST_Call *create_call_3(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2, AST_No
 	return call;
 }
 
+AST_Call *create_call_4(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2, AST_Node *arg3, AST_Node *arg4)
+{
+	AST_Call *call = create_call_3(ident, arg1, arg2, arg3);
+	push_array(AST_Node_Ptr)(&call->args, arg4);
+	return call;
+}
+
 AST_Control *create_return(AST_Node *expr)
 {
 	AST_Control *ret = create_control_node();
@@ -1649,6 +1656,14 @@ AST_Biop *create_deref(AST_Node *expr)
 	return op;
 }
 
+AST_Biop *create_addrof(AST_Node *expr)
+{
+	AST_Biop *op = create_biop_node();
+	op->type = Token_addrof;
+	op->rhs = expr;
+	return op;
+}
+
 AST_Biop *create_biop(Token_Type type, AST_Node *lhs, AST_Node *rhs)
 {
 	AST_Biop *op = create_biop_node();
@@ -1669,6 +1684,12 @@ AST_Biop *create_less_than(AST_Node *lhs, AST_Node *rhs)
 	ASSERT(lhs && rhs);
 	return create_biop(Token_less, lhs, rhs);
 }
+
+AST_Biop *create_equals(AST_Node *lhs, AST_Node *rhs)
+{ return create_biop(Token_equals, lhs, rhs); }
+
+AST_Biop *create_and(AST_Node *lhs, AST_Node *rhs)
+{ return create_biop(Token_and, lhs, rhs); }
 
 AST_Biop *create_pre_increment(AST_Node *expr)
 { return create_biop(Token_incr, NULL, expr); }
@@ -1733,11 +1754,53 @@ AST_Access *create_element_access_1(AST_Node *base, AST_Node *arg)
 	return access;
 }
 
+AST_Access *create_simple_access(AST_Var_Decl *var)
+{
+	AST_Access *access = create_access_node();
+	access->base = shallow_copy_ast(AST_BASE(var->ident));
+	return access;
+}
+
+AST_Access *create_simple_member_access(AST_Var_Decl *base, AST_Var_Decl *member)
+{
+	AST_Access *access = create_access_node();
+	AST_Access *base_access = create_access_node();
+	AST_Ident *member_ident = (AST_Ident*)shallow_copy_ast(AST_BASE(member->ident));
+
+	base_access->base = shallow_copy_ast(AST_BASE(base->ident));
+	access->base = AST_BASE(base_access);
+	push_array(AST_Node_Ptr)(&access->args, AST_BASE(member_ident));
+	access->is_member_access = true;
+
+	return access;
+}
+
 AST_Scope *create_scope_1(AST_Node *expr)
 {
 	AST_Scope *scope = create_scope_node();
 	push_array(AST_Node_Ptr)(&scope->nodes, expr);
 	return scope;
+}
+
+AST_Cond *create_if_1(AST_Node *expr, AST_Node *body_expr_1)
+{
+	AST_Cond *cond = create_cond_node();
+	cond->expr = expr;
+	cond->body = create_scope_node();
+	push_array(AST_Node_Ptr)(&cond->body->nodes, body_expr_1);
+	return cond;
+}
+
+AST_Node *create_full_deref(AST_Node *expr)
+{
+	AST_Type type;
+	if (!expr_type(&type, expr))
+		FAIL(("create_full_deref: expr_type failed"));
+
+	while (type.ptr_depth-- > 0)
+		expr = AST_BASE(create_deref(expr));
+
+	return expr;
 }
 
 Builtin_Type void_builtin_type()

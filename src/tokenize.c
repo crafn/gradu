@@ -69,6 +69,10 @@ INTERNAL Token_Type double_char_tokentype(char ch1, char ch2)
 		return Token_incr;
 	if (ch1 == '-' && ch2 == '-')
 		return Token_decr;
+	if (ch1 == '&' && ch2 == '&')
+		return Token_and;
+	if (ch1 == '|' && ch2 == '|')
+		return Token_or;
 
 	return Token_unknown;
 }
@@ -337,6 +341,8 @@ const char* tokentype_str(Token_Type type)
 		case Token_div: return "div";
 		case Token_incr: return "incr";
 		case Token_decr: return "decr";
+		case Token_and: return "and";
+		case Token_or: return "or";
 		case Token_rdiv: return "rdiv";
 		case Token_mod: return "mod";
 		case Token_dot: return "dot";
@@ -407,6 +413,8 @@ const char* tokentype_codestr(Token_Type type)
 		case Token_div: return "/";
 		case Token_incr: return "++";
 		case Token_decr: return "--";
+		case Token_and: return "&&";
+		case Token_or: return "||";
 		case Token_rdiv: return "\\";
 		case Token_mod: return "%";
 		case Token_dot: return ".";

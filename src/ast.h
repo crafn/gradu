@@ -62,6 +62,7 @@ typedef struct AST_Ident {
 	AST_Node b;
 	/* @todo Change to Array(char) */
 	Array(char) text; /* NULL-terminated */
+	bool designated; /* Dot before identifier */
 
 	struct AST_Node *decl; /* Not owned */
 } AST_Ident;

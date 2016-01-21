@@ -276,6 +276,7 @@ void copy_ident_node(AST_Ident *copy, AST_Ident *ident, AST_Node *ref_to_decl)
 		destroy_array(char)(&copy->text);
 		copy->text = copy_array(char)(&ident->text);
 	}
+	copy->designated = ident->designated;
 	copy->decl = ref_to_decl;
 }
 
@@ -340,7 +341,8 @@ void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *ret
 
 void copy_literal_node(AST_Literal *copy, AST_Literal *literal, AST_Node *comp_type, AST_Node **comp_subs, int comp_sub_count, AST_Node *type_decl_ref)
 {
-	if (copy->type == Literal_compound) {
+	bool is_same = (copy == literal);
+	if (!is_same && copy->type == Literal_compound) {
 		destroy_array(AST_Node_Ptr)(&copy->value.compound.subnodes);
 	}
 
@@ -352,7 +354,10 @@ void copy_literal_node(AST_Literal *copy, AST_Literal *literal, AST_Node *comp_t
 
 	if (literal->type == Literal_compound) {
 		int i;
-		copy->value.compound.subnodes = create_array(AST_Node_Ptr)(comp_sub_count);
+		if (is_same)
+			clear_array(AST_Node_Ptr)(&copy->value.compound.subnodes);
+		else
+			copy->value.compound.subnodes = create_array(AST_Node_Ptr)(comp_sub_count);
 
 		ASSERT(!comp_type || comp_type->type == AST_type);
 		copy->value.compound.type = (AST_Type*)comp_type;
@@ -1024,59 +1029,93 @@ bool is_subnode(AST_Parent_Map *map, AST_Node *parent, AST_Node *sub)
 	return false;
 }
 
+/* @todo Use in resolve_node and not in ast parsing directly */
+INTERNAL bool resolve_ident_in_scope(AST_Ident *ident, AST_Scope *search_scope)
+{
+	/* Search from given scope */
+	int i;
+	for (i = 0; i < search_scope->nodes.size; ++i) {
+		AST_Node *subnode = search_scope->nodes.data[i];
+		if (!is_decl(subnode))
+			continue;
+		if (strcmp(decl_ident(subnode)->text.data, ident->text.data))
+			continue;
+
+		ident->decl = subnode;
+		return true;
+	}
+
+	return false;
+}
+
 /* @todo Split to multiple functions */
 /* Use 'arg_count = -1' for non-function identifier resolution */
-bool resolve_node(AST_Parent_Map *map, AST_Ident *ident, AST_Type *hint, AST_Type *arg_types, int arg_count)
+INTERNAL bool resolve_node(AST_Parent_Map *map, AST_Ident *ident, AST_Type *hint, AST_Type *arg_types, int arg_count)
 {
 	Array(AST_Node_Ptr) decls = create_array(AST_Node_Ptr)(0);
 	int i, k;
-	AST_Node *best_match = NULL;
 
 	ident->decl = NULL;
-	find_decls_scoped(map, &decls, AST_BASE(ident), c_str_to_buf_str(ident->text.data), hint);
 
-	for (i = 0; i < decls.size; ++i) {
-		AST_Node *decl = decls.data[i];
-		if (!best_match) {
-			best_match = decl;
-			continue;
-		}
-
-		/* Match decl type with 'hint' */
-		if (hint && decl->type == AST_var_decl && arg_count == -1) {
-			CASTED_NODE(AST_Var_Decl, var_decl, decl);
-			if (!type_node_equals(*hint, *var_decl->type))
-				continue;
-
-			best_match = decl;
-			break;
-		} else if (decl->type == AST_func_decl) {
-			CASTED_NODE(AST_Func_Decl, func_decl, decl);
-			bool arg_types_matched = true;
-
-			if (hint && !type_node_equals(*hint, *func_decl->return_type))
-				continue;
-
-			if (func_decl->params.size != arg_count)
-				continue;
-
-			/* Match argument types */
-			for (k = 0; k < arg_count; ++k) {
-				if (!type_node_equals(*func_decl->params.data[k]->type, arg_types[k])) {
-					arg_types_matched = false;
-					break;
-				}
+	{ /* Designated initializer ident search from enclosing compound literal type */
+		AST_Node *parent = find_parent_node(map, AST_BASE(ident));
+		if (parent->type == AST_literal) {
+			CASTED_NODE(AST_Literal, literal, parent);
+			if (	literal->type == Literal_compound &&
+					literal->value.compound.type) {
+				resolve_ident_in_scope(ident, literal->value.compound.type->base_type_decl->body);
 			}
-			if (!arg_types_matched)
-				continue;
-
-			best_match = decl;
-			break;
-		} else {
 		}
 	}
 
-	ident->decl = best_match;
+	/* Search from names visible from identifier position */
+	if (!ident->decl) {
+		AST_Node *best_match = NULL;
+
+		find_decls_scoped(map, &decls, AST_BASE(ident), c_str_to_buf_str(ident->text.data), hint);
+		for (i = 0; i < decls.size; ++i) {
+			AST_Node *decl = decls.data[i];
+			if (!best_match) {
+				best_match = decl;
+				continue;
+			}
+
+			/* Match decl type with 'hint' */
+			if (hint && decl->type == AST_var_decl && arg_count == -1) {
+				CASTED_NODE(AST_Var_Decl, var_decl, decl);
+				if (!type_node_equals(*hint, *var_decl->type))
+					continue;
+
+				best_match = decl;
+				break;
+			} else if (decl->type == AST_func_decl) {
+				CASTED_NODE(AST_Func_Decl, func_decl, decl);
+				bool arg_types_matched = true;
+
+				if (hint && !type_node_equals(*hint, *func_decl->return_type))
+					continue;
+
+				if (func_decl->params.size != arg_count)
+					continue;
+
+				/* Match argument types */
+				for (k = 0; k < arg_count; ++k) {
+					if (!type_node_equals(*func_decl->params.data[k]->type, arg_types[k])) {
+						arg_types_matched = false;
+						break;
+					}
+				}
+				if (!arg_types_matched)
+					continue;
+
+				best_match = decl;
+				break;
+			} else {
+			}
+		}
+
+		ident->decl = best_match;
+	}
 
 	destroy_array(AST_Node_Ptr)(&decls);
 	return ident->decl != NULL;

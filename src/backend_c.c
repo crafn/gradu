@@ -114,15 +114,18 @@ INTERNAL void append_type_and_ident_str(Array(char) *buf, AST_Type *type, const 
 	} else {
 		if (type->base_type_decl->is_builtin) {
 			append_builtin_type_c_str(buf, type->base_type_decl->builtin_type);
-			append_str(buf, " ");
 		} else {
-			append_str(buf, "%s ", type->base_type_decl->ident->text.data);
+			append_str(buf, "%s", type->base_type_decl->ident->text.data);
 		}
+
+		if (ident)
+			append_str(buf, " ");
 	}
 
 	for (i = 0; i < type->ptr_depth; ++i)
 		append_str(buf, "*");
-	append_str(buf, "%s", ident);
+	if (ident)
+		append_str(buf, "%s", ident);
 	if (type->array_size > 0)
 		append_str(buf, "[%i]", type->array_size);
 }
@@ -1131,13 +1134,15 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_ident: {
 		CASTED_NODE(AST_Ident, ident, node);
+		if (ident->designated)
+			append_str(buf, ".");
 		append_str(buf, "%s", ident->text.data);
 	} break;
 
 	case AST_type: {
 		/* Print type without identifier (like in casts)*/
 		CASTED_NODE(AST_Type, type, node);
-		append_type_and_ident_str(buf, type, "");
+		append_type_and_ident_str(buf, type, NULL);
 	} break;
 
 	case AST_type_decl: {
@@ -1196,6 +1201,13 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		case Literal_string: append_str(buf, "\"%.*s\"", literal->value.string.len, literal->value.string.buf); break;
 		case Literal_null: append_str(buf, "NULL"); break;
 		case Literal_compound: {
+			if (literal->value.compound.type) {
+				/* Compound literal */
+				append_str(buf, "(");
+				ast_to_c_str(buf, indent, AST_BASE(literal->value.compound.type));
+				append_str(buf, ") ");
+			}
+
 			append_str(buf, "{ ");
 			for (i = 0; i < literal->value.compound.subnodes.size; ++i) {
 				ast_to_c_str(buf, indent, literal->value.compound.subnodes.data[i]);

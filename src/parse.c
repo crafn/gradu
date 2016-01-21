@@ -327,39 +327,21 @@ INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_parallel(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret);
 
-/* @todo resolve_ident should do this internally */
-INTERNAL bool resolve_ident_in_scope(Parse_Ctx *ctx, AST_Ident *ident, AST_Scope *search_scope)
-{
-	/* Search from given scope */
-	int i;
-	for (i = 0; i < search_scope->nodes.size; ++i) {
-		AST_Node *subnode = search_scope->nodes.data[i];
-		if (!is_decl(subnode))
-			continue;
-		if (strcmp(decl_ident(subnode)->text.data, ident->text.data))
-			continue;
-
-		ident->decl = subnode;
-		return true;
-	}
-
-	report_error(ctx, "'%s' not declared in this scope", ident->text.data);
-	return false;
-}
-
-
 /* If decl is NULL, then declaration is searched. */
 /* Parse example: foo */
 INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Ident **ret, AST_Node *decl)
 {
-	Token *tok = cur_tok(ctx);
 	AST_Ident *ident = create_ident_node();
-	append_str(&ident->text, "%.*s", BUF_STR_ARGS(tok->text));
 
 	begin_node_parsing(ctx, AST_BASE(ident));
 
-	if (tok->type != Token_name) {
-		report_error(ctx, "'%.*s' is not an identifier", BUF_STR_ARGS(tok->text));
+	/* Consume dot before designated initializer identifier */
+	if (accept_tok(ctx, Token_dot))
+		ident->designated = true;
+	append_str(&ident->text, "%.*s", BUF_STR_ARGS(cur_tok(ctx)->text));
+
+	if (cur_tok(ctx)->type != Token_name) {
+		report_error(ctx, "'%.*s' is not an identifier", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
@@ -963,6 +945,7 @@ INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, Token_Typ
 		if (cur_tok(ctx)->type == Token_comma)
 			advance_tok(ctx);
 
+		/* Normal expression */
 		if (!parse_expr(ctx, (AST_Node**)&arg, 0, NULL, false))
 			goto mismatch;
 
@@ -1150,7 +1133,7 @@ INTERNAL bool parse_member_access_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node 
 			ASSERT(base_type_scope);
 			if (!parse_ident(ctx, &sub, NULL))
 				goto mismatch;
-			if (!resolve_ident_in_scope(ctx, sub, base_type_scope))
+			if (!resolve_ident_in_scope(sub, base_type_scope))
 				goto mismatch;
 			push_array(AST_Node_Ptr)(&access->args, AST_BASE(sub));
 		}
@@ -1208,7 +1191,8 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type 
 
 	++ctx->expr_depth;
 
-	if (parse_ident(ctx, (AST_Ident**)&expr, NULL)) {
+	if (	parse_ident(ctx, (AST_Ident**)&expr, NULL) &&
+			resolve_ident(&ctx->parent_map, (AST_Ident*)expr)) {
 		/* If ident is var, wrap it in AST_Access */
 		if (parse_var_access_expr(ctx, &expr, expr)) {
 			;

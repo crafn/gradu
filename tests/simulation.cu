@@ -12,7 +12,7 @@ typedef struct floatfield2
 floatfield2 alloc_field_floatfield2(int size_0, int size_1)
 {
     floatfield2 field;
-    field.m = (float *)malloc((sizeof(*field.m)) * size_0 * size_1);
+    field.m = (float*)malloc((sizeof(*field.m)) * size_0 * size_1);
     field.size[0] = size_0;
     field.size[1] = size_1;
     field.is_device_field = 0;
@@ -22,7 +22,7 @@ floatfield2 alloc_field_floatfield2(int size_0, int size_1)
 floatfield2 alloc_device_field_floatfield2(int size_0, int size_1)
 {
     floatfield2 field;
-    cudaMalloc((void **)&field.m, (sizeof(*field.m)) * size_0 * size_1);
+    cudaMalloc((void**)&field.m, (sizeof(*field.m)) * size_0 * size_1);
     field.size[0] = size_0;
     field.size[1] = size_1;
     field.is_device_field = 1;

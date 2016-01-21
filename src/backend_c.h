@@ -19,6 +19,7 @@ void append_expr_c_func_name(Array(char) *buf, AST_Node *expr);
 void append_c_stdlib_includes(Array(char) *buf);
 bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node);
 
+/* @todo Flag determining C99 or C89 */
 Array(char) gen_c_code(AST_Scope *root);
 
 

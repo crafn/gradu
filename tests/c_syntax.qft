@@ -16,17 +16,21 @@ int main()
 	// @todo Make work
 	//char test_str[] = "foo";
 
+	// @todo Conversion to C89 (because decl is separated from init)
 	Car car = {
 		"aaa",
 		95,
 		1995.0
 	};
 
+	// @todo Need to make conversion from compound literals and designated initializers to C89
 	car = (Car) {
-		"bbb",
-		1,
-		2.0
+		.year = 1,
+		.name = "bbb",
+		.max_speed = -2.0
 	};
+
+	/* @todo Rest of C99 */
 
 	/* @todo Make work */
 	//(void)car;

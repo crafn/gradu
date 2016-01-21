@@ -184,8 +184,14 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 		} break;
 
 		case AST_literal: {
-			ASSERT(subnode_count == 0 && refnode_count == 1);
-			copy_literal_node((AST_Literal*)copy, (AST_Literal*)node, refnodes[0]);
+			CASTED_NODE(AST_Literal, literal_node, node);
+			if (literal_node->type == Literal_compound) {
+				ASSERT(subnode_count >= 1 && refnode_count == 1);
+				copy_literal_node((AST_Literal*)copy, (AST_Literal*)node, subnodes[0], &subnodes[1], subnode_count - 1, refnodes[0]);
+			} else {
+				ASSERT(subnode_count == 0 && refnode_count == 1);
+				copy_literal_node((AST_Literal*)copy, (AST_Literal*)node, NULL, NULL, 0, refnodes[0]);
+			}
 		} break;
 
 		case AST_biop: {
@@ -332,13 +338,28 @@ void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *ret
 	}
 }
 
-void copy_literal_node(AST_Literal *copy, AST_Literal *literal, AST_Node *type_decl_ref)
+void copy_literal_node(AST_Literal *copy, AST_Literal *literal, AST_Node *comp_type, AST_Node **comp_subs, int comp_sub_count, AST_Node *type_decl_ref)
 {
+	if (copy->type == Literal_compound) {
+		destroy_array(AST_Node_Ptr)(&copy->value.compound.subnodes);
+	}
+
 	ASSERT(!type_decl_ref || type_decl_ref->type == AST_type_decl);
 	copy_ast_node_base(AST_BASE(copy), AST_BASE(literal));
 	copy->type = literal->type;
 	copy->value = literal->value;
 	copy->base_type_decl = (AST_Type_Decl*)type_decl_ref;
+
+	if (literal->type == Literal_compound) {
+		int i;
+		copy->value.compound.subnodes = create_array(AST_Node_Ptr)(comp_sub_count);
+
+		ASSERT(!comp_type || comp_type->type == AST_type);
+		copy->value.compound.type = (AST_Type*)comp_type;
+		for (i = 0; i < comp_sub_count; ++i) {
+			push_array(AST_Node_Ptr)(&copy->value.compound.subnodes, comp_subs[i]);
+		}
+	}
 }
 
 void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs)
@@ -473,6 +494,12 @@ void destroy_node(AST_Node *node)
 	} break;
 
 	case AST_literal: {
+		CASTED_NODE(AST_Literal, literal, node);
+		if (literal->type == Literal_compound) {
+			destroy_node(AST_BASE(literal->value.compound.type));
+			for (i = 0; i < literal->value.compound.subnodes.size; ++i)
+				destroy_node(literal->value.compound.subnodes.data[i]);
+		}
 	} break;
 
 	case AST_biop: {
@@ -561,7 +588,12 @@ void shallow_destroy_node(AST_Node *node)
 		destroy_array(AST_Var_Decl_Ptr)(&decl->params);
 	} break;
 
-	case AST_literal: break;
+	case AST_literal: {
+		CASTED_NODE(AST_Literal, literal, node);
+		if (literal->type == Literal_compound) {
+			destroy_array(AST_Node_Ptr)(&literal->value.compound.subnodes);
+		}
+	} break;
 	case AST_biop: break;
 	case AST_control: break;
 
@@ -1186,6 +1218,12 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 	} break;
 
 	case AST_literal: {
+		CASTED_NODE(AST_Literal, literal, node);
+		if (literal->type == Literal_compound) {
+			push_array(AST_Node_Ptr)(ret, AST_BASE(literal->value.compound.type));
+			for (i = 0; i < literal->value.compound.subnodes.size; ++i)
+				push_array(AST_Node_Ptr)(ret, literal->value.compound.subnodes.data[i]);
+		}
 	} break;
 
 	case AST_biop: {
@@ -1459,6 +1497,7 @@ void print_ast(AST_Node *node, int indent)
 			case Literal_float: printf("%f\n", literal->value.floating); break;
 			case Literal_string: printf("%.*s\n", literal->value.string.len, literal->value.string.buf); break;
 			case Literal_null: printf("NULL\n"); break;
+			case Literal_compound: printf("COMPOUND\n"); break;
 			default: FAIL(("Unknown literal type: %i", literal->type));
 		}
 	} break;

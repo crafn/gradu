@@ -312,11 +312,13 @@ INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Ident **ret, AST_Node *decl);
 INTERNAL bool parse_type_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_typedef(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_var_decl(Parse_Ctx *ctx, AST_Node **ret, bool is_param_decl);
+INTERNAL bool parse_type(Parse_Ctx *ctx, AST_Type **ret_type);
 INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Ident **ret_ident, AST_Node *enclosing_decl);
 INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_scope(Parse_Ctx *ctx, AST_Scope **ret, bool already_created);
 INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_uop(Parse_Ctx *ctx, AST_Node **ret);
+INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, Token_Type ending);
 INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type *type_hint, bool semi);
 INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret);
@@ -546,6 +548,11 @@ AST_Type_Decl *create_builtin_decl(Parse_Ctx *ctx, Builtin_Type bt)
 	}
 }
 
+INTERNAL bool parse_type(Parse_Ctx *ctx, AST_Type **ret_type)
+{
+	return parse_type_and_ident(ctx, ret_type, NULL, NULL);
+}
+
 /* Type and ident in same function because of cases like 'int (*foo)()' */
 INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Ident **ret_ident, AST_Node *enclosing_decl)
 {
@@ -711,10 +718,12 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 	while (accept_tok(ctx, Token_mul))
 		++type->ptr_depth;
 
-	/* Variable name */
-	if (!parse_ident(ctx, ret_ident, enclosing_decl)) {
-		report_error_expected(ctx, "identifier", cur_tok(ctx));
-		goto mismatch;
+	if (ret_ident && enclosing_decl) {
+		/* Variable name */
+		if (!parse_ident(ctx, ret_ident, enclosing_decl)) {
+			report_error_expected(ctx, "identifier", cur_tok(ctx));
+			goto mismatch;
+		}
 	}
 
 	end_node_parsing(ctx);
@@ -852,25 +861,60 @@ INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret)
 			literal->type = Literal_int;
 			literal->value.integer = str_to_int(tok->text);
 			literal->base_type_decl = create_builtin_decl(ctx, int_builtin_type());
+			advance_tok(ctx);
 		break;
 		case Token_float:
 			literal->type = Literal_float;
 			literal->value.floating = str_to_float(tok->text);
 			literal->base_type_decl = create_builtin_decl(ctx, float_builtin_type());
+			advance_tok(ctx);
 		break;
 		case Token_string:
 			literal->type = Literal_string;
 			literal->value.string = tok->text;
 			literal->base_type_decl = create_builtin_decl(ctx, char_builtin_type());
+			advance_tok(ctx);
 		break;
 		case Token_kw_null:
 			literal->type = Literal_null;
+			advance_tok(ctx);
+		break;
+		case Token_open_paren:
+			/* Compound literal */
+			literal->type = Literal_compound;
+			literal->value.compound.subnodes = create_array(AST_Node_Ptr)(2);
+
+			/* (Type) part */
+			advance_tok(ctx);
+			if (!parse_type(ctx, &literal->value.compound.type))
+				goto mismatch;
+			if (!accept_tok(ctx, Token_close_paren)) {
+				report_error_expected(ctx, "')'", cur_tok(ctx));
+				goto mismatch;
+			}
+
+			/* {...} part */
+			if (!accept_tok(ctx, Token_open_brace)) {
+				report_error_expected(ctx, "'{'", cur_tok(ctx));
+				goto mismatch;
+			}
+			if (!parse_arg_list(ctx, &literal->value.compound.subnodes, Token_close_brace))
+				goto mismatch;
+		break;
+		case Token_open_brace:
+			/* Initializer list */
+
+			literal->type = Literal_compound;
+			literal->value.compound.subnodes = create_array(AST_Node_Ptr)(2);
+
+			advance_tok(ctx); /* Skip '{' */
+			if (!parse_arg_list(ctx, &literal->value.compound.subnodes, Token_close_brace))
+				goto mismatch;
 		break;
 		default:
 			report_error_expected(ctx, "literal", cur_tok(ctx));
 			goto mismatch;
 	}
-	advance_tok(ctx);
 
 	end_node_parsing(ctx);
 
@@ -912,9 +956,9 @@ mismatch:
 
 
 /* Parses 'foo, bar)' */
-INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret)
+INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, Token_Type ending)
 {
-	while (cur_tok(ctx)->type != Token_close_paren) {
+	while (cur_tok(ctx)->type != ending) {
 		AST_Node *arg = NULL;
 		if (cur_tok(ctx)->type == Token_comma)
 			advance_tok(ctx);
@@ -925,8 +969,9 @@ INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret)
 		push_array(AST_Node_Ptr)(ret, arg);
 	}
 
-	if (!accept_tok(ctx, Token_close_paren)) {
-		report_error_expected(ctx, "')'", cur_tok(ctx));
+	if (!accept_tok(ctx, ending)) {
+		report_error(ctx, "List didn't end with '%s', but '%s'",
+				tokentype_str(ending), BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
@@ -980,7 +1025,7 @@ INTERNAL bool parse_call_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node *expr, AS
 		goto mismatch;
 	}
 
-	if (!parse_arg_list(ctx, &call->args))
+	if (!parse_arg_list(ctx, &call->args, Token_close_paren))
 		goto mismatch;
 
 	if (!resolve_call(&ctx->parent_map, call, hint)) {
@@ -1144,7 +1189,7 @@ INTERNAL bool parse_element_access_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node
 		goto mismatch;
 	}
 
-	if (!parse_arg_list(ctx, &access->args))
+	if (!parse_arg_list(ctx, &access->args, Token_close_paren))
 		goto mismatch;
 
 	*ret = AST_BASE(access);
@@ -1446,6 +1491,7 @@ mismatch:
 }
 
 /* Parse the next self-contained thing - var decl, function decl, statement, expr... */
+/* @todo Should this be named "parse_statement"? */
 INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret)
 {
 	AST_Node *result = NULL;

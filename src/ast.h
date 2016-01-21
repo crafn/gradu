@@ -147,10 +147,10 @@ typedef enum {
 	Literal_int,
 	Literal_float,
 	Literal_string,
-	Literal_null
+	Literal_null,
+	Literal_compound /* (Type) {1, 2} or just {1, 2} */
 } Literal_Type;
 
-/* Number / string literal */
 typedef struct AST_Literal {
 	AST_Node b;
 	Literal_Type type;
@@ -159,6 +159,10 @@ typedef struct AST_Literal {
 		int integer;
 		double floating;
 		Buf_Str string;
+		struct {
+			AST_Type *type; /* NULL for initializer list */
+			Array(AST_Node_Ptr) subnodes;
+		} compound;
 	} value;
 
 	struct AST_Type_Decl *base_type_decl; /* Not owned. 'expr_type' needs this. */
@@ -309,7 +313,7 @@ void copy_type_node(AST_Type *copy, AST_Type *type, AST_Node *ref_to_base_type_d
 void copy_type_decl_node(AST_Type_Decl *copy, AST_Type_Decl *decl, AST_Node *ident, AST_Node *body, AST_Node *builtin_sub_decl_ref, AST_Node *backend_decl_ref);
 void copy_var_decl_node(AST_Var_Decl *copy, AST_Var_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *value);
 void copy_func_decl_node(AST_Func_Decl *copy, AST_Func_Decl *decl, AST_Node *type, AST_Node *ident, AST_Node *body, AST_Node **params, int param_count, AST_Node *backend_decl_ref);
-void copy_literal_node(AST_Literal *copy, AST_Literal *literal, AST_Node *type_decl_ref);
+void copy_literal_node(AST_Literal *copy, AST_Literal *literal, AST_Node *comp_type, AST_Node **comp_subs, int comp_sub_count, AST_Node *type_decl_ref);
 void copy_biop_node(AST_Biop *copy, AST_Biop *biop, AST_Node *lhs, AST_Node *rhs);
 void copy_control_node(AST_Control *copy, AST_Control *control, AST_Node *value);
 void copy_call_node(AST_Call *copy, AST_Call *call, AST_Node *ident, AST_Node **args, int arg_count);

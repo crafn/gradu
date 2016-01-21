@@ -1195,6 +1195,15 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 		case Literal_float: append_str(buf, "%f", literal->value.floating); break;
 		case Literal_string: append_str(buf, "\"%.*s\"", literal->value.string.len, literal->value.string.buf); break;
 		case Literal_null: append_str(buf, "NULL"); break;
+		case Literal_compound: {
+			append_str(buf, "{ ");
+			for (i = 0; i < literal->value.compound.subnodes.size; ++i) {
+				ast_to_c_str(buf, indent, literal->value.compound.subnodes.data[i]);
+				if (i + 1 < literal->value.compound.subnodes.size)
+					append_str(buf, ", ");
+			}
+			append_str(buf, " }");
+		} break;
 		default: FAIL(("Unknown literal type: %i", literal->type));
 		}
 	} break;

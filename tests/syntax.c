@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h> /* memcpy */
 
+/* Extended C syntax test */
+
 /**********************/
 /* BLOCK COMMENT TEST */
 /**********************/

@@ -3,6 +3,7 @@ import os, sys
 
 test_files = [
 	"./tests/hello_world.qft",
+	"./tests/c_syntax.qft",
 	"./tests/builtin_types.qft",
 	"./tests/syntax.qft",
 	"./tests/simulation.qft",

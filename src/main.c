@@ -116,7 +116,7 @@ int main(int argc, const char **argv)
 		if (!strcmp(backend_str, "c")) {
 			gen_code = qc_gen_c_code(root);
 		} else if (!strcmp(backend_str, "cuda")) {
-			gen_code = gen_cuda_code(root);
+			gen_code = qc_gen_cuda_code(root);
 		} else {
 			printf("Unknown backend (%s). Supported backends are %s\n", backend_str, backends);	
 		}

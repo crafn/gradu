@@ -524,7 +524,7 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 	qc_destroy_array(QC_AST_Node_Ptr)(&replace_list_new);
 }
 
-QC_Array(char) gen_cuda_code(QC_AST_Scope *root)
+QC_Array(char) qc_gen_cuda_code(QC_AST_Scope *root)
 {
 	QC_Array(char) gen_src = qc_create_array(char)(0);
 	QC_AST_Scope *modified_ast = (QC_AST_Scope*)qc_copy_ast(QC_AST_BASE(root));

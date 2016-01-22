@@ -63,7 +63,7 @@ QC_Buf_Str c_str_to_buf_str(const char* str);
 /* Internal */
 #define increase_array_capacity(V) JOIN3(increase_array_capacity_, V, _array)
 
-#define DECLARE_ARRAY(V)\
+#define QC_DECLARE_ARRAY(V)\
 typedef struct QC_Array(V) {\
 	V *data;\
 	int size;\
@@ -183,43 +183,43 @@ static U32 hash(Void_Ptr)(Void_Ptr value) { return (U32)(((U64)value)/2); }
 #define get_tbl(K, V) JOIN3(get_, KV(K, V), _tbl)
 #define set_tbl(K, V) JOIN3(set_, KV(K, V), _tbl)
 #define null_tbl_entry(K, V) JOIN3(null_, KV(K, V), _tbl_entry)
-#define Hash_Table(K, V) JOIN2(KV(K, V), _Tbl)
-#define Hash_Table_Entry(K, V) JOIN2(KV(K, V), _Tbl_Entry)
+#define QC_Hash_Table(K, V) JOIN2(KV(K, V), _Tbl)
+#define QC_Hash_Table_Entry(K, V) JOIN2(KV(K, V), _Tbl_Entry)
 
-#define DECLARE_HASH_TABLE(K, V)\
-struct Hash_Table_Entry(K, V);\
+#define QC_DECLARE_HASH_TABLE(K, V)\
+struct QC_Hash_Table_Entry(K, V);\
 \
-typedef struct Hash_Table(K, V) {\
-	struct Hash_Table_Entry(K, V) *array;\
+typedef struct QC_Hash_Table(K, V) {\
+	struct QC_Hash_Table_Entry(K, V) *array;\
 	int array_size;\
 	int count;\
 	K null_key;\
 	V null_value;\
-} Hash_Table(K, V);\
-typedef struct Hash_Table_Entry(K, V) {\
+} QC_Hash_Table(K, V);\
+typedef struct QC_Hash_Table_Entry(K, V) {\
 	K key;\
 	V value;\
-} Hash_Table_Entry(K, V);\
+} QC_Hash_Table_Entry(K, V);\
 \
-Hash_Table(K, V) create_tbl(K, V)(	K null_key, V null_value, int max_size);\
-void destroy_tbl(K, V)(Hash_Table(K, V) *tbl);\
+QC_Hash_Table(K, V) create_tbl(K, V)(	K null_key, V null_value, int max_size);\
+void destroy_tbl(K, V)(QC_Hash_Table(K, V) *tbl);\
 \
-V get_tbl(K, V)(Hash_Table(K, V) *tbl, K key);\
-void set_tbl(K, V)(Hash_Table(K, V) *tbl, K key, V value);\
+V get_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key);\
+void set_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key, V value);\
 
 #define DEFINE_HASH_TABLE(K, V)\
-Hash_Table_Entry(K, V) null_tbl_entry(K, V)(Hash_Table(K, V) *tbl)\
+QC_Hash_Table_Entry(K, V) null_tbl_entry(K, V)(QC_Hash_Table(K, V) *tbl)\
 {\
-	Hash_Table_Entry(K, V) e = {0};\
+	QC_Hash_Table_Entry(K, V) e = {0};\
 	e.key = tbl->null_key;\
 	e.value = tbl->null_value;\
 	return e;\
 }\
 \
-Hash_Table(K, V) create_tbl(K, V)(K null_key, V null_value, int max_size)\
+QC_Hash_Table(K, V) create_tbl(K, V)(K null_key, V null_value, int max_size)\
 {\
 	int i;\
-	Hash_Table(K, V) tbl = {0};\
+	QC_Hash_Table(K, V) tbl = {0};\
 	tbl.null_key = null_key;\
 	tbl.null_value = null_value;\
 	tbl.array_size = max_size;\
@@ -229,13 +229,13 @@ Hash_Table(K, V) create_tbl(K, V)(K null_key, V null_value, int max_size)\
 	return tbl;\
 }\
 \
-void destroy_tbl(K, V)(Hash_Table(K, V) *tbl)\
+void destroy_tbl(K, V)(QC_Hash_Table(K, V) *tbl)\
 {\
 	free(tbl->array);\
 	tbl->array = NULL;\
 }\
 \
-V get_tbl(K, V)(Hash_Table(K, V) *tbl, K key)\
+V get_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key)\
 {\
 	int ix = hash(K)(key) % tbl->array_size;\
 	/* Linear probing */\
@@ -249,7 +249,7 @@ V get_tbl(K, V)(Hash_Table(K, V) *tbl, K key)\
 	return tbl->array[ix].value;\
 }\
 \
-void set_tbl(K, V)(Hash_Table(K, V) *tbl, K key, V value)\
+void set_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key, V value)\
 {\
 	int ix = hash(K)(key) % tbl->array_size;\
 	ASSERT(key != tbl->null_key);\
@@ -259,7 +259,7 @@ void set_tbl(K, V)(Hash_Table(K, V) *tbl, K key, V value)\
 		ix = (ix + 1) % tbl->array_size;\
 \
 	{\
-		Hash_Table_Entry(K, V) *entry = &tbl->array[ix];\
+		QC_Hash_Table_Entry(K, V) *entry = &tbl->array[ix];\
 		bool modify_existing = 	value != tbl->null_value && entry->key != tbl->null_key;\
 		bool insert_new =		value != tbl->null_value && entry->key == tbl->null_key;\
 		bool remove_existing =	value == tbl->null_value && entry->key != tbl->null_key;\
@@ -281,7 +281,7 @@ void set_tbl(K, V)(Hash_Table(K, V) *tbl, K key, V value)\
 			/* Rehash */\
 			ix= (ix + 1) % tbl->array_size;\
 			while (tbl->array[ix].key != tbl->null_key) {\
-				Hash_Table_Entry(K, V) e = tbl->array[ix];\
+				QC_Hash_Table_Entry(K, V) e = tbl->array[ix];\
 				tbl->array[ix] = null_tbl_entry(K, V)(tbl);\
 				--tbl->count;\
 				set_tbl(K, V)(tbl, e.key, e.value);\
@@ -298,8 +298,8 @@ void set_tbl(K, V)(Hash_Table(K, V) *tbl, K key, V value)\
 	ASSERT(tbl->count < tbl->array_size);\
 }\
 
-DECLARE_ARRAY(char)
-DECLARE_ARRAY(int)
+QC_DECLARE_ARRAY(char)
+QC_DECLARE_ARRAY(int)
 
 /* @todo Make this safe.. */
 void safe_vsprintf(QC_Array(char) *buf, const char *fmt, va_list args);

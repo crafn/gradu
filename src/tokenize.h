@@ -93,7 +93,7 @@ typedef struct QC_Token {
 
 static bool qc_is_comment_tok(QC_Token_Type type) { return type == QC_Token_line_comment || type == QC_Token_block_comment; }
 
-DECLARE_ARRAY(QC_Token)
+QC_DECLARE_ARRAY(QC_Token)
 
 /* QC_Tokens will be pointing to the 'src' string */
 QC_Array(QC_Token) qc_tokenize(const char* src, int src_size);

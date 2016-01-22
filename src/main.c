@@ -8,7 +8,7 @@
     - tests with different dimensional fields
     - cuda error checking
 	- overloading test
-	- attributes to AST (like __global__ in cuda)
+	- attributes to QC_AST (like __global__ in cuda)
 	- handle (ignore but preserve) C preprocessor
 	- handle (ignore but preserve) other C stuff
 */
@@ -55,7 +55,7 @@ int main(int argc, const char **argv)
 	char *src_buf = NULL;
 	int src_size;
 	QC_Array(QC_Token) tokens = {0};
-	AST_Scope *root = NULL;
+	QC_AST_Scope *root = NULL;
 	QC_Array(char) gen_code = {0};
 
 	verbose = has_arg(argv, argc, "-verbose");
@@ -107,7 +107,7 @@ int main(int argc, const char **argv)
 			goto error;
 
 		if (verbose) {
-			printf("AST\n");
+			printf("QC_AST\n");
 			print_ast(&root->b, 2);
 		}
 	}

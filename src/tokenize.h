@@ -1,5 +1,5 @@
-#ifndef TOKENIZE_H
-#define TOKENIZE_H
+#ifndef QC_TOKENIZE_H
+#define QC_TOKENIZE_H
 
 #include "core.h"
 

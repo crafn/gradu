@@ -1,5 +1,5 @@
-#ifndef CORE_H
-#define CORE_H
+#ifndef QC_CORE_H
+#define QC_CORE_H
 
 /* Commonly used utils */
 

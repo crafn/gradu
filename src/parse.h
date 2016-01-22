@@ -1,5 +1,5 @@
-#ifndef PARSE_H
-#define PARSE_H
+#ifndef QC_PARSE_H
+#define QC_PARSE_H
 
 #include "ast.h"
 #include "tokenize.h"

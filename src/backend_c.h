@@ -1,5 +1,5 @@
-#ifndef BACKEND_C_H
-#define BACKEND_C_H
+#ifndef QC_BACKEND_C_H
+#define QC_BACKEND_C_H
 
 #include "core.h"
 #include "parse.h"

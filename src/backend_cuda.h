@@ -1,5 +1,5 @@
-#ifndef BACKEND_CUDA_H
-#define BACKEND_CUDA_H
+#ifndef QC_BACKEND_CUDA_H
+#define QC_BACKEND_CUDA_H
 
 #include "core.h"
 #include "parse.h"

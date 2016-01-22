@@ -1,6 +1,6 @@
 #include "parse.h"
 
-int str_to_int(Buf_Str text)
+int str_to_int(QC_Buf_Str text)
 {
 	const char *c = text.buf;
 	const char *end = c + text.len;
@@ -20,7 +20,7 @@ int str_to_int(Buf_Str text)
 	return value*sign;
 }
 
-double str_to_float(Buf_Str text)
+double str_to_float(QC_Buf_Str text)
 {
 	const char *c = text.buf;
 	const char *end = c + text.len;
@@ -170,9 +170,9 @@ typedef struct Parse_Ctx {
 
 	/* Builtin type and funcs decls are generated while parsing */
 
-	Array(char) error_msg;
+	QC_Array(char) error_msg;
 	QC_Token *error_tok;
-	Array(Parse_Stack_Frame) parse_stack;
+	QC_Array(Parse_Stack_Frame) parse_stack;
 
 	AST_Parent_Map parent_map; /* Built incrementally during parsing */
 } Parse_Ctx;
@@ -188,7 +188,7 @@ INTERNAL void advance_tok(Parse_Ctx *ctx)
 	ASSERT(ctx->tok->type != QC_Token_eof);
 	do {
 		++ctx->tok;
-	} while (is_comment_tok(ctx->tok->type));
+	} while (qc_is_comment_tok(ctx->tok->type));
 }
 
 INTERNAL bool accept_tok(Parse_Ctx *ctx, QC_Token_Type type)
@@ -248,10 +248,10 @@ INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 	if (frame.node->pre_comments.size == 0) {
 		QC_Token *tok = frame.begin_tok - 1;
 		/* Rewind first */
-		while (tok >= ctx->first_tok && is_comment_tok(tok->type))
+		while (tok >= ctx->first_tok && qc_is_comment_tok(tok->type))
 			--tok;
 		++tok;
-		while (is_comment_tok(tok->type) && tok->comment_bound_to == 1) {
+		while (qc_is_comment_tok(tok->type) && tok->comment_bound_to == 1) {
 			push_array(QC_Token_Ptr)(&frame.node->pre_comments, tok);
 			++tok;
 		}
@@ -260,10 +260,10 @@ INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 		QC_Token *tok = cur_tok(ctx);
 		/* Cursor has been advanced past following comments, rewind */
 		--tok;
-		while (tok >= ctx->first_tok && is_comment_tok(tok->type))
+		while (tok >= ctx->first_tok && qc_is_comment_tok(tok->type))
 			--tok;
 		++tok;
-		while (is_comment_tok(tok->type) && tok->comment_bound_to == -1) {
+		while (qc_is_comment_tok(tok->type) && tok->comment_bound_to == -1) {
 			push_array(QC_Token_Ptr)(&frame.node->post_comments, tok);
 			++tok;
 		}
@@ -284,7 +284,7 @@ INTERNAL void cancel_node_parsing(Parse_Ctx *ctx)
 
 INTERNAL void report_error(Parse_Ctx *ctx, const char *fmt, ...)
 {
-	Array(char) msg;
+	QC_Array(char) msg;
 	va_list args;
 
 	if (cur_tok(ctx) <= ctx->error_tok)
@@ -318,7 +318,7 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_scope(Parse_Ctx *ctx, AST_Scope **ret, bool already_created);
 INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_uop(Parse_Ctx *ctx, AST_Node **ret);
-INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, QC_Token_Type ending);
+INTERNAL bool parse_arg_list(Parse_Ctx *ctx, QC_Array(AST_Node_Ptr) *ret, QC_Token_Type ending);
 INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type *type_hint, bool semi);
 INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret);
@@ -938,7 +938,7 @@ mismatch:
 
 
 /* Parses 'foo, bar)' */
-INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, QC_Token_Type ending)
+INTERNAL bool parse_arg_list(Parse_Ctx *ctx, QC_Array(AST_Node_Ptr) *ret, QC_Token_Type ending)
 {
 	while (cur_tok(ctx)->type != ending) {
 		AST_Node *arg = NULL;
@@ -954,7 +954,7 @@ INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, QC_Token_
 
 	if (!accept_tok(ctx, ending)) {
 		report_error(ctx, "List didn't end with '%s', but '%s'",
-				tokentype_str(ending), BUF_STR_ARGS(cur_tok(ctx)->text));
+				qc_tokentype_str(ending), BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
@@ -993,7 +993,7 @@ mismatch:
 INTERNAL bool parse_call_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node *expr, AST_Type *hint)
 {
 	AST_Call *call = create_call_node();
-	Array(AST_Type) types = {0};
+	QC_Array(AST_Type) types = {0};
 	begin_node_parsing(ctx, AST_BASE(call));
 
 	if (expr->type != AST_ident) {
@@ -1524,7 +1524,7 @@ AST_Scope *parse_tokens(QC_Token *toks)
 	ctx.parse_stack = create_array(Parse_Stack_Frame)(32);
 	ctx.tok = ctx.first_tok = toks;
 	ctx.parent_map = create_parent_map(NULL);
-	if (is_comment_tok(ctx.tok->type))
+	if (qc_is_comment_tok(ctx.tok->type))
 		advance_tok(&ctx);
 
 	{ /* Create C builtin types (backends should be able to rely that they exist in the AST) */
@@ -1546,9 +1546,9 @@ AST_Scope *parse_tokens(QC_Token *toks)
 	end_node_parsing(&ctx);
 
 	{ /* Insert builtin declarations to beginning of root node */
-		Array(AST_Node_Ptr) new_nodes = create_array(AST_Node_Ptr)(ctx.parent_map.builtin_decls.size + root->nodes.size);
+		QC_Array(AST_Node_Ptr) new_nodes = create_array(AST_Node_Ptr)(ctx.parent_map.builtin_decls.size + root->nodes.size);
 		int i;
-		/* @todo Array insert function */
+		/* @todo QC_Array insert function */
 		for (i = 0; i < ctx.parent_map.builtin_decls.size; ++i) {
 			push_array(AST_Node_Ptr)(&new_nodes, ctx.parent_map.builtin_decls.data[i]);
 		}

@@ -13,14 +13,14 @@ void lift_types_and_funcs_to_global_scope(AST_Scope *root);
 void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl);
 void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr);
 /* Type name for builtin type */
-void append_builtin_type_c_str(Array(char) *buf, Builtin_Type bt);
+void append_builtin_type_c_str(QC_Array(char) *buf, Builtin_Type bt);
 /* Function name for expression */
-void append_expr_c_func_name(Array(char) *buf, AST_Node *expr);
-void append_c_stdlib_includes(Array(char) *buf);
-bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node);
+void append_expr_c_func_name(QC_Array(char) *buf, AST_Node *expr);
+void append_c_stdlib_includes(QC_Array(char) *buf);
+bool ast_to_c_str(QC_Array(char) *buf, int indent, AST_Node *node);
 
 /* @todo Flag determining C99 or C89 */
-Array(char) gen_c_code(AST_Scope *root);
+QC_Array(char) gen_c_code(AST_Scope *root);
 
 
 #endif

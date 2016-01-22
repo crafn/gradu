@@ -27,7 +27,7 @@ INTERNAL bool is_builtin_decl(AST_Node *node)
 }
 #endif
 
-void append_builtin_type_c_str(Array(char) *buf, Builtin_Type bt)
+void append_builtin_type_c_str(QC_Array(char) *buf, Builtin_Type bt)
 {
 	int i;
 
@@ -60,9 +60,9 @@ void append_builtin_type_c_str(Array(char) *buf, Builtin_Type bt)
 	}
 }
 
-void append_expr_c_func_name(Array(char) *buf, AST_Node *expr)
+void append_expr_c_func_name(QC_Array(char) *buf, AST_Node *expr)
 {
-	Array(AST_Node_Ptr) nodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) nodes = create_array(AST_Node_Ptr)(0);
 	int i;
 	push_array(AST_Node_Ptr)(&nodes, expr);
 	push_subnodes(&nodes, expr, true);
@@ -103,7 +103,7 @@ void append_expr_c_func_name(Array(char) *buf, AST_Node *expr)
 	destroy_array(AST_Node_Ptr)(&nodes);
 }
 
-INTERNAL void append_type_and_ident_str(Array(char) *buf, AST_Type *type, const char *ident)
+INTERNAL void append_type_and_ident_str(QC_Array(char) *buf, AST_Type *type, const char *ident)
 {
 	int i;
 	if (type->is_const)
@@ -292,9 +292,9 @@ INTERNAL AST_Node *create_matrix_mul_expr(AST_Var_Decl *lhs, AST_Var_Decl *rhs, 
 void parallel_loops_to_ordinary(AST_Scope *root)
 {
 	int i, k;
-	Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	find_subnodes_of_type(&subnodes, AST_parallel, AST_BASE(root));
 
 	for (i = 0; i < subnodes.size; ++i) {
@@ -369,7 +369,7 @@ void parallel_loops_to_ordinary(AST_Scope *root)
 void lift_var_decls(AST_Scope *root)
 {
 	int i;
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	AST_Parent_Map map = create_parent_map(AST_BASE(root));
 
 	find_subnodes_of_type(&subnodes, AST_var_decl, AST_BASE(root));
@@ -462,10 +462,10 @@ INTERNAL AST_Node *mapped_node(Trav_Ctx *ctx, AST_Node *src)
 INTERNAL AST_Node * copy_excluding_types_and_funcs(Trav_Ctx *ctx, AST_Node *node)
 {
 	AST_Node *copy = NULL;
-	Array(AST_Node_Ptr) subnodes;
-	Array(AST_Node_Ptr) refnodes;
-	Array(AST_Node_Ptr) copied_subnodes;
-	Array(AST_Node_Ptr) remapped_refnodes;
+	QC_Array(AST_Node_Ptr) subnodes;
+	QC_Array(AST_Node_Ptr) refnodes;
+	QC_Array(AST_Node_Ptr) copied_subnodes;
+	QC_Array(AST_Node_Ptr) remapped_refnodes;
 	int i;
 
 	if (!node)
@@ -528,7 +528,7 @@ void lift_types_and_funcs_to_global_scope(AST_Scope *root)
 
 	for (i = 0; i < root->nodes.size; ++i) {
 		AST_Node *sub = root->nodes.data[i];
-		Array(AST_Node_Ptr) decls = create_array(AST_Node_Ptr)(0);
+		QC_Array(AST_Node_Ptr) decls = create_array(AST_Node_Ptr)(0);
 		find_subnodes_of_type(&decls, AST_type_decl, sub);
 		find_subnodes_of_type(&decls, AST_func_decl, sub);
 
@@ -721,7 +721,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 				{ /* Function contents */
 					AST_Var_Decl *field_var_decl;
 					AST_Biop *sizeof_expr;
-					Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(alloc_func->params.size);
+					QC_Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(alloc_func->params.size);
 					AST_Biop *elements_assign;
 					AST_Biop *is_device_field_assign;
 					AST_Control *ret_stmt;
@@ -844,7 +844,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 							c_mat_elements_decl(field_decl));
 					AST_Call *libc_free_call;
 
-					Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(3);
+					QC_Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(3);
 					push_array(AST_Node_Ptr)(&size_accesses,
 							AST_BASE(c_create_mat_element_sizeof(dst_field_var_decl)));
 					for (k = 0; k < bt.field_dim; ++k) {
@@ -915,9 +915,9 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 {
 	int i, k;
-	Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	push_subnodes(&subnodes, AST_BASE(root), false);
 
 	for (i = 0; i < subnodes.size; ++i) {
@@ -989,7 +989,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 
 				if (bt.is_field) {
 					/* Field access */
-					Array(AST_Node_Ptr) multipliers = create_array(AST_Node_Ptr)(0);
+					QC_Array(AST_Node_Ptr) multipliers = create_array(AST_Node_Ptr)(0);
 					AST_Node *index_expr = NULL;
 					AST_Var_Decl *size_member_decl = c_field_size_decl(mat_decl);
 					for (k = 0; k < bt.field_dim; ++k) {
@@ -1022,7 +1022,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 
 				} else {
 					/* Matrix access */
-					Array(AST_Node_Ptr) multipliers = create_array(AST_Node_Ptr)(0);
+					QC_Array(AST_Node_Ptr) multipliers = create_array(AST_Node_Ptr)(0);
 					AST_Node *index_expr = NULL;
 					int mul_accum = 1;
 					for (k = 0; k < bt.matrix_rank; ++k) {
@@ -1057,7 +1057,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 	destroy_array(AST_Node_Ptr)(&replace_list_new);
 }
 
-INTERNAL void append_c_comment(Array(char) *buf, QC_Token *comment)
+INTERNAL void append_c_comment(QC_Array(char) *buf, QC_Token *comment)
 {
 	if (comment->type == QC_Token_line_comment)
 		append_str(buf, "/*%.*s */", BUF_STR_ARGS(comment->text));
@@ -1065,7 +1065,7 @@ INTERNAL void append_c_comment(Array(char) *buf, QC_Token *comment)
 		append_str(buf, "/*%.*s*/", BUF_STR_ARGS(comment->text));
 }
 
-void append_c_stdlib_includes(Array(char) *buf)
+void append_c_stdlib_includes(QC_Array(char) *buf)
 {
 	append_str(buf, "#include <stdio.h>\n");
 	append_str(buf, "#include <stdlib.h>\n");
@@ -1073,7 +1073,7 @@ void append_c_stdlib_includes(Array(char) *buf)
 	append_str(buf, "\n");
 }
 
-bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
+bool ast_to_c_str(QC_Array(char) *buf, int indent, AST_Node *node)
 {
 	int i, k;
 	bool omitted = false;
@@ -1231,7 +1231,7 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			if (lhs_parens)
 				append_str(buf, ")");
 
-			append_str(buf, " %s ", tokentype_codestr(biop->type));
+			append_str(buf, " %s ", qc_tokentype_codestr(biop->type));
 
 			if (rhs_parens)
 				append_str(buf, "(");
@@ -1242,7 +1242,7 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			bool parens_inside = (biop->type == QC_Token_kw_sizeof);
 
 			/* Unary op */
-			append_str(buf, "%s", tokentype_codestr(biop->type));
+			append_str(buf, "%s", qc_tokentype_codestr(biop->type));
 			
 			if (parens_inside)
 				append_str(buf, "(");
@@ -1254,7 +1254,7 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 	case AST_control: {
 		CASTED_NODE(AST_Control, control, node);
-		append_str(buf, "%s", tokentype_codestr(control->type));
+		append_str(buf, "%s", qc_tokentype_codestr(control->type));
 		if (control->value) {
 			append_str(buf, " ");
 			ast_to_c_str(buf, indent, control->value);
@@ -1377,9 +1377,9 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 	return omitted;
 }
 
-Array(char) gen_c_code(AST_Scope *root)
+QC_Array(char) gen_c_code(AST_Scope *root)
 {
-	Array(char) gen_src = create_array(char)(1024);
+	QC_Array(char) gen_src = create_array(char)(1024);
 
 	AST_Scope *modified_ast = (AST_Scope*)copy_ast(AST_BASE(root));
 	parallel_loops_to_ordinary(modified_ast);

@@ -3,22 +3,22 @@
 DEFINE_ARRAY(char)
 DEFINE_ARRAY(int)
 
-bool buf_str_equals(Buf_Str a, Buf_Str b)
+bool buf_str_equals(QC_Buf_Str a, QC_Buf_Str b)
 {
 	if (a.len != b.len)
 		return false;
 	return !strncmp(a.buf, b.buf, a.len);
 }
 
-Buf_Str c_str_to_buf_str(const char* str)
+QC_Buf_Str c_str_to_buf_str(const char* str)
 {
-	Buf_Str b = {0};
+	QC_Buf_Str b = {0};
 	b.buf = str;
 	b.len = strlen(str);
 	return b;
 }
 
-void safe_vsprintf(Array(char) *buf, const char *fmt, va_list args)
+void safe_vsprintf(QC_Array(char) *buf, const char *fmt, va_list args)
 {
 	char tmp[1024*100]; /* :( */
 	int len;
@@ -39,7 +39,7 @@ void safe_vsprintf(Array(char) *buf, const char *fmt, va_list args)
 	push_array(char)(buf, '\0');
 }
 
-void append_str(Array(char) *buf, const char *fmt, ...)
+void append_str(QC_Array(char) *buf, const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);

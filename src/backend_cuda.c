@@ -34,7 +34,7 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 				{ /* Function contents */
 					AST_Var_Decl *field_var_decl;
 					AST_Biop *sizeof_expr;
-					Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(alloc_func->params.size);
+					QC_Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(alloc_func->params.size);
 					AST_Call *elements_assign;
 					AST_Biop *is_device_field_assign;
 					AST_Control *ret_stmt;
@@ -169,7 +169,7 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 							"cudaMemcpyDeviceToHost",
 							"cudaMemcpyDeviceToDevice"
 						};
-						Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(3);
+						QC_Array(AST_Node_Ptr) size_accesses = create_array(AST_Node_Ptr)(3);
 						push_array(AST_Node_Ptr)(&size_accesses,
 								AST_BASE(c_create_mat_element_sizeof(dst_field_var_decl)));
 						for (m = 0; m < bt.field_dim; ++m) {
@@ -228,17 +228,17 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 void parallel_loops_to_cuda(AST_Scope *root)
 {
 	int i, k, m;
-	Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) replace_list_old = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) replace_list_new = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	AST_Parent_Map map = create_parent_map(AST_BASE(root));
 
 	find_subnodes_of_type(&subnodes, AST_parallel, AST_BASE(root));
 
 	for (i = 0; i < subnodes.size; ++i) {
 		CASTED_NODE(AST_Parallel, parallel, subnodes.data[i]);
-		Array(AST_Node_Ptr) var_accesses;
-		Array(AST_Var_Decl_Ptr) cuda_var_decls;
+		QC_Array(AST_Node_Ptr) var_accesses;
+		QC_Array(AST_Var_Decl_Ptr) cuda_var_decls;
 
 		var_accesses = create_array(AST_Node_Ptr)(0);
 		cuda_var_decls = create_array(AST_Var_Decl_Ptr)(0);
@@ -278,10 +278,10 @@ void parallel_loops_to_cuda(AST_Scope *root)
 		{ /* Create cuda call site */
 			AST_Scope *scope = create_scope_node();
 
-			Array(AST_Node_Ptr) malloc_calls = create_array(AST_Node_Ptr)(0);
-			Array(AST_Node_Ptr) memcpy_to_device_calls = create_array(AST_Node_Ptr)(0);
-			Array(AST_Node_Ptr) memcpy_from_device_calls = create_array(AST_Node_Ptr)(0);
-			Array(AST_Node_Ptr) free_calls = create_array(AST_Node_Ptr)(0);
+			QC_Array(AST_Node_Ptr) malloc_calls = create_array(AST_Node_Ptr)(0);
+			QC_Array(AST_Node_Ptr) memcpy_to_device_calls = create_array(AST_Node_Ptr)(0);
+			QC_Array(AST_Node_Ptr) memcpy_from_device_calls = create_array(AST_Node_Ptr)(0);
+			QC_Array(AST_Node_Ptr) free_calls = create_array(AST_Node_Ptr)(0);
 			AST_Call *cuda_call = create_call_node();
 
 			/* @todo Link ident to the kernel decl */
@@ -456,7 +456,7 @@ void parallel_loops_to_cuda(AST_Scope *root)
 
 			{ /* Body */
 				/* Fields are passed by value */
-				Array(AST_Node_Ptr) accesses = create_array(AST_Node_Ptr)(0);
+				QC_Array(AST_Node_Ptr) accesses = create_array(AST_Node_Ptr)(0);
 				find_subnodes_of_type(&accesses, AST_access, AST_BASE(parallel->body));
 				for (k = 0; k < accesses.size; ++k) {
 					CASTED_NODE(AST_Access, access, accesses.data[k]);
@@ -524,9 +524,9 @@ void parallel_loops_to_cuda(AST_Scope *root)
 	destroy_array(AST_Node_Ptr)(&replace_list_new);
 }
 
-Array(char) gen_cuda_code(AST_Scope *root)
+QC_Array(char) gen_cuda_code(AST_Scope *root)
 {
-	Array(char) gen_src = create_array(char)(0);
+	QC_Array(char) gen_src = create_array(char)(0);
 	AST_Scope *modified_ast = (AST_Scope*)copy_ast(AST_BASE(root));
 	lift_types_and_funcs_to_global_scope(modified_ast);
 	add_builtin_c_decls_to_global_scope(modified_ast, false);

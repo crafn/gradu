@@ -54,9 +54,9 @@ int main(int argc, const char **argv)
 	bool verbose;
 	char *src_buf = NULL;
 	int src_size;
-	Array(QC_Token) tokens = {0};
+	QC_Array(QC_Token) tokens = {0};
 	AST_Scope *root = NULL;
-	Array(char) gen_code = {0};
+	QC_Array(char) gen_code = {0};
 
 	verbose = has_arg(argv, argc, "-verbose");
 
@@ -93,13 +93,13 @@ int main(int argc, const char **argv)
 	}
 
 	{ /* Parse */
-		tokens = tokenize(src_buf, src_size);
+		tokens = qc_tokenize(src_buf, src_size);
 		if (!tokens.data)
 			goto error;
 
 		if (verbose) {
 			printf("QC_Tokens\n");
-			print_tokens(tokens.data, tokens.size);
+			qc_print_tokens(tokens.data, tokens.size);
 		}
 
 		root = parse_tokens(tokens.data);

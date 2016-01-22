@@ -160,7 +160,7 @@ typedef struct QC_Tokenize_Ctx {
 	bool last_line_was_empty;
 	int tokens_on_line;
 	int comments_on_line;
-	Array(QC_Token) tokens;
+	QC_Array(QC_Token) tokens;
 } QC_Tokenize_Ctx;
 
 INTERNAL void commit_token(QC_Tokenize_Ctx *t, const char *b, const char *e, QC_Token_Type type)
@@ -180,7 +180,7 @@ INTERNAL void commit_token(QC_Tokenize_Ctx *t, const char *b, const char *e, QC_
 		tok.empty_line_before = (t->tokens_on_line == 0 && t->last_line_was_empty);
 		tok.last_on_line = last_on_line;
 
-		if (is_comment_tok(type)) {
+		if (qc_is_comment_tok(type)) {
 			if (t->tokens_on_line  == t->comments_on_line)
 				tok.comment_bound_to = 1; /* If line is only comments, bound to next token */
 			else
@@ -202,7 +202,7 @@ INTERNAL void on_linebreak(QC_Tokenize_Ctx *t)
 	t->comments_on_line = 0;
 }
 
-Array(QC_Token) tokenize(const char* src, int src_size)
+QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 {
 	const char *cur = src;
 	const char *tok_begin = src;
@@ -308,7 +308,7 @@ Array(QC_Token) tokenize(const char* src, int src_size)
 	return t.tokens;
 }
 
-const char* tokentype_str(QC_Token_Type type)
+const char* qc_tokentype_str(QC_Token_Type type)
 {
 	switch (type) {
 		case QC_Token_eof: return "eof";
@@ -380,7 +380,7 @@ const char* tokentype_str(QC_Token_Type type)
 	}
 }
 
-const char* tokentype_codestr(QC_Token_Type type)
+const char* qc_tokentype_codestr(QC_Token_Type type)
 {
 	switch (type) {
 		case QC_Token_eof: return "";
@@ -453,13 +453,13 @@ const char* tokentype_codestr(QC_Token_Type type)
 	}
 }
 
-void print_tokens(QC_Token *tokens, int token_count)
+void qc_print_tokens(QC_Token *tokens, int token_count)
 {
 	int i;
 	for (i = 0; i < token_count; ++i) {
 		QC_Token tok = tokens[i];
 		int text_len = MIN(tok.text.len, 20);
 		printf("%14s: %20.*s %8i last_on_line: %i empty_line_before: %i\n",
-				tokentype_str(tok.type), text_len, tok.text.buf, tok.line, tok.last_on_line, tok.empty_line_before);
+				qc_tokentype_str(tok.type), text_len, tok.text.buf, tok.line, tok.last_on_line, tok.empty_line_before);
 	}
 }

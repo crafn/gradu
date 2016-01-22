@@ -244,8 +244,8 @@ void copy_ast_node(AST_Node *copy, AST_Node *node, AST_Node **subnodes, int subn
 
 void shallow_copy_ast_node(AST_Node *copy, AST_Node* node)
 {
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
-	Array(AST_Node_Ptr) refnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) refnodes = create_array(AST_Node_Ptr)(0);
 
 	push_immediate_subnodes(&subnodes, node);
 	push_immediate_refnodes(&refnodes, node);
@@ -813,8 +813,8 @@ AST_Node *copy_ast_impl(Copy_Ctx *ctx, AST_Node *node)
 		AST_Node *copy = create_ast_node(node->type);
 
 		/* @todo Do something for the massive number of allocations */
-		Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
-		Array(AST_Node_Ptr) refnodes = create_array(AST_Node_Ptr)(0);
+		QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+		QC_Array(AST_Node_Ptr) refnodes = create_array(AST_Node_Ptr)(0);
 
 		set_tbl(AST_Node_Ptr, AST_Node_Ptr)(&ctx->src_to_dst, node, copy);
 
@@ -882,7 +882,7 @@ INTERNAL void print_indent(int indent)
 INTERNAL void populate_parent_map(AST_Parent_Map *map, AST_Node *root)
 {
 	int i;
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	push_immediate_subnodes(&subnodes, root);
 
 	for (i = 0; i < subnodes.size; ++i) {
@@ -917,7 +917,7 @@ void destroy_parent_map(AST_Parent_Map *map)
 
 
 /* Part of 'find_decls_scoped' */
-INTERNAL void match_and_add(Array(AST_Node_Ptr) *ret, Buf_Str name, AST_Node *decl)
+INTERNAL void match_and_add(QC_Array(AST_Node_Ptr) *ret, QC_Buf_Str name, AST_Node *decl)
 {
 	AST_Ident *ident = decl_ident(decl);
 	if (!ident || !buf_str_equals(c_str_to_buf_str(ident->text.data), name))
@@ -928,7 +928,7 @@ INTERNAL void match_and_add(Array(AST_Node_Ptr) *ret, Buf_Str name, AST_Node *de
 }
 
 /* @todo Not very elegant with 'hint' */
-void find_decls_scoped(AST_Parent_Map *map, Array(AST_Node_Ptr) *ret, AST_Node *node, Buf_Str name, AST_Type *hint)
+void find_decls_scoped(AST_Parent_Map *map, QC_Array(AST_Node_Ptr) *ret, AST_Node *node, QC_Buf_Str name, AST_Type *hint)
 {
 	int i;
 	AST_Node *stack_node = node;
@@ -1052,7 +1052,7 @@ INTERNAL bool resolve_ident_in_scope(AST_Ident *ident, AST_Scope *search_scope)
 /* Use 'arg_count = -1' for non-function identifier resolution */
 INTERNAL bool resolve_node(AST_Parent_Map *map, AST_Ident *ident, AST_Type *hint, AST_Type *arg_types, int arg_count)
 {
-	Array(AST_Node_Ptr) decls = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) decls = create_array(AST_Node_Ptr)(0);
 	int i, k;
 
 	ident->decl = NULL;
@@ -1136,7 +1136,7 @@ AST_Call *resolve_call(AST_Parent_Map *map, AST_Call *call, AST_Type *return_typ
 {
 	int i;
 	bool success = true;
-	Array(AST_Type) types = create_array(AST_Type)(call->args.size);
+	QC_Array(AST_Type) types = create_array(AST_Type)(call->args.size);
 	for (i = 0; i < call->args.size; ++i) {
 		AST_Type type;
 		if (!expr_type(&type, call->args.data[i])) {
@@ -1160,7 +1160,7 @@ void resolve_ast(AST_Scope *root)
 {
 	int i;
 	AST_Parent_Map parent_map = create_parent_map(AST_BASE(root));
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	push_subnodes(&subnodes, AST_BASE(root), false);
 
 	for (i = 0; i < subnodes.size; ++i) {
@@ -1195,7 +1195,7 @@ void resolve_ast(AST_Scope *root)
 void unresolve_ast(AST_Node *root)
 {
 	int i;
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	push_subnodes(&subnodes, root, false);
 
 	for (i = 0; i < subnodes.size; ++i) {
@@ -1215,7 +1215,7 @@ void unresolve_ast(AST_Node *root)
 	destroy_array(AST_Node_Ptr)(&subnodes);
 }
 
-void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
+void push_immediate_subnodes(QC_Array(AST_Node_Ptr) *ret, AST_Node *node)
 {
 	int i;
 	if (!node)
@@ -1327,7 +1327,7 @@ void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 	}
 }
 
-void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
+void push_immediate_refnodes(QC_Array(AST_Node_Ptr) *ret, AST_Node *node)
 {
 	if (!node)
 		return;
@@ -1378,10 +1378,10 @@ void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node)
 	}
 }
 
-void push_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_recursing)
+void push_subnodes(QC_Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_recursing)
 {
 	int i;
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	push_immediate_subnodes(&subnodes, node);
 
 	for (i = 0; i < subnodes.size; ++i) {
@@ -1418,8 +1418,8 @@ AST_Node *replace_nodes_in_ast(AST_Node *node, AST_Node **old_nodes, AST_Node **
 
 	{
 		/* @todo Do something for the massive number of allocations */
-		Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
-		Array(AST_Node_Ptr) refnodes = create_array(AST_Node_Ptr)(0);
+		QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+		QC_Array(AST_Node_Ptr) refnodes = create_array(AST_Node_Ptr)(0);
 
 		push_immediate_subnodes(&subnodes, node);
 		push_immediate_refnodes(&refnodes, node);
@@ -1450,10 +1450,10 @@ AST_Node *replace_nodes_in_ast(AST_Node *node, AST_Node **old_nodes, AST_Node **
 	return node;
 }
 
-void find_subnodes_of_type(Array(AST_Node_Ptr) *ret, AST_Node_Type type, AST_Node *node)
+void find_subnodes_of_type(QC_Array(AST_Node_Ptr) *ret, AST_Node_Type type, AST_Node *node)
 {
 	int i;
-	Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
+	QC_Array(AST_Node_Ptr) subnodes = create_array(AST_Node_Ptr)(0);
 	push_subnodes(&subnodes, node, false);
 
 	for (i = 0; i < subnodes.size; ++i) {
@@ -1544,18 +1544,18 @@ void print_ast(AST_Node *node, int indent)
 	case AST_biop: {
 		CASTED_NODE(AST_Biop, op, node);
 		if (op->lhs && op->rhs) {
-			printf("biop %s\n", tokentype_str(op->type));
+			printf("biop %s\n", qc_tokentype_str(op->type));
 			print_ast(op->lhs, indent + 2);
 			print_ast(op->rhs, indent + 2);
 		} else {
-			printf("uop %s\n", tokentype_str(op->type));
+			printf("uop %s\n", qc_tokentype_str(op->type));
 			print_ast(op->rhs, indent + 2);
 		}
 	} break;
 
 	case AST_control: {
 		CASTED_NODE(AST_Control, control, node);
-		printf("control %s\n", tokentype_str(control->type));
+		printf("control %s\n", qc_tokentype_str(control->type));
 		print_ast(control->value, indent + 2);
 	} break;
 

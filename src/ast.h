@@ -44,8 +44,8 @@ typedef struct AST_Node {
 	QC_Token *begin_tok;
 
 	/* Comments on the previous line(s) (like this comment) */
-	Array(QC_Token_Ptr) pre_comments;
-	Array(QC_Token_Ptr) post_comments; /* On the same line (like this comment) */
+	QC_Array(QC_Token_Ptr) pre_comments;
+	QC_Array(QC_Token_Ptr) post_comments; /* On the same line (like this comment) */
 
 	const char *attribute; /* Just a quick test for __global__ */
 } AST_Node;
@@ -53,15 +53,15 @@ typedef struct AST_Node {
 /* { ... } */
 typedef struct AST_Scope {
 	AST_Node b;
-	Array(AST_Node_Ptr) nodes;
+	QC_Array(AST_Node_Ptr) nodes;
 	bool is_root;
 } AST_Scope;
 
 /* Identifier */
 typedef struct AST_Ident {
 	AST_Node b;
-	/* @todo Change to Array(char) */
-	Array(char) text; /* NULL-terminated */
+	/* @todo Change to QC_Array(char) */
+	QC_Array(char) text; /* NULL-terminated */
 	bool designated; /* Dot before identifier */
 
 	struct AST_Node *decl; /* Not owned */
@@ -136,7 +136,7 @@ typedef struct AST_Func_Decl {
 	AST_Node b;
 	AST_Type *return_type;
 	AST_Ident *ident;
-	Array(AST_Var_Decl_Ptr) params;
+	QC_Array(AST_Var_Decl_Ptr) params;
 	bool ellipsis;
 	AST_Scope *body;
 
@@ -159,10 +159,10 @@ typedef struct AST_Literal {
 		/* @todo Different integer sizes etc */
 		int integer;
 		double floating;
-		Buf_Str string;
+		QC_Buf_Str string;
 		struct {
 			AST_Type *type; /* NULL for initializer list */
-			Array(AST_Node_Ptr) subnodes;
+			QC_Array(AST_Node_Ptr) subnodes;
 		} compound;
 	} value;
 
@@ -192,7 +192,7 @@ typedef struct AST_Control {
 typedef struct AST_Call {
 	AST_Node b;
 	AST_Ident *ident;
-	Array(AST_Node_Ptr) args;
+	QC_Array(AST_Node_Ptr) args;
 } AST_Call;
 
 /* Variable/array/member access */
@@ -201,7 +201,7 @@ typedef struct AST_Access {
 
 	/* base -- base.arg -- base->arg -- base[arg] -- some_matrix(arg1, arg2)*/
 	AST_Node *base;
-	Array(AST_Node_Ptr) args;
+	QC_Array(AST_Node_Ptr) args;
 	/* 'base.sub' -> Access(Access(Ident(base)), Ident(sub))
 	 * 'base' is wrapped in an extra Access, because then '(base + 0)->sub' and '(base)->sub' and 'base.sub'
 	 * are handled uniformly (every expression has two Access nodes) */
@@ -347,7 +347,7 @@ AST_Ident *access_ident(AST_Access *access);
 
 typedef struct AST_Parent_Map {
 	Hash_Table(AST_Node_Ptr, AST_Node_Ptr) table; /* Use find_- and set_parent_node to access */
-	Array(AST_Node_Ptr) builtin_decls; /* Builtin decls are separate, because they're created during parsing */
+	QC_Array(AST_Node_Ptr) builtin_decls; /* Builtin decls are separate, because they're created during parsing */
 	/* @todo That ^ could maybe be removed. */
 } AST_Parent_Map;
 
@@ -368,11 +368,11 @@ void resolve_ast(AST_Scope *root);
 void unresolve_ast(AST_Node *node);
 
 
-void push_immediate_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
+void push_immediate_subnodes(QC_Array(AST_Node_Ptr) *ret, AST_Node *node);
 /* Gathers immediate referenced (not owned) nodes */
-void push_immediate_refnodes(Array(AST_Node_Ptr) *ret, AST_Node *node);
+void push_immediate_refnodes(QC_Array(AST_Node_Ptr) *ret, AST_Node *node);
 /* Gathers the whole subnode tree to array */
-void push_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_recursing);
+void push_subnodes(QC_Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_recursing);
 /* Rewrites nodes in tree, old_nodes[i] -> new_nodes[i]
  * Doesn't free or allocate any nodes.
  * Doesn't recurse into old_nodes. They can be dangling.
@@ -380,7 +380,7 @@ void push_subnodes(Array(AST_Node_Ptr) *ret, AST_Node *node, bool push_before_re
 AST_Node *replace_nodes_in_ast(AST_Node *node, AST_Node **old_nodes, AST_Node **new_nodes, int node_count);
 
 /* Innermost first */
-void find_subnodes_of_type(Array(AST_Node_Ptr) *ret, AST_Node_Type type, AST_Node *node);
+void find_subnodes_of_type(QC_Array(AST_Node_Ptr) *ret, AST_Node_Type type, AST_Node *node);
 
 /* Debug */
 void print_ast(AST_Node *node, int indent);

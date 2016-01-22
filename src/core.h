@@ -36,13 +36,13 @@ typedef enum { false, true } bool;
 #define JOIN3(A, B, C) JOIN3_IMPL(A, B, C)
 
 /* Not terminated by NULL! */
-typedef struct Buf_Str {
+typedef struct QC_Buf_Str {
 	const char *buf;
 	int len;
-} Buf_Str;
+} QC_Buf_Str;
 
-bool buf_str_equals(Buf_Str a, Buf_Str b);
-Buf_Str c_str_to_buf_str(const char* str);
+bool buf_str_equals(QC_Buf_Str a, QC_Buf_Str b);
+QC_Buf_Str c_str_to_buf_str(const char* str);
 
 /* Args for printf %.*s specifier */
 #define BUF_STR_ARGS(str) str.len, str.buf
@@ -50,7 +50,7 @@ Buf_Str c_str_to_buf_str(const char* str);
 
 /* Dynamic array */
 
-#define Array(V) JOIN2(V, _Array)
+#define QC_Array(V) JOIN2(V, _Array)
 #define create_array(V) JOIN3(create_, V, _array)
 #define destroy_array(V) JOIN3(destroy_, V, _array)
 #define release_array(V) JOIN3(release_, V, _array)
@@ -64,38 +64,38 @@ Buf_Str c_str_to_buf_str(const char* str);
 #define increase_array_capacity(V) JOIN3(increase_array_capacity_, V, _array)
 
 #define DECLARE_ARRAY(V)\
-typedef struct Array(V) {\
+typedef struct QC_Array(V) {\
 	V *data;\
 	int size;\
 	int capacity;\
-} Array(V);\
+} QC_Array(V);\
 \
-Array(V) create_array(V)(int init_capacity);\
-void destroy_array(V)(Array(V) *arr);\
-V *release_array(V)(Array(V) *arr);\
-void push_array(V)(Array(V) *arr, V value);\
-V pop_array(V)(Array(V) *arr);\
-void insert_array(V)(Array(V) *arr, int at_place, V *values, int value_count);\
-void erase_array(V)(Array(V) *arr, int at_place, int erase_count);\
-Array(V) copy_array(V)(Array(V) *arr);\
-void clear_array(V)(Array(V) *arr);\
+QC_Array(V) create_array(V)(int init_capacity);\
+void destroy_array(V)(QC_Array(V) *arr);\
+V *release_array(V)(QC_Array(V) *arr);\
+void push_array(V)(QC_Array(V) *arr, V value);\
+V pop_array(V)(QC_Array(V) *arr);\
+void insert_array(V)(QC_Array(V) *arr, int at_place, V *values, int value_count);\
+void erase_array(V)(QC_Array(V) *arr, int at_place, int erase_count);\
+QC_Array(V) copy_array(V)(QC_Array(V) *arr);\
+void clear_array(V)(QC_Array(V) *arr);\
 
 #define DEFINE_ARRAY(V)\
-Array(V) create_array(V)(int init_capacity)\
+QC_Array(V) create_array(V)(int init_capacity)\
 {\
-	Array(V) arr = {0};\
+	QC_Array(V) arr = {0};\
 	if (init_capacity > 0) {\
 		arr.data = (V*)malloc(init_capacity*sizeof(*arr.data));\
 		arr.capacity = init_capacity;\
 	}\
 	return arr;\
 }\
-void destroy_array(V)(Array(V) *arr)\
+void destroy_array(V)(QC_Array(V) *arr)\
 {\
 	ASSERT(arr);\
 	free(arr->data);\
 }\
-V *release_array(V)(Array(V) *arr)\
+V *release_array(V)(QC_Array(V) *arr)\
 {\
 	V *data = arr->data;\
 	arr->data = NULL;\
@@ -103,7 +103,7 @@ V *release_array(V)(Array(V) *arr)\
 	arr->capacity = 0;\
 	return data;\
 }\
-INTERNAL void increase_array_capacity(V)(Array(V) *arr, int min_size)\
+INTERNAL void increase_array_capacity(V)(QC_Array(V) *arr, int min_size)\
 {\
 	if (min_size <= arr->capacity)\
 		return;\
@@ -113,13 +113,13 @@ INTERNAL void increase_array_capacity(V)(Array(V) *arr, int min_size)\
 		arr->capacity = MAX(min_size, arr->capacity*2);\
 	arr->data = (V*)realloc(arr->data, arr->capacity*sizeof(*arr->data));\
 }\
-void push_array(V)(Array(V) *arr, V value)\
+void push_array(V)(QC_Array(V) *arr, V value)\
 {\
 	ASSERT(arr);\
 	increase_array_capacity(V)(arr, arr->size + 1);\
 	arr->data[arr->size++] = value;\
 }\
-void insert_array(V)(Array(V) *arr, int at_place, V *values, int value_count)\
+void insert_array(V)(QC_Array(V) *arr, int at_place, V *values, int value_count)\
 {\
 	int move_count = arr->size - at_place;\
 	ASSERT(arr);\
@@ -130,7 +130,7 @@ void insert_array(V)(Array(V) *arr, int at_place, V *values, int value_count)\
 	memcpy(arr->data + at_place, values, sizeof(*arr->data)*value_count);\
 	arr->size += value_count;\
 }\
-void erase_array(V)(Array(V) *arr, int at_place, int erase_count)\
+void erase_array(V)(QC_Array(V) *arr, int at_place, int erase_count)\
 {\
 	ASSERT(arr);\
 	ASSERT(at_place >= 0 && at_place < arr->size);\
@@ -139,23 +139,23 @@ void erase_array(V)(Array(V) *arr, int at_place, int erase_count)\
 	memmove(arr->data + at_place, arr->data + at_place + erase_count, sizeof(*arr->data)*(arr->size - at_place - erase_count));\
 	arr->size -= erase_count;\
 }\
-V pop_array(V)(Array(V) *arr)\
+V pop_array(V)(QC_Array(V) *arr)\
 {\
 	ASSERT(arr);\
 	ASSERT(arr->size > 0);\
 	--arr->size;\
 	return arr->data[arr->size];\
 }\
-Array(V) copy_array(V)(Array(V) *arr)\
+QC_Array(V) copy_array(V)(QC_Array(V) *arr)\
 {\
-	Array(V) copy = {0};\
+	QC_Array(V) copy = {0};\
 	copy.data = (V*)malloc(arr->capacity*sizeof(*arr->data));\
 	memcpy(copy.data, arr->data, arr->size*sizeof(*arr->data));\
 	copy.size = arr->size;\
 	copy.capacity = arr->capacity;\
 	return copy;\
 }\
-void clear_array(V)(Array(V) *arr)\
+void clear_array(V)(QC_Array(V) *arr)\
 {\
 	ASSERT(arr);\
 	arr->size = 0;\
@@ -302,7 +302,7 @@ DECLARE_ARRAY(char)
 DECLARE_ARRAY(int)
 
 /* @todo Make this safe.. */
-void safe_vsprintf(Array(char) *buf, const char *fmt, va_list args);
-void append_str(Array(char) *buf, const char *fmt, ...);
+void safe_vsprintf(QC_Array(char) *buf, const char *fmt, va_list args);
+void append_str(QC_Array(char) *buf, const char *fmt, ...);
 
 #endif

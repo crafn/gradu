@@ -562,7 +562,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 {
 	int i, k;
 	QC_AST_Func_Decl *last_alloc_field_func = NULL;
-	QC_AST_Func_Decl *last_QC_FREE_field_func = NULL;
+	QC_AST_Func_Decl *last_free_field_func = NULL;
 
 	/* Create c decls for matrix and field builtin types */
 	for (i = 0; i < root->nodes.size; ++i) {
@@ -747,7 +747,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 							QC_AST_BASE(qc_create_cast( /* For c++ */
 								(QC_AST_Type*)qc_copy_ast(QC_AST_BASE(c_mat_elements_decl(field_decl)->type)),
 								QC_AST_BASE(qc_create_call_1(
-									qc_create_ident_with_text(NULL, "QC_MALLOC"),
+									qc_create_ident_with_text(NULL, "malloc"),
 									qc_create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul)
 								))
 							))
@@ -785,42 +785,42 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 
 				last_alloc_field_func = alloc_func;
 				generated[0] = QC_AST_BASE(alloc_func);
-			} else if (!strcmp(func_decl->ident->text.data, "QC_FREE_field")) {
-				QC_AST_Func_Decl *QC_FREE_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_AST_BASE(func_decl));
-				QC_AST_Type_Decl *field_decl = QC_FREE_func->params.data[0]->type->base_type_decl;
+			} else if (!strcmp(func_decl->ident->text.data, "free_field")) {
+				QC_AST_Func_Decl *free_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_AST_BASE(func_decl));
+				QC_AST_Type_Decl *field_decl = free_func->params.data[0]->type->base_type_decl;
 				QC_Builtin_Type bt = field_decl->builtin_type;
 				field_decl = field_decl->builtin_concrete_decl;
 
-				QC_ASSERT(!QC_FREE_func->body);
-				QC_ASSERT(QC_FREE_func->params.size == 1);
+				QC_ASSERT(!free_func->body);
+				QC_ASSERT(free_func->params.size == 1);
 
-				QC_FREE_func->is_builtin = QC_false;
-				func_decl->builtin_concrete_decl = QC_FREE_func;
-				qc_append_str(&QC_FREE_func->ident->text, "_");
-				qc_append_builtin_type_c_str(&QC_FREE_func->ident->text, bt);
+				free_func->is_builtin = QC_false;
+				func_decl->builtin_concrete_decl = free_func;
+				qc_append_str(&free_func->ident->text, "_");
+				qc_append_builtin_type_c_str(&free_func->ident->text, bt);
 
 				{ /* Function contents */
 					QC_AST_Access *access_field_data = qc_create_member_access(
-							qc_copy_ast(QC_AST_BASE(QC_FREE_func->params.data[0]->ident)),
+							qc_copy_ast(QC_AST_BASE(free_func->params.data[0]->ident)),
 							c_mat_elements_decl(field_decl));
-					QC_AST_Call *libc_QC_FREE_call = qc_create_call_1(
-							qc_create_ident_with_text(NULL, "QC_FREE"),
+					QC_AST_Call *libc_free_call = qc_create_call_1(
+							qc_create_ident_with_text(NULL, "free"),
 							QC_AST_BASE(access_field_data));
 
-					QC_FREE_func->body = qc_create_scope_node();
-					qc_push_array(QC_AST_Node_Ptr)(&QC_FREE_func->body->nodes, QC_AST_BASE(libc_QC_FREE_call));
+					free_func->body = qc_create_scope_node();
+					qc_push_array(QC_AST_Node_Ptr)(&free_func->body->nodes, QC_AST_BASE(libc_free_call));
 				}
 
-				last_QC_FREE_field_func = QC_FREE_func;
-				generated[0] = QC_AST_BASE(QC_FREE_func);
+				last_free_field_func = free_func;
+				generated[0] = QC_AST_BASE(free_func);
 			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "alloc_device_field")) {
 				/* @todo Call to alloc_field */
 				QC_ASSERT(last_alloc_field_func);
 				func_decl->builtin_concrete_decl = last_alloc_field_func;
-			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "QC_FREE_device_field")) {
-				/* @todo Call to QC_FREE_field */
-				QC_ASSERT(last_QC_FREE_field_func);
-				func_decl->builtin_concrete_decl = last_QC_FREE_field_func;
+			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "free_device_field")) {
+				/* @todo Call to free_field */
+				QC_ASSERT(last_free_field_func);
+				func_decl->builtin_concrete_decl = last_free_field_func;
 			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "memcpy_field")) {
 				QC_AST_Func_Decl *memcpy_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_AST_BASE(func_decl));
 				QC_AST_Var_Decl *dst_field_var_decl = memcpy_func->params.data[0];
@@ -842,7 +842,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 					QC_AST_Access *access_src_field = qc_create_member_access(
 							qc_copy_ast(QC_AST_BASE(memcpy_func->params.data[1]->ident)),
 							c_mat_elements_decl(field_decl));
-					QC_AST_Call *libc_QC_FREE_call;
+					QC_AST_Call *libc_free_call;
 
 					QC_Array(QC_AST_Node_Ptr) size_accesses = qc_create_array(QC_AST_Node_Ptr)(3);
 					qc_push_array(QC_AST_Node_Ptr)(&size_accesses,
@@ -852,7 +852,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 							QC_AST_BASE(c_create_field_dim_size(qc_create_simple_access(dst_field_var_decl), k)));
 					}
 
-					libc_QC_FREE_call = qc_create_call_3(
+					libc_free_call = qc_create_call_3(
 							qc_create_ident_with_text(NULL, "memcpy"),
 							QC_AST_BASE(access_dst_field),
 							QC_AST_BASE(access_src_field),
@@ -862,7 +862,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 					qc_destroy_array(QC_AST_Node_Ptr)(&size_accesses);
 
 					memcpy_func->body = qc_create_scope_node();
-					qc_push_array(QC_AST_Node_Ptr)(&memcpy_func->body->nodes, QC_AST_BASE(libc_QC_FREE_call));
+					qc_push_array(QC_AST_Node_Ptr)(&memcpy_func->body->nodes, QC_AST_BASE(libc_free_call));
 				}
 
 				generated[0] = QC_AST_BASE(memcpy_func);

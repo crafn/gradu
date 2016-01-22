@@ -1,6 +1,6 @@
 /*
-   Include this file wherever you want the implementation of the library to be.
-   Define wanted output backends (QC_BACKEND_* macros) before including.
+	Include this file wherever you want the implementation of the library to be.
+	Define wanted output backends (QC_BACKEND_* macros) before including.
 */
 
 /* Library settings -- override defaults by defining them before including this file */

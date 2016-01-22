@@ -464,9 +464,9 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 				qc_push_array(QC_AST_Node_Ptr)(&ctx->parent_map.builtin_decls, QC_AST_BASE(fdecl));
 			}
 
-			/* Create field QC_FREE funcs */
+			/* Create field free funcs */
 			for (type = 0; type < 2; ++type) { 
-				const char *names[2] = { "QC_FREE_field", "QC_FREE_device_field" };
+				const char *names[2] = { "free_field", "free_device_field" };
 				QC_AST_Func_Decl *fdecl = qc_create_func_decl_node();
 				fdecl->is_builtin = QC_true;
 

@@ -374,7 +374,7 @@ void qc_push_immediate_refnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *nod
 /* Gathers the whole subnode tree to array */
 void qc_push_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *node, QC_Bool qc_push_before_recursing);
 /* Rewrites nodes in tree, old_nodes[i] -> new_nodes[i]
- * Doesn't QC_FREE or allocate any nodes.
+ * Doesn't free or allocate any nodes.
  * Doesn't recurse into old_nodes. They can be dangling.
  * Is recursive, so if some new_nodes[i] contain old_nodes[k], it will also be replaced. */
 QC_AST_Node *qc_replace_nodes_in_ast(QC_AST_Node *node, QC_AST_Node **old_nodes, QC_AST_Node **new_nodes, int node_count);

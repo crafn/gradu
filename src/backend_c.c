@@ -8,7 +8,7 @@ INTERNAL bool nested_expr_needs_parens(QC_AST_Node *expr, QC_AST_Node *nested)
 		QC_CASTED_NODE(QC_AST_Biop, op, expr);
 		QC_CASTED_NODE(QC_AST_Biop, subop, nested);
 
-		return biop_prec(op->type) > biop_prec(subop->type);
+		return qc_biop_prec(op->type) > qc_biop_prec(subop->type);
 	}
 }
 

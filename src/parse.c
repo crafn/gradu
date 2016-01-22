@@ -54,7 +54,7 @@ double str_to_float(QC_Buf_Str text)
 
 #define UOP_PRECEDENCE 100000
 /* Not all of the accepted tokens are actually binary operators. They're here for similar precedence handling. */
-int biop_prec(QC_Token_Type type)
+int qc_biop_prec(QC_Token_Type type)
 {
 	/* Order should match with C operator precedence */
 	int prec = 1;
@@ -94,7 +94,7 @@ int biop_prec(QC_Token_Type type)
 }
 
 /* -1 left, 1 right */
-int biop_assoc(QC_Token_Type type)
+int qc_biop_assoc(QC_Token_Type type)
 {
 	switch (type) {
 		case QC_Token_assign: return 1; /* a = b = c  <=>  (a = (b = c)) */
@@ -1070,8 +1070,8 @@ INTERNAL bool parse_biop_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *lh
 	QC_Token *tok = cur_tok(ctx);
 	QC_AST_Type new_type_hint;
 	QC_AST_Type *new_type_hint_ptr = NULL;
-	int prec = biop_prec(tok->type);
-	int assoc = biop_assoc(tok->type);
+	int prec = qc_biop_prec(tok->type);
+	int assoc = qc_biop_assoc(tok->type);
 	int next_min_prec;
 
 	begin_node_parsing(ctx, QC_AST_BASE(biop));
@@ -1208,7 +1208,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, QC_AST
 		goto mismatch;
 	}
 
-	while (biop_prec(cur_tok(ctx)->type) >= min_prec) {
+	while (qc_biop_prec(cur_tok(ctx)->type) >= min_prec) {
 
 		if (parse_biop_expr(ctx, &expr, expr)) {
 			;
@@ -1514,7 +1514,7 @@ mismatch:
 	return false;
 }
 
-QC_AST_Scope *parse_tokens(QC_Token *toks)
+QC_AST_Scope *qc_parse_tokens(QC_Token *toks)
 {
 	bool failure = false;
 	Parse_Ctx ctx = {0};

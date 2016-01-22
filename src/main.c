@@ -102,7 +102,7 @@ int main(int argc, const char **argv)
 			qc_print_tokens(tokens.data, tokens.size);
 		}
 
-		root = parse_tokens(tokens.data);
+		root = qc_parse_tokens(tokens.data);
 		if (!root)
 			goto error;
 

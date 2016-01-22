@@ -188,7 +188,7 @@ INTERNAL void commit_token(QC_Tokenize_Ctx *t, const char *b, const char *e, QC_
 			++t->comments_on_line;
 		}
 
-		push_array(QC_Token)(&t->tokens, tok);
+		qc_push_array(QC_Token)(&t->tokens, tok);
 		t->state = Tok_State_none;
 		++t->tokens_on_line;
 	}
@@ -209,7 +209,7 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 	QC_Tokenize_Ctx t = {0};
 	t.end = src + src_size;
 	t.cur_line = 1;
-	t.tokens = create_array(QC_Token)(src_size/4); /* Estimate token count */
+	t.tokens = qc_create_array(QC_Token)(src_size/4); /* Estimate token count */
 
 	while (cur < t.end && tok_begin < t.end) {
 		switch (t.state) {
@@ -303,7 +303,7 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 		eof.text.len = strlen(eof.text.buf);
 		eof.line = t.cur_line;
 		eof.last_on_line = true;
-		push_array(QC_Token)(&t.tokens, eof);
+		qc_push_array(QC_Token)(&t.tokens, eof);
 	}
 	return t.tokens;
 }

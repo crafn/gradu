@@ -51,14 +51,14 @@ QC_Buf_Str c_str_to_buf_str(const char* str);
 /* Dynamic array */
 
 #define QC_Array(V) JOIN2(V, _Array)
-#define create_array(V) JOIN3(create_, V, _array)
-#define destroy_array(V) JOIN3(destroy_, V, _array)
+#define qc_create_array(V) JOIN3(qc_create_, V, _array)
+#define qc_destroy_array(V) JOIN3(qc_destroy_, V, _array)
 #define release_array(V) JOIN3(release_, V, _array)
-#define push_array(V) JOIN3(push_, V, _array)
+#define qc_push_array(V) JOIN3(qc_push_, V, _array)
 #define pop_array(V) JOIN3(pop_, V, _array)
 #define insert_array(V) JOIN3(insert_, V, _array)
 #define erase_array(V) JOIN3(erase_, V, _array)
-#define copy_array(V) JOIN3(copy_, V, _array)
+#define qc_copy_array(V) JOIN3(qc_copy_, V, _array)
 #define clear_array(V) JOIN3(clear_, V, _array)
 /* Internal */
 #define increase_array_capacity(V) JOIN3(increase_array_capacity_, V, _array)
@@ -70,18 +70,18 @@ typedef struct QC_Array(V) {\
 	int capacity;\
 } QC_Array(V);\
 \
-QC_Array(V) create_array(V)(int init_capacity);\
-void destroy_array(V)(QC_Array(V) *arr);\
+QC_Array(V) qc_create_array(V)(int init_capacity);\
+void qc_destroy_array(V)(QC_Array(V) *arr);\
 V *release_array(V)(QC_Array(V) *arr);\
-void push_array(V)(QC_Array(V) *arr, V value);\
+void qc_push_array(V)(QC_Array(V) *arr, V value);\
 V pop_array(V)(QC_Array(V) *arr);\
 void insert_array(V)(QC_Array(V) *arr, int at_place, V *values, int value_count);\
 void erase_array(V)(QC_Array(V) *arr, int at_place, int erase_count);\
-QC_Array(V) copy_array(V)(QC_Array(V) *arr);\
+QC_Array(V) qc_copy_array(V)(QC_Array(V) *arr);\
 void clear_array(V)(QC_Array(V) *arr);\
 
 #define DEFINE_ARRAY(V)\
-QC_Array(V) create_array(V)(int init_capacity)\
+QC_Array(V) qc_create_array(V)(int init_capacity)\
 {\
 	QC_Array(V) arr = {0};\
 	if (init_capacity > 0) {\
@@ -90,7 +90,7 @@ QC_Array(V) create_array(V)(int init_capacity)\
 	}\
 	return arr;\
 }\
-void destroy_array(V)(QC_Array(V) *arr)\
+void qc_destroy_array(V)(QC_Array(V) *arr)\
 {\
 	ASSERT(arr);\
 	free(arr->data);\
@@ -113,7 +113,7 @@ INTERNAL void increase_array_capacity(V)(QC_Array(V) *arr, int min_size)\
 		arr->capacity = MAX(min_size, arr->capacity*2);\
 	arr->data = (V*)realloc(arr->data, arr->capacity*sizeof(*arr->data));\
 }\
-void push_array(V)(QC_Array(V) *arr, V value)\
+void qc_push_array(V)(QC_Array(V) *arr, V value)\
 {\
 	ASSERT(arr);\
 	increase_array_capacity(V)(arr, arr->size + 1);\
@@ -146,7 +146,7 @@ V pop_array(V)(QC_Array(V) *arr)\
 	--arr->size;\
 	return arr->data[arr->size];\
 }\
-QC_Array(V) copy_array(V)(QC_Array(V) *arr)\
+QC_Array(V) qc_copy_array(V)(QC_Array(V) *arr)\
 {\
 	QC_Array(V) copy = {0};\
 	copy.data = (V*)malloc(arr->capacity*sizeof(*arr->data));\
@@ -165,10 +165,10 @@ void clear_array(V)(QC_Array(V) *arr)\
 /* Hashing */
 
 /* Hash "template" */
-#define hash(V) JOIN2(hash_, V)
+#define qc_hash(V) JOIN2(qc_hash_, V)
 
-/* Hash functions should avoid generating neighbouring hashes easily (linear probing) */
-static U32 hash(Void_Ptr)(Void_Ptr value) { return (U32)(((U64)value)/2); }
+/* Hash functions should avoid generating neighbouring qc_hashes easily (linear probing) */
+static U32 qc_hash(Void_Ptr)(Void_Ptr value) { return (U32)(((U64)value)/2); }
 
 
 
@@ -178,8 +178,8 @@ static U32 hash(Void_Ptr)(Void_Ptr value) { return (U32)(((U64)value)/2); }
 /* Key_Value */
 #define KV(K, V) JOIN3(K, _, V)
 
-#define create_tbl(K, V) JOIN3(create_, KV(K, V), _tbl)
-#define destroy_tbl(K, V) JOIN3(destroy_, KV(K, V), _tbl)
+#define qc_create_tbl(K, V) JOIN3(qc_create_, KV(K, V), _tbl)
+#define qc_destroy_tbl(K, V) JOIN3(qc_destroy_, KV(K, V), _tbl)
 #define get_tbl(K, V) JOIN3(get_, KV(K, V), _tbl)
 #define set_tbl(K, V) JOIN3(set_, KV(K, V), _tbl)
 #define null_tbl_entry(K, V) JOIN3(null_, KV(K, V), _tbl_entry)
@@ -201,8 +201,8 @@ typedef struct QC_Hash_Table_Entry(K, V) {\
 	V value;\
 } QC_Hash_Table_Entry(K, V);\
 \
-QC_Hash_Table(K, V) create_tbl(K, V)(	K null_key, V null_value, int max_size);\
-void destroy_tbl(K, V)(QC_Hash_Table(K, V) *tbl);\
+QC_Hash_Table(K, V) qc_create_tbl(K, V)(	K null_key, V null_value, int max_size);\
+void qc_destroy_tbl(K, V)(QC_Hash_Table(K, V) *tbl);\
 \
 V get_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key);\
 void set_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key, V value);\
@@ -216,7 +216,7 @@ QC_Hash_Table_Entry(K, V) null_tbl_entry(K, V)(QC_Hash_Table(K, V) *tbl)\
 	return e;\
 }\
 \
-QC_Hash_Table(K, V) create_tbl(K, V)(K null_key, V null_value, int max_size)\
+QC_Hash_Table(K, V) qc_create_tbl(K, V)(K null_key, V null_value, int max_size)\
 {\
 	int i;\
 	QC_Hash_Table(K, V) tbl = {0};\
@@ -229,7 +229,7 @@ QC_Hash_Table(K, V) create_tbl(K, V)(K null_key, V null_value, int max_size)\
 	return tbl;\
 }\
 \
-void destroy_tbl(K, V)(QC_Hash_Table(K, V) *tbl)\
+void qc_destroy_tbl(K, V)(QC_Hash_Table(K, V) *tbl)\
 {\
 	free(tbl->array);\
 	tbl->array = NULL;\
@@ -237,7 +237,7 @@ void destroy_tbl(K, V)(QC_Hash_Table(K, V) *tbl)\
 \
 V get_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key)\
 {\
-	int ix = hash(K)(key) % tbl->array_size;\
+	int ix = qc_hash(K)(key) % tbl->array_size;\
 	/* Linear probing */\
 	/* Should not be infinite because set_id_handle_tbl asserts if table is full */\
 	while (tbl->array[ix].key != key && tbl->array[ix].key != tbl->null_key)\
@@ -251,7 +251,7 @@ V get_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key)\
 \
 void set_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key, V value)\
 {\
-	int ix = hash(K)(key) % tbl->array_size;\
+	int ix = qc_hash(K)(key) % tbl->array_size;\
 	ASSERT(key != tbl->null_key);\
 \
 	/* Linear probing */\

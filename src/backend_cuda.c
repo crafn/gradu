@@ -17,7 +17,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 				continue;
 
 			if (!strcmp(func_decl->ident->text.data, "alloc_device_field")) {
-				QC_AST_Func_Decl *alloc_func = (QC_AST_Func_Decl*)copy_ast(QC_AST_BASE(func_decl));
+				QC_AST_Func_Decl *alloc_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_AST_BASE(func_decl));
 				QC_AST_Type_Decl *field_decl = alloc_func->return_type->base_type_decl;
 				QC_Builtin_Type bt = field_decl->builtin_type;
 				field_decl = field_decl->builtin_concrete_decl;
@@ -34,84 +34,84 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 				{ /* Function contents */
 					QC_AST_Var_Decl *field_var_decl;
 					QC_AST_Biop *sizeof_expr;
-					QC_Array(QC_AST_Node_Ptr) size_accesses = create_array(QC_AST_Node_Ptr)(alloc_func->params.size);
+					QC_Array(QC_AST_Node_Ptr) size_accesses = qc_create_array(QC_AST_Node_Ptr)(alloc_func->params.size);
 					QC_AST_Call *elements_assign;
 					QC_AST_Biop *is_device_field_assign;
 					QC_AST_Control *ret_stmt;
 
-					alloc_func->body = create_scope_node();
+					alloc_func->body = qc_create_scope_node();
 
-					field_var_decl = create_simple_var_decl(field_decl, "field");
-					push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(field_var_decl));
+					field_var_decl = qc_create_simple_var_decl(field_decl, "field");
+					qc_push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(field_var_decl));
 
 					sizeof_expr =
-						create_sizeof(
-							QC_AST_BASE(create_deref(
-								QC_AST_BASE(create_simple_member_access(
+						qc_create_sizeof(
+							QC_AST_BASE(qc_create_deref(
+								QC_AST_BASE(qc_create_simple_member_access(
 									field_var_decl,
 									c_mat_elements_decl(field_decl)
 								))
 							))
 						);
-					push_array(QC_AST_Node_Ptr)(&size_accesses, QC_AST_BASE(sizeof_expr));
+					qc_push_array(QC_AST_Node_Ptr)(&size_accesses, QC_AST_BASE(sizeof_expr));
 					for (k = 0; k < alloc_func->params.size; ++k) {
-						push_array(QC_AST_Node_Ptr)(&size_accesses,
-							QC_AST_BASE(create_access_for_var(alloc_func->params.data[k])));
+						qc_push_array(QC_AST_Node_Ptr)(&size_accesses,
+							QC_AST_BASE(qc_create_access_for_var(alloc_func->params.data[k])));
 					}
 
-					elements_assign = create_call_2(
-						create_ident_with_text(NULL, "cudaMalloc"),
-						QC_AST_BASE(create_cast( /* For c++ */
-							create_builtin_type(void_builtin_type(), 2, root),
-							QC_AST_BASE(create_addrof(
-								QC_AST_BASE(create_simple_member_access(
+					elements_assign = qc_create_call_2(
+						qc_create_ident_with_text(NULL, "cudaMalloc"),
+						QC_AST_BASE(qc_create_cast( /* For c++ */
+							qc_create_builtin_type(qc_void_builtin_type(), 2, root),
+							QC_AST_BASE(qc_create_addrof(
+								QC_AST_BASE(qc_create_simple_member_access(
 									field_var_decl,
 									c_mat_elements_decl(field_decl)
 								))
 							))
 						)),
-						create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul)
+						qc_create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul)
 					);
 
-					push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(elements_assign));
-					destroy_array(QC_AST_Node_Ptr)(&size_accesses);
+					qc_push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(elements_assign));
+					qc_destroy_array(QC_AST_Node_Ptr)(&size_accesses);
 
 					for (k = 0; k < bt.field_dim; ++k) {
 						QC_AST_Biop *assign =
-							create_assign(
-								QC_AST_BASE(create_member_array_access(
-									copy_ast(QC_AST_BASE(field_var_decl->ident)), /* @todo Access var */
+							qc_create_assign(
+								QC_AST_BASE(qc_create_member_array_access(
+									qc_copy_ast(QC_AST_BASE(field_var_decl->ident)), /* @todo Access var */
 									c_field_size_decl(field_decl),
-									QC_AST_BASE(create_integer_literal(k, NULL)),
+									QC_AST_BASE(qc_create_integer_literal(k, NULL)),
 									false
 								)),
-								QC_AST_BASE(create_access_for_var(
+								QC_AST_BASE(qc_create_access_for_var(
 									alloc_func->params.data[k]
 								))
 							);
-						push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(assign));
+						qc_push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(assign));
 					}
 
 					is_device_field_assign =
-						create_assign(
-							QC_AST_BASE(create_simple_member_access(
+						qc_create_assign(
+							QC_AST_BASE(qc_create_simple_member_access(
 								field_var_decl,
 								is_device_field_member_decl(field_decl)
 							)),
-							QC_AST_BASE(create_integer_literal(1, root))
+							QC_AST_BASE(qc_create_integer_literal(1, root))
 						);
-					push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(is_device_field_assign));
+					qc_push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(is_device_field_assign));
 
 					ret_stmt =
-						create_return(QC_AST_BASE(
-							create_access_for_var(field_var_decl)
+						qc_create_return(QC_AST_BASE(
+							qc_create_access_for_var(field_var_decl)
 						));
-					push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(ret_stmt));
+					qc_push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_AST_BASE(ret_stmt));
 				}
 
 				generated = QC_AST_BASE(alloc_func);
 			} else if (!strcmp(func_decl->ident->text.data, "free_device_field")) {
-				QC_AST_Func_Decl *free_func = (QC_AST_Func_Decl*)copy_ast(QC_AST_BASE(func_decl));
+				QC_AST_Func_Decl *free_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_AST_BASE(func_decl));
 				QC_AST_Type_Decl *field_decl = free_func->params.data[0]->type->base_type_decl;
 				QC_Builtin_Type bt = field_decl->builtin_type;
 				field_decl = field_decl->builtin_concrete_decl;
@@ -125,20 +125,20 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 				append_builtin_type_c_str(&free_func->ident->text, bt);
 
 				{ /* Function contents */
-					QC_AST_Access *access_field_data = create_member_access(
-							copy_ast(QC_AST_BASE(free_func->params.data[0]->ident)),
+					QC_AST_Access *access_field_data = qc_create_member_access(
+							qc_copy_ast(QC_AST_BASE(free_func->params.data[0]->ident)),
 							c_mat_elements_decl(field_decl));
-					QC_AST_Call *libc_free_call = create_call_1(
-							create_ident_with_text(NULL, "cudaFree"),
+					QC_AST_Call *libc_free_call = qc_create_call_1(
+							qc_create_ident_with_text(NULL, "cudaFree"),
 							QC_AST_BASE(access_field_data));
 
-					free_func->body = create_scope_node();
-					push_array(QC_AST_Node_Ptr)(&free_func->body->nodes, QC_AST_BASE(libc_free_call));
+					free_func->body = qc_create_scope_node();
+					qc_push_array(QC_AST_Node_Ptr)(&free_func->body->nodes, QC_AST_BASE(libc_free_call));
 				}
 
 				generated = QC_AST_BASE(free_func);
 			} else if (!strcmp(func_decl->ident->text.data, "memcpy_field")) {
-				QC_AST_Func_Decl *memcpy_func = (QC_AST_Func_Decl*)copy_ast(QC_AST_BASE(func_decl));
+				QC_AST_Func_Decl *memcpy_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_AST_BASE(func_decl));
 				QC_AST_Var_Decl *dst_field_var_decl = memcpy_func->params.data[0];
 				QC_AST_Var_Decl *src_field_var_decl = memcpy_func->params.data[1];
 				QC_AST_Type_Decl *field_decl = dst_field_var_decl->type->base_type_decl;
@@ -153,7 +153,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 				append_str(&memcpy_func->ident->text, "_");
 				append_builtin_type_c_str(&memcpy_func->ident->text, bt);
 				
-				memcpy_func->body = create_scope_node();
+				memcpy_func->body = qc_create_scope_node();
 
 				{ /* Function contents */
 					/* @todo Generate matching size assert */
@@ -169,47 +169,47 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 							"cudaMemcpyDeviceToHost",
 							"cudaMemcpyDeviceToDevice"
 						};
-						QC_Array(QC_AST_Node_Ptr) size_accesses = create_array(QC_AST_Node_Ptr)(3);
-						push_array(QC_AST_Node_Ptr)(&size_accesses,
+						QC_Array(QC_AST_Node_Ptr) size_accesses = qc_create_array(QC_AST_Node_Ptr)(3);
+						qc_push_array(QC_AST_Node_Ptr)(&size_accesses,
 								QC_AST_BASE(c_create_mat_element_sizeof(dst_field_var_decl)));
 						for (m = 0; m < bt.field_dim; ++m) {
-							push_array(QC_AST_Node_Ptr)(&size_accesses, 
-								QC_AST_BASE(c_create_field_dim_size(create_simple_access(dst_field_var_decl), m)));
+							qc_push_array(QC_AST_Node_Ptr)(&size_accesses, 
+								QC_AST_BASE(c_create_field_dim_size(qc_create_simple_access(dst_field_var_decl), m)));
 						}
 
-						access_dst_field =	create_simple_member_access(
+						access_dst_field =	qc_create_simple_member_access(
 												memcpy_func->params.data[0],
 												c_mat_elements_decl(field_decl));
-						access_src_field =	create_simple_member_access(
+						access_src_field =	qc_create_simple_member_access(
 												memcpy_func->params.data[1],
 												c_mat_elements_decl(field_decl));
-						is_dst_device = create_simple_member_access(
+						is_dst_device = qc_create_simple_member_access(
 											dst_field_var_decl,
 											is_device_field_member_decl(field_decl)
 										);
-						is_src_device = create_simple_member_access(
+						is_src_device = qc_create_simple_member_access(
 											src_field_var_decl,
 											is_device_field_member_decl(field_decl)
 										);
 
-						cond =	create_if_1(
-								QC_AST_BASE(create_and(
-									QC_AST_BASE(create_equals(	QC_AST_BASE(is_dst_device),
-															QC_AST_BASE(create_integer_literal(src_host, root)))),
-									QC_AST_BASE(create_equals(	QC_AST_BASE(is_src_device),
-															QC_AST_BASE(create_integer_literal(dst_host, root))))
+						cond =	qc_create_if_1(
+								QC_AST_BASE(qc_create_and(
+									QC_AST_BASE(qc_create_equals(	QC_AST_BASE(is_dst_device),
+															QC_AST_BASE(qc_create_integer_literal(src_host, root)))),
+									QC_AST_BASE(qc_create_equals(	QC_AST_BASE(is_src_device),
+															QC_AST_BASE(qc_create_integer_literal(dst_host, root))))
 								)),
-								QC_AST_BASE(create_call_4(
-									create_ident_with_text(NULL, "cudaMemcpy"),
+								QC_AST_BASE(qc_create_call_4(
+									qc_create_ident_with_text(NULL, "cudaMemcpy"),
 									QC_AST_BASE(access_dst_field),
 									QC_AST_BASE(access_src_field),
-									create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul),
-									QC_AST_BASE(create_ident_with_text(NULL, cuda_memcpy_enums[k]))
+									qc_create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul),
+									QC_AST_BASE(qc_create_ident_with_text(NULL, cuda_memcpy_enums[k]))
 								))
 								);
 
-						push_array(QC_AST_Node_Ptr)(&memcpy_func->body->nodes, QC_AST_BASE(cond));
-						destroy_array(QC_AST_Node_Ptr)(&size_accesses);
+						qc_push_array(QC_AST_Node_Ptr)(&memcpy_func->body->nodes, QC_AST_BASE(cond));
+						qc_destroy_array(QC_AST_Node_Ptr)(&size_accesses);
 					}
 				}
 
@@ -228,36 +228,36 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 void parallel_loops_to_cuda(QC_AST_Scope *root)
 {
 	int i, k, m;
-	QC_Array(QC_AST_Node_Ptr) replace_list_old = create_array(QC_AST_Node_Ptr)(0);
-	QC_Array(QC_AST_Node_Ptr) replace_list_new = create_array(QC_AST_Node_Ptr)(0);
-	QC_Array(QC_AST_Node_Ptr) subnodes = create_array(QC_AST_Node_Ptr)(0);
-	QC_AST_Parent_Map map = create_parent_map(QC_AST_BASE(root));
+	QC_Array(QC_AST_Node_Ptr) replace_list_old = qc_create_array(QC_AST_Node_Ptr)(0);
+	QC_Array(QC_AST_Node_Ptr) replace_list_new = qc_create_array(QC_AST_Node_Ptr)(0);
+	QC_Array(QC_AST_Node_Ptr) subnodes = qc_create_array(QC_AST_Node_Ptr)(0);
+	QC_AST_Parent_Map map = qc_create_parent_map(QC_AST_BASE(root));
 
-	find_subnodes_of_type(&subnodes, QC_AST_parallel, QC_AST_BASE(root));
+	qc_find_subnodes_of_type(&subnodes, QC_AST_parallel, QC_AST_BASE(root));
 
 	for (i = 0; i < subnodes.size; ++i) {
 		QC_CASTED_NODE(QC_AST_Parallel, parallel, subnodes.data[i]);
 		QC_Array(QC_AST_Node_Ptr) var_accesses;
 		QC_Array(QC_AST_Var_Decl_Ptr) cuda_var_decls;
 
-		var_accesses = create_array(QC_AST_Node_Ptr)(0);
-		cuda_var_decls = create_array(QC_AST_Var_Decl_Ptr)(0);
+		var_accesses = qc_create_array(QC_AST_Node_Ptr)(0);
+		cuda_var_decls = qc_create_array(QC_AST_Var_Decl_Ptr)(0);
 
 		{ /* Find vars used in loop */
-			find_subnodes_of_type(&var_accesses, QC_AST_access, parallel->output);
-			find_subnodes_of_type(&var_accesses, QC_AST_access, parallel->input);
-			find_subnodes_of_type(&var_accesses, QC_AST_access, QC_AST_BASE(parallel->body));
+			qc_find_subnodes_of_type(&var_accesses, QC_AST_access, parallel->output);
+			qc_find_subnodes_of_type(&var_accesses, QC_AST_access, parallel->input);
+			qc_find_subnodes_of_type(&var_accesses, QC_AST_access, QC_AST_BASE(parallel->body));
 
 			/* Erase locals */
 			for (k = 0; k < var_accesses.size; ++k) {
-				QC_AST_Ident *ident = access_ident((QC_AST_Access*)var_accesses.data[k]);
-				if (is_subnode(&map, QC_AST_BASE(parallel->body), ident->decl))
+				QC_AST_Ident *ident = qc_access_ident((QC_AST_Access*)var_accesses.data[k]);
+				if (qc_is_subnode(&map, QC_AST_BASE(parallel->body), ident->decl))
 					erase_array(QC_AST_Node_Ptr)(&var_accesses, k--, 1);
 			}
 
 			/* Erase builtin 'id' var */
 			for (k = 0; k < var_accesses.size; ++k) {
-				QC_AST_Ident *ident = access_ident((QC_AST_Access*)var_accesses.data[k]);
+				QC_AST_Ident *ident = qc_access_ident((QC_AST_Access*)var_accesses.data[k]);
 				if (!strcmp(ident->text.data, "id")) {
 					erase_array(QC_AST_Node_Ptr)(&var_accesses, k--, 1);
 				}
@@ -267,8 +267,8 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 			/* @todo Remove O(n^2) */
 			for (k = 0; k < var_accesses.size; ++k) {
 				for (m = k + 1; m < var_accesses.size; ++m) {
-					QC_AST_Ident *a = access_ident((QC_AST_Access*)var_accesses.data[k]);
-					QC_AST_Ident *b = access_ident((QC_AST_Access*)var_accesses.data[m]);
+					QC_AST_Ident *a = qc_access_ident((QC_AST_Access*)var_accesses.data[k]);
+					QC_AST_Ident *b = qc_access_ident((QC_AST_Access*)var_accesses.data[m]);
 					if (a->decl == b->decl)
 						erase_array(QC_AST_Node_Ptr)(&var_accesses, m--, 1);
 				}
@@ -276,32 +276,32 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 		}
 
 		{ /* Create cuda call site */
-			QC_AST_Scope *scope = create_scope_node();
+			QC_AST_Scope *scope = qc_create_scope_node();
 
-			QC_Array(QC_AST_Node_Ptr) malloc_calls = create_array(QC_AST_Node_Ptr)(0);
-			QC_Array(QC_AST_Node_Ptr) memcpy_to_device_calls = create_array(QC_AST_Node_Ptr)(0);
-			QC_Array(QC_AST_Node_Ptr) memcpy_from_device_calls = create_array(QC_AST_Node_Ptr)(0);
-			QC_Array(QC_AST_Node_Ptr) free_calls = create_array(QC_AST_Node_Ptr)(0);
-			QC_AST_Call *cuda_call = create_call_node();
+			QC_Array(QC_AST_Node_Ptr) malloc_calls = qc_create_array(QC_AST_Node_Ptr)(0);
+			QC_Array(QC_AST_Node_Ptr) memcpy_to_device_calls = qc_create_array(QC_AST_Node_Ptr)(0);
+			QC_Array(QC_AST_Node_Ptr) memcpy_from_device_calls = qc_create_array(QC_AST_Node_Ptr)(0);
+			QC_Array(QC_AST_Node_Ptr) free_calls = qc_create_array(QC_AST_Node_Ptr)(0);
+			QC_AST_Call *cuda_call = qc_create_call_node();
 
 			/* @todo Link ident to the kernel decl */
-			cuda_call->ident = create_ident_with_text(NULL, "TODO_proper_kernel_name");
+			cuda_call->ident = qc_create_ident_with_text(NULL, "TODO_proper_kernel_name");
 			/*append_expr_c_func_name(&cuda_call->ident->text, biop->rhs);*/
 			append_str(&cuda_call->ident->text, "<<<dim_grid, dim_block>>>");
 
 			/* Copy comments */
-			copy_ast_node_base(QC_AST_BASE(scope), QC_AST_BASE(parallel));
+			qc_copy_ast_node_base(QC_AST_BASE(scope), QC_AST_BASE(parallel));
 
 			for (k = 0; k < var_accesses.size; ++k) {
 				QC_CASTED_NODE(QC_AST_Access, access, var_accesses.data[k]);
-				QC_CASTED_NODE(QC_AST_Ident, var, access_ident(access));
+				QC_CASTED_NODE(QC_AST_Ident, var, qc_access_ident(access));
 				/*const char *cuda_var_name;*/
 				const char *host_var_name = var->text.data;
 				QC_AST_Var_Decl *cuda_var_decl; 
 
 				QC_AST_Type type;
-				if (!expr_type(&type, QC_AST_BASE(access)))
-					FAIL(("expr_type failed"));
+				if (!qc_expr_type(&type, QC_AST_BASE(access)))
+					FAIL(("qc_expr_type failed"));
 
 
 #if 0
@@ -309,8 +309,8 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					is_field = true;
 				if (!is_field) {
 					/* Kernel argument */
-					push_array(QC_AST_Node_Ptr)(&cuda_call->args,
-							QC_AST_BASE(create_ident_with_text(NULL, host_var_name)));
+					qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args,
+							QC_AST_BASE(qc_create_ident_with_text(NULL, host_var_name)));
 				}
 
 				if (!is_field)
@@ -319,151 +319,151 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 
 
 				{ /* Cuda var declaration */
-					cuda_var_decl = create_simple_var_decl(type.base_type_decl, host_var_name);
+					cuda_var_decl = qc_create_simple_var_decl(type.base_type_decl, host_var_name);
 					/*append_str(&cuda_var_decl->ident->text, "_cuda");*/
-					push_array(QC_AST_Var_Decl_Ptr)(&cuda_var_decls, cuda_var_decl);
+					qc_push_array(QC_AST_Var_Decl_Ptr)(&cuda_var_decls, cuda_var_decl);
 				}
 
 				/*cuda_var_name = cuda_var_decl->ident->text.data;*/
 
 				{ /* Cuda kernel argument */
-					QC_AST_Node *deref_cuda_var = create_full_deref(copy_ast(QC_AST_BASE(access)));
-					push_array(QC_AST_Node_Ptr)(&cuda_call->args, deref_cuda_var);
+					QC_AST_Node *deref_cuda_var = qc_create_full_deref(qc_copy_ast(QC_AST_BASE(access)));
+					qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args, deref_cuda_var);
 				}
 
 
 #if 0
 				{ /* Device malloc */
-					QC_AST_Call *call = create_call_node();
-					call->ident = create_ident_with_text(NULL, "cudaMalloc");
+					QC_AST_Call *call = qc_create_call_node();
+					call->ident = qc_create_ident_with_text(NULL, "cudaMalloc");
 
 					{ /* Args */
 						/* @todo Proper QC_AST */
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "(void**)&%s", cuda_var_name)));
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "sizeof(*%s)", cuda_var_name)));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "(void**)&%s", cuda_var_name)));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "sizeof(*%s)", cuda_var_name)));
 					}
-					push_array(QC_AST_Node_Ptr)(&malloc_calls, QC_AST_BASE(call));
+					qc_push_array(QC_AST_Node_Ptr)(&malloc_calls, QC_AST_BASE(call));
 				}
 
 				/* Memcpy from host to device */
 				if (k > 0) {
-					QC_AST_Call *call = create_call_node();
-					call->ident = create_ident_with_text(NULL, "cudaMemcpy");
+					QC_AST_Call *call = qc_create_call_node();
+					call->ident = qc_create_ident_with_text(NULL, "cudaMemcpy");
 
 					{ /* Args */
 						/* @todo Proper QC_AST */
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "%s", cuda_var_name)));
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "%s", host_var_name)));
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "sizeof(*%s)", cuda_var_name)));
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "cudaMemcpyHostToDevice")));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", cuda_var_name)));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", host_var_name)));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "sizeof(*%s)", cuda_var_name)));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "cudaMemcpyHostToDevice")));
 					}
-					push_array(QC_AST_Node_Ptr)(&memcpy_to_device_calls, QC_AST_BASE(call));
+					qc_push_array(QC_AST_Node_Ptr)(&memcpy_to_device_calls, QC_AST_BASE(call));
 				}
 
 				/* Memcpy from device to host */
 				if (k == 0) {
-					QC_AST_Call *call = create_call_node();
-					call->ident = create_ident_with_text(NULL, "cudaMemcpy");
+					QC_AST_Call *call = qc_create_call_node();
+					call->ident = qc_create_ident_with_text(NULL, "cudaMemcpy");
 
 					{ /* Args */
 						/* @todo Proper QC_AST */
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "%s", host_var_name)));
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "%s", cuda_var_name)));
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "sizeof(*%s)", cuda_var_name)));
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "cudaMemcpyDeviceToHost")));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", host_var_name)));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", cuda_var_name)));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "sizeof(*%s)", cuda_var_name)));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "cudaMemcpyDeviceToHost")));
 					}
-					push_array(QC_AST_Node_Ptr)(&memcpy_from_device_calls, QC_AST_BASE(call));
+					qc_push_array(QC_AST_Node_Ptr)(&memcpy_from_device_calls, QC_AST_BASE(call));
 				}
 
 				{ /* Free device memory */
-					QC_AST_Call *call = create_call_node();
-					call->ident = create_ident_with_text(NULL, "cudaFree");
+					QC_AST_Call *call = qc_create_call_node();
+					call->ident = qc_create_ident_with_text(NULL, "cudaFree");
 
 					{ /* Args */
 						/* @todo Proper QC_AST */
-						push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(create_ident_with_text(NULL, "%s", cuda_var_name)));
+						qc_push_array(QC_AST_Node_Ptr)(&call->args,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", cuda_var_name)));
 					}
-					push_array(QC_AST_Node_Ptr)(&free_calls, QC_AST_BASE(call));
+					qc_push_array(QC_AST_Node_Ptr)(&free_calls, QC_AST_BASE(call));
 				}
 #endif
 			}
 
 			{ /* Write generated nodes to scope in correct order */
 				/*for (k = 0; k < cuda_var_decls.size; ++k)
-					push_array(QC_AST_Node_Ptr)(&scope->nodes, cuda_var_decls.data[k]);*/
+					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, cuda_var_decls.data[k]);*/
 				for (k = 0; k < malloc_calls.size; ++k)
-					push_array(QC_AST_Node_Ptr)(&scope->nodes, malloc_calls.data[k]);
+					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, malloc_calls.data[k]);
 				for (k = 0; k < memcpy_to_device_calls.size; ++k)
-					push_array(QC_AST_Node_Ptr)(&scope->nodes, memcpy_to_device_calls.data[k]);
+					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, memcpy_to_device_calls.data[k]);
 
 				/* @todo Proper QC_AST */
 				/* @todo Support non-two-dimensional fields! */
-				push_array(QC_AST_Node_Ptr)(
+				qc_push_array(QC_AST_Node_Ptr)(
 							&scope->nodes,
-							QC_AST_BASE(create_ident_with_text(NULL, "dim3 dim_grid(1, 1, 1)")));
-				push_array(QC_AST_Node_Ptr)(
+							QC_AST_BASE(qc_create_ident_with_text(NULL, "dim3 dim_grid(1, 1, 1)")));
+				qc_push_array(QC_AST_Node_Ptr)(
 							&scope->nodes,
-							QC_AST_BASE(create_call_3(
-								create_ident_with_text(NULL, "dim3 dim_block"),
-								QC_AST_BASE(c_create_field_dim_size((QC_AST_Access*)copy_ast(var_accesses.data[0]), 0)),
-								QC_AST_BASE(c_create_field_dim_size((QC_AST_Access*)copy_ast(var_accesses.data[0]), 1)),
-								QC_AST_BASE(create_integer_literal(1, root))
+							QC_AST_BASE(qc_create_call_3(
+								qc_create_ident_with_text(NULL, "dim3 dim_block"),
+								QC_AST_BASE(c_create_field_dim_size((QC_AST_Access*)qc_copy_ast(var_accesses.data[0]), 0)),
+								QC_AST_BASE(c_create_field_dim_size((QC_AST_Access*)qc_copy_ast(var_accesses.data[0]), 1)),
+								QC_AST_BASE(qc_create_integer_literal(1, root))
 							)));
 
-				push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_AST_BASE(cuda_call));
+				qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_AST_BASE(cuda_call));
 
 				for (k = 0; k < memcpy_from_device_calls.size; ++k)
-					push_array(QC_AST_Node_Ptr)(&scope->nodes, memcpy_from_device_calls.data[k]);
+					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, memcpy_from_device_calls.data[k]);
 				for (k = 0; k < free_calls.size; ++k)
-					push_array(QC_AST_Node_Ptr)(&scope->nodes, free_calls.data[k]);
+					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, free_calls.data[k]);
 			}
 
-			destroy_array(QC_AST_Node_Ptr)(&malloc_calls);
-			destroy_array(QC_AST_Node_Ptr)(&memcpy_to_device_calls);
-			destroy_array(QC_AST_Node_Ptr)(&memcpy_from_device_calls);
-			destroy_array(QC_AST_Node_Ptr)(&free_calls);
+			qc_destroy_array(QC_AST_Node_Ptr)(&malloc_calls);
+			qc_destroy_array(QC_AST_Node_Ptr)(&memcpy_to_device_calls);
+			qc_destroy_array(QC_AST_Node_Ptr)(&memcpy_from_device_calls);
+			qc_destroy_array(QC_AST_Node_Ptr)(&free_calls);
 
 			/* Mark parallel loop to be replaced with the scope node */
-			push_array(QC_AST_Node_Ptr)(&replace_list_old, QC_AST_BASE(parallel));
-			push_array(QC_AST_Node_Ptr)(&replace_list_new, QC_AST_BASE(scope));
+			qc_push_array(QC_AST_Node_Ptr)(&replace_list_old, QC_AST_BASE(parallel));
+			qc_push_array(QC_AST_Node_Ptr)(&replace_list_new, QC_AST_BASE(scope));
 		}
 
 		{ /* Create cuda kernel */
 			/* @todo __global__ attribute to function decl */
-			QC_AST_Func_Decl *kernel_decl = create_func_decl_node();
+			QC_AST_Func_Decl *kernel_decl = qc_create_func_decl_node();
 			kernel_decl->b.attribute = "__global__";
-			kernel_decl->ident = create_ident_with_text(QC_AST_BASE(kernel_decl), "TODO_proper_kernel_name");
+			kernel_decl->ident = qc_create_ident_with_text(QC_AST_BASE(kernel_decl), "TODO_proper_kernel_name");
 
-			kernel_decl->return_type = create_type_node();
-			kernel_decl->return_type->base_type_decl = find_builtin_type_decl(void_builtin_type(), root);
+			kernel_decl->return_type = qc_create_type_node();
+			kernel_decl->return_type->base_type_decl = qc_find_builtin_type_decl(qc_void_builtin_type(), root);
 			ASSERT(kernel_decl->return_type->base_type_decl);
 
 			/* Params */
 			for (k = 0; k < cuda_var_decls.size; ++k) {
-				push_array(QC_AST_Var_Decl_Ptr)(&kernel_decl->params, cuda_var_decls.data[k]);
+				qc_push_array(QC_AST_Var_Decl_Ptr)(&kernel_decl->params, cuda_var_decls.data[k]);
 			}
 
 			{ /* Body */
 				/* Fields are passed by value */
-				QC_Array(QC_AST_Node_Ptr) accesses = create_array(QC_AST_Node_Ptr)(0);
-				find_subnodes_of_type(&accesses, QC_AST_access, QC_AST_BASE(parallel->body));
+				QC_Array(QC_AST_Node_Ptr) accesses = qc_create_array(QC_AST_Node_Ptr)(0);
+				qc_find_subnodes_of_type(&accesses, QC_AST_access, QC_AST_BASE(parallel->body));
 				for (k = 0; k < accesses.size; ++k) {
 					QC_CASTED_NODE(QC_AST_Access, access, accesses.data[k]);
 					QC_AST_Type type;
 					if (!access->is_element_access)
 						continue;
-					if (!expr_type(&type, access->base))
+					if (!qc_expr_type(&type, access->base))
 						continue;
 					if (!type.base_type_decl->is_builtin)
 						continue;
@@ -471,63 +471,63 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 						continue;
 					access->implicit_deref = false;
 				}
-				destroy_array(QC_AST_Node_Ptr)(&accesses);
+				qc_destroy_array(QC_AST_Node_Ptr)(&accesses);
 
 				/* Add initialization for 'id' */
 				for (k = 0; k < parallel->dim; ++k) {
 					const char *comp_name[3] = { "x", "y", "z" };
 					ASSERT(k < 3);
-					add_parallel_id_init(root, parallel, k,
+					qc_add_parallel_id_init(root, parallel, k,
 							try_create_access(
-								QC_AST_BASE(create_ident_with_text(NULL, "threadIdx.%s", comp_name[k]))));
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "threadIdx.%s", comp_name[k]))));
 				}
 
 				/* Move the whole block from parallel loop -- re-resolve afterwards */
-				unresolve_ast(QC_AST_BASE(parallel->body));
+				qc_unresolve_ast(QC_AST_BASE(parallel->body));
 				kernel_decl->body = parallel->body;
 				parallel->body = NULL;
 			}
 
 			/* Insert kernel before current function call */
 			{
-				QC_AST_Func_Decl *func = find_enclosing_func(&map, QC_AST_BASE(parallel));
-				QC_AST_Node *parent_node = find_parent_node(&map, QC_AST_BASE(func));
+				QC_AST_Func_Decl *func = qc_find_enclosing_func(&map, QC_AST_BASE(parallel));
+				QC_AST_Node *parent_node = qc_find_parent_node(&map, QC_AST_BASE(func));
 				QC_AST_Scope *parent_scope;
 				int ix;
 				ASSERT(parent_node->type == QC_AST_scope);
 				parent_scope = (QC_AST_Scope*)parent_node;
-				ix = find_in_scope(parent_scope, QC_AST_BASE(func));
+				ix = qc_find_in_scope(parent_scope, QC_AST_BASE(func));
 				ASSERT(ix >= 0);
 
 				insert_array(QC_AST_Node_Ptr)(&parent_scope->nodes, ix, (QC_AST_Node**)&kernel_decl, 1);
 			}
 		}
 
-		destroy_array(QC_AST_Node_Ptr)(&var_accesses);
-		destroy_array(QC_AST_Var_Decl_Ptr)(&cuda_var_decls);
+		qc_destroy_array(QC_AST_Node_Ptr)(&var_accesses);
+		qc_destroy_array(QC_AST_Var_Decl_Ptr)(&cuda_var_decls);
 	}
 
 	{ /* Replace old nodes with new nodes */
 		ASSERT(replace_list_new.size == replace_list_old.size);
-		replace_nodes_in_ast(QC_AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
+		qc_replace_nodes_in_ast(QC_AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
 
 		/* Subnodes should be deep-copied */
 		for (i = 0; i < replace_list_old.size; ++i)
-			destroy_node(replace_list_old.data[i]);
+			qc_destroy_node(replace_list_old.data[i]);
 	}
 
-	resolve_ast(root);
+	qc_resolve_ast(root);
 
-	destroy_parent_map(&map);
-	destroy_array(QC_AST_Node_Ptr)(&subnodes);
-	destroy_array(QC_AST_Node_Ptr)(&replace_list_old);
-	destroy_array(QC_AST_Node_Ptr)(&replace_list_new);
+	qc_destroy_parent_map(&map);
+	qc_destroy_array(QC_AST_Node_Ptr)(&subnodes);
+	qc_destroy_array(QC_AST_Node_Ptr)(&replace_list_old);
+	qc_destroy_array(QC_AST_Node_Ptr)(&replace_list_new);
 }
 
 QC_Array(char) gen_cuda_code(QC_AST_Scope *root)
 {
-	QC_Array(char) gen_src = create_array(char)(0);
-	QC_AST_Scope *modified_ast = (QC_AST_Scope*)copy_ast(QC_AST_BASE(root));
+	QC_Array(char) gen_src = qc_create_array(char)(0);
+	QC_AST_Scope *modified_ast = (QC_AST_Scope*)qc_copy_ast(QC_AST_BASE(root));
 	lift_types_and_funcs_to_global_scope(modified_ast);
 	add_builtin_c_decls_to_global_scope(modified_ast, false);
 	add_builtin_cuda_funcs(modified_ast);
@@ -538,6 +538,6 @@ QC_Array(char) gen_cuda_code(QC_AST_Scope *root)
 	append_c_stdlib_includes(&gen_src);
 	ast_to_c_str(&gen_src, 0, QC_AST_BASE(modified_ast));
 
-	destroy_ast(modified_ast);
+	qc_destroy_ast(modified_ast);
 	return gen_src;
 }

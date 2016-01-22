@@ -108,7 +108,7 @@ int main(int argc, const char **argv)
 
 		if (verbose) {
 			printf("QC_AST\n");
-			print_ast(&root->b, 2);
+			qc_print_ast(&root->b, 2);
 		}
 	}
 
@@ -134,9 +134,9 @@ int main(int argc, const char **argv)
 	}
 
 cleanup:
-	destroy_array(char)(&gen_code);
-	destroy_ast(root);
-	destroy_array(QC_Token)(&tokens);
+	qc_destroy_array(char)(&gen_code);
+	qc_destroy_ast(root);
+	qc_destroy_array(QC_Token)(&tokens);
 	free(src_buf);
 	if (file)
 		fclose(file);

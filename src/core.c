@@ -35,8 +35,8 @@ void safe_vsprintf(QC_Array(char) *buf, const char *fmt, va_list args)
 		pop_array(char)(buf);
 
 	for (i = 0; i < len; ++i)
-		push_array(char)(buf, tmp[i]);
-	push_array(char)(buf, '\0');
+		qc_push_array(char)(buf, tmp[i]);
+	qc_push_array(char)(buf, '\0');
 }
 
 void append_str(QC_Array(char) *buf, const char *fmt, ...)

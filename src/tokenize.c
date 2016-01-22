@@ -2,13 +2,13 @@
 
 DEFINE_ARRAY(QC_Token)
 
-INTERNAL bool whitespace(char ch)
+QC_INTERNAL bool whitespace(char ch)
 { return ch == ' ' || ch == '\t' || ch == '\n'; }
 
-INTERNAL bool linebreak(char ch)
+QC_INTERNAL bool linebreak(char ch)
 { return ch == '\n'; }
 
-INTERNAL QC_Token_Type single_char_tokentype(char ch)
+QC_INTERNAL QC_Token_Type single_char_tokentype(char ch)
 {
 	switch (ch) {
 		case '=': return QC_Token_assign;
@@ -38,7 +38,7 @@ INTERNAL QC_Token_Type single_char_tokentype(char ch)
 	}
 }
 
-INTERNAL QC_Token_Type double_char_tokentype(char ch1, char ch2)
+QC_INTERNAL QC_Token_Type double_char_tokentype(char ch1, char ch2)
 {
 	if (ch1 == '-' && ch2 == '>')
 		return QC_Token_right_arrow;
@@ -78,7 +78,7 @@ INTERNAL QC_Token_Type double_char_tokentype(char ch1, char ch2)
 }
 
 /* Differs from strncmp by str_equals_buf("ab", "ab", 1) == false */
-INTERNAL bool str_equals_buf(const char *c_str, const char *buf, int buf_size)
+QC_INTERNAL bool str_equals_buf(const char *c_str, const char *buf, int buf_size)
 {
 	int i;
 	for (i = 0; i < buf_size && c_str[i] != '\0'; ++i) {
@@ -88,7 +88,7 @@ INTERNAL bool str_equals_buf(const char *c_str, const char *buf, int buf_size)
 	return c_str[i] == '\0' && i == buf_size;
 }
 
-INTERNAL QC_Token_Type kw_tokentype(const char *buf, int size)
+QC_INTERNAL QC_Token_Type kw_tokentype(const char *buf, int size)
 {
 	if (str_equals_buf("struct", buf, size))
 		return QC_Token_kw_struct;
@@ -163,7 +163,7 @@ typedef struct QC_Tokenize_Ctx {
 	QC_Array(QC_Token) tokens;
 } QC_Tokenize_Ctx;
 
-INTERNAL void commit_token(QC_Tokenize_Ctx *t, const char *b, const char *e, QC_Token_Type type)
+QC_INTERNAL void commit_token(QC_Tokenize_Ctx *t, const char *b, const char *e, QC_Token_Type type)
 {
 	if (e > b) {
 		QC_Token tok = {0};
@@ -194,7 +194,7 @@ INTERNAL void commit_token(QC_Tokenize_Ctx *t, const char *b, const char *e, QC_
 	}
 }
 
-INTERNAL void on_linebreak(QC_Tokenize_Ctx *t)
+QC_INTERNAL void on_linebreak(QC_Tokenize_Ctx *t)
 {
 	++t->cur_line;
 	t->last_line_was_empty = (t->tokens_on_line == 0);
@@ -458,7 +458,7 @@ void qc_print_tokens(QC_Token *tokens, int token_count)
 	int i;
 	for (i = 0; i < token_count; ++i) {
 		QC_Token tok = tokens[i];
-		int text_len = MIN(tok.text.len, 20);
+		int text_len = QC_MIN(tok.text.len, 20);
 		printf("%14s: %20.*s %8i last_on_line: %i empty_line_before: %i\n",
 				qc_tokentype_str(tok.type), text_len, tok.text.buf, tok.line, tok.last_on_line, tok.empty_line_before);
 	}

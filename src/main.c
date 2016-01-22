@@ -88,7 +88,7 @@ int main(int argc, const char **argv)
 
 		src_buf = malloc(size);
 		count = fread(src_buf, size, 1, file);
-		ASSERT(count == 1);
+		QC_ASSERT(count == 1);
 		src_size = size;
 	}
 

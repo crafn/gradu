@@ -32,7 +32,7 @@ typedef struct QC_Token *QC_Token_Ptr;
 QC_DECLARE_ARRAY(QC_AST_Node_Ptr)
 QC_DECLARE_ARRAY(QC_Token_Ptr)
 QC_DECLARE_HASH_TABLE(QC_AST_Node_Ptr, QC_AST_Node_Ptr)
-static U32 qc_hash(QC_AST_Node_Ptr)(QC_AST_Node_Ptr node) { return qc_hash(Void_Ptr)(node); }
+static QC_U32 qc_hash(QC_AST_Node_Ptr)(QC_AST_Node_Ptr node) { return qc_hash(QC_Void_Ptr)(node); }
 
 /* Base "class" for every QC_AST node type */
 typedef struct QC_AST_Node {

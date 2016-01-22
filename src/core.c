@@ -3,14 +3,14 @@
 DEFINE_ARRAY(char)
 DEFINE_ARRAY(int)
 
-bool buf_str_equals(QC_Buf_Str a, QC_Buf_Str b)
+bool qc_buf_str_equals(QC_Buf_Str a, QC_Buf_Str b)
 {
 	if (a.len != b.len)
 		return false;
 	return !strncmp(a.buf, b.buf, a.len);
 }
 
-QC_Buf_Str c_str_to_buf_str(const char* str)
+QC_Buf_Str qc_c_str_to_buf_str(const char* str)
 {
 	QC_Buf_Str b = {0};
 	b.buf = str;
@@ -18,7 +18,7 @@ QC_Buf_Str c_str_to_buf_str(const char* str)
 	return b;
 }
 
-void safe_vsprintf(QC_Array(char) *buf, const char *fmt, va_list args)
+void qc_safe_vsprintf(QC_Array(char) *buf, const char *fmt, va_list args)
 {
 	char tmp[1024*100]; /* :( */
 	int len;
@@ -32,18 +32,18 @@ void safe_vsprintf(QC_Array(char) *buf, const char *fmt, va_list args)
 		abort();
 
 	if (buf->size > 0 && buf->data[buf->size - 1] == '\0')
-		pop_array(char)(buf);
+		qc_pop_array(char)(buf);
 
 	for (i = 0; i < len; ++i)
 		qc_push_array(char)(buf, tmp[i]);
 	qc_push_array(char)(buf, '\0');
 }
 
-void append_str(QC_Array(char) *buf, const char *fmt, ...)
+void qc_append_str(QC_Array(char) *buf, const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
-	safe_vsprintf(buf, fmt, args);
+	qc_safe_vsprintf(buf, fmt, args);
 	va_end(args);
 }
 

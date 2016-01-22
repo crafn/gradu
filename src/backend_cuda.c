@@ -28,7 +28,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 				alloc_func->is_builtin = false;
 				func_decl->builtin_concrete_decl = alloc_func;
 				append_str(&alloc_func->ident->text, "_");
-				append_builtin_type_c_str(&alloc_func->ident->text,
+				qc_append_builtin_type_c_str(&alloc_func->ident->text,
 						alloc_func->return_type->base_type_decl->builtin_type);
 
 				{ /* Function contents */
@@ -96,7 +96,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 						qc_create_assign(
 							QC_AST_BASE(qc_create_simple_member_access(
 								field_var_decl,
-								is_device_field_member_decl(field_decl)
+								qc_is_device_field_member_decl(field_decl)
 							)),
 							QC_AST_BASE(qc_create_integer_literal(1, root))
 						);
@@ -122,7 +122,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 				free_func->is_builtin = false;
 				func_decl->builtin_concrete_decl = free_func;
 				append_str(&free_func->ident->text, "_");
-				append_builtin_type_c_str(&free_func->ident->text, bt);
+				qc_append_builtin_type_c_str(&free_func->ident->text, bt);
 
 				{ /* Function contents */
 					QC_AST_Access *access_field_data = qc_create_member_access(
@@ -151,7 +151,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 				memcpy_func->is_builtin = false;
 				func_decl->builtin_concrete_decl = memcpy_func;
 				append_str(&memcpy_func->ident->text, "_");
-				append_builtin_type_c_str(&memcpy_func->ident->text, bt);
+				qc_append_builtin_type_c_str(&memcpy_func->ident->text, bt);
 				
 				memcpy_func->body = qc_create_scope_node();
 
@@ -185,11 +185,11 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 												c_mat_elements_decl(field_decl));
 						is_dst_device = qc_create_simple_member_access(
 											dst_field_var_decl,
-											is_device_field_member_decl(field_decl)
+											qc_is_device_field_member_decl(field_decl)
 										);
 						is_src_device = qc_create_simple_member_access(
 											src_field_var_decl,
-											is_device_field_member_decl(field_decl)
+											qc_is_device_field_member_decl(field_decl)
 										);
 
 						cond =	qc_create_if_1(
@@ -286,7 +286,7 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 
 			/* @todo Link ident to the kernel decl */
 			cuda_call->ident = qc_create_ident_with_text(NULL, "TODO_proper_kernel_name");
-			/*append_expr_c_func_name(&cuda_call->ident->text, biop->rhs);*/
+			/*qc_append_expr_c_func_name(&cuda_call->ident->text, biop->rhs);*/
 			append_str(&cuda_call->ident->text, "<<<dim_grid, dim_block>>>");
 
 			/* Copy comments */
@@ -528,15 +528,15 @@ QC_Array(char) gen_cuda_code(QC_AST_Scope *root)
 {
 	QC_Array(char) gen_src = qc_create_array(char)(0);
 	QC_AST_Scope *modified_ast = (QC_AST_Scope*)qc_copy_ast(QC_AST_BASE(root));
-	lift_types_and_funcs_to_global_scope(modified_ast);
-	add_builtin_c_decls_to_global_scope(modified_ast, false);
+	qc_lift_types_and_funcs_to_global_scope(modified_ast);
+	qc_add_builtin_c_decls_to_global_scope(modified_ast, false);
 	add_builtin_cuda_funcs(modified_ast);
-	/* @todo There's something wrong with lift_types_and_funcs_to_global_scope. This can't be before it without some resolving issues. */
+	/* @todo There's something wrong with qc_lift_types_and_funcs_to_global_scope. This can't be before it without some resolving issues. */
 	parallel_loops_to_cuda(modified_ast);
-	apply_c_operator_overloading(modified_ast, true);
+	qc_apply_c_operator_overloading(modified_ast, true);
 
-	append_c_stdlib_includes(&gen_src);
-	ast_to_c_str(&gen_src, 0, QC_AST_BASE(modified_ast));
+	qc_append_c_stdlib_includes(&gen_src);
+	qc_ast_to_c_str(&gen_src, 0, QC_AST_BASE(modified_ast));
 
 	qc_destroy_ast(modified_ast);
 	return gen_src;

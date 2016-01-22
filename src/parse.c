@@ -54,38 +54,38 @@ double str_to_float(Buf_Str text)
 
 #define UOP_PRECEDENCE 100000
 /* Not all of the accepted tokens are actually binary operators. They're here for similar precedence handling. */
-int biop_prec(Token_Type type)
+int biop_prec(QC_Token_Type type)
 {
 	/* Order should match with C operator precedence */
 	int prec = 1;
 	switch (type) {
 
-	case Token_open_paren: ++prec; /* Function call */
+	case QC_Token_open_paren: ++prec; /* Function call */
 
-	case Token_dot:
-	case Token_right_arrow: ++prec;
+	case QC_Token_dot:
+	case QC_Token_right_arrow: ++prec;
 
-	case Token_mul: 
-	case Token_div: ++prec;
-	case Token_mod: ++prec;
-	case Token_add: 
-	case Token_sub: ++prec;
+	case QC_Token_mul: 
+	case QC_Token_div: ++prec;
+	case QC_Token_mod: ++prec;
+	case QC_Token_add: 
+	case QC_Token_sub: ++prec;
 
-	case Token_leq:
-	case Token_geq:
-	case Token_less:
-	case Token_greater: ++prec;
+	case QC_Token_leq:
+	case QC_Token_geq:
+	case QC_Token_less:
+	case QC_Token_greater: ++prec;
 
-	case Token_equals: ++prec;
+	case QC_Token_equals: ++prec;
 
-	case Token_and: ++prec;
-	case Token_or: ++prec;
+	case QC_Token_and: ++prec;
+	case QC_Token_or: ++prec;
 
-	case Token_assign: ++prec;
-	case Token_add_assign:
-	case Token_sub_assign:
-	case Token_mul_assign:
-	case Token_div_assign: ++prec;
+	case QC_Token_assign: ++prec;
+	case QC_Token_add_assign:
+	case QC_Token_sub_assign:
+	case QC_Token_mul_assign:
+	case QC_Token_div_assign: ++prec;
 
 	break;
 	default: return -1;
@@ -94,54 +94,54 @@ int biop_prec(Token_Type type)
 }
 
 /* -1 left, 1 right */
-int biop_assoc(Token_Type type)
+int biop_assoc(QC_Token_Type type)
 {
 	switch (type) {
-		case Token_assign: return 1; /* a = b = c  <=>  (a = (b = c)) */
+		case QC_Token_assign: return 1; /* a = b = c  <=>  (a = (b = c)) */
 		default: return -1;
 	}
 }
 
-bool is_binary_op(Token_Type type)
+bool is_binary_op(QC_Token_Type type)
 {
 	switch (type) {
 
-	case Token_mul: 
-	case Token_div:
-	case Token_mod:
-	case Token_add: 
-	case Token_sub:
+	case QC_Token_mul: 
+	case QC_Token_div:
+	case QC_Token_mod:
+	case QC_Token_add: 
+	case QC_Token_sub:
 
-	case Token_leq:
-	case Token_geq:
-	case Token_less:
-	case Token_greater:
+	case QC_Token_leq:
+	case QC_Token_geq:
+	case QC_Token_less:
+	case QC_Token_greater:
 
-	case Token_equals:
+	case QC_Token_equals:
 
-	case Token_and:
-	case Token_or:
+	case QC_Token_and:
+	case QC_Token_or:
 
-	case Token_assign:
-	case Token_add_assign:
-	case Token_sub_assign:
-	case Token_mul_assign:
-	case Token_div_assign:
+	case QC_Token_assign:
+	case QC_Token_add_assign:
+	case QC_Token_sub_assign:
+	case QC_Token_mul_assign:
+	case QC_Token_div_assign:
 		return true;
 	default: return false;
 	}
 }
 
-bool is_unary_op(Token_Type type)
+bool is_unary_op(QC_Token_Type type)
 {
 	switch (type) {
-		case Token_add:
-		case Token_sub:
-		case Token_kw_sizeof:
-		case Token_incr:
-		case Token_decr:
-		case Token_addrof:
-		case Token_mul: /* deref */
+		case QC_Token_add:
+		case QC_Token_sub:
+		case QC_Token_kw_sizeof:
+		case QC_Token_incr:
+		case QC_Token_decr:
+		case QC_Token_addrof:
+		case QC_Token_mul: /* deref */
 			return true;
 		default: return false;
 	}
@@ -151,7 +151,7 @@ bool is_unary_op(Token_Type type)
 /* Mirrors call stack in parsing */
 /* Used in searching, setting parent nodes, and backtracking */
 typedef struct Parse_Stack_Frame {
-	Token *begin_tok;
+	QC_Token *begin_tok;
 	AST_Node *node;
 } Parse_Stack_Frame;
 
@@ -164,34 +164,34 @@ DEFINE_ARRAY(AST_Type_Decl_Ptr)
 
 typedef struct Parse_Ctx {
 	AST_Scope *root;
-	Token *first_tok; /* @todo Consider having some Token_sof, corresponding to Token_eof*/
-	Token *tok; /* Access with cur_tok */
+	QC_Token *first_tok; /* @todo Consider having some QC_Token_sof, corresponding to QC_Token_eof*/
+	QC_Token *tok; /* Access with cur_tok */
 	int expr_depth;
 
 	/* Builtin type and funcs decls are generated while parsing */
 
 	Array(char) error_msg;
-	Token *error_tok;
+	QC_Token *error_tok;
 	Array(Parse_Stack_Frame) parse_stack;
 
 	AST_Parent_Map parent_map; /* Built incrementally during parsing */
 } Parse_Ctx;
 
 
-/* Token manipulation */
+/* QC_Token manipulation */
 
-INTERNAL Token *cur_tok(Parse_Ctx *ctx)
+INTERNAL QC_Token *cur_tok(Parse_Ctx *ctx)
 { return ctx->tok; }
 
 INTERNAL void advance_tok(Parse_Ctx *ctx)
 {
-	ASSERT(ctx->tok->type != Token_eof);
+	ASSERT(ctx->tok->type != QC_Token_eof);
 	do {
 		++ctx->tok;
 	} while (is_comment_tok(ctx->tok->type));
 }
 
-INTERNAL bool accept_tok(Parse_Ctx *ctx, Token_Type type)
+INTERNAL bool accept_tok(Parse_Ctx *ctx, QC_Token_Type type)
 {
 	if (ctx->tok->type == type) {
 		advance_tok(ctx);
@@ -246,25 +246,25 @@ INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 		like when parsing statement: 'foo;', which yields parse_expr(parse_ident()). */
 	/* That ^ is false now! Not possible to have multiple begin..end with the same node anymore. */
 	if (frame.node->pre_comments.size == 0) {
-		Token *tok = frame.begin_tok - 1;
+		QC_Token *tok = frame.begin_tok - 1;
 		/* Rewind first */
 		while (tok >= ctx->first_tok && is_comment_tok(tok->type))
 			--tok;
 		++tok;
 		while (is_comment_tok(tok->type) && tok->comment_bound_to == 1) {
-			push_array(Token_Ptr)(&frame.node->pre_comments, tok);
+			push_array(QC_Token_Ptr)(&frame.node->pre_comments, tok);
 			++tok;
 		}
 	}
 	if (can_have_post_comments(frame.node) && frame.node->post_comments.size == 0) {
-		Token *tok = cur_tok(ctx);
+		QC_Token *tok = cur_tok(ctx);
 		/* Cursor has been advanced past following comments, rewind */
 		--tok;
 		while (tok >= ctx->first_tok && is_comment_tok(tok->type))
 			--tok;
 		++tok;
 		while (is_comment_tok(tok->type) && tok->comment_bound_to == -1) {
-			push_array(Token_Ptr)(&frame.node->post_comments, tok);
+			push_array(QC_Token_Ptr)(&frame.node->post_comments, tok);
 			++tok;
 		}
 	}
@@ -300,7 +300,7 @@ INTERNAL void report_error(Parse_Ctx *ctx, const char *fmt, ...)
 	ctx->error_tok = cur_tok(ctx);
 }
 
-INTERNAL void report_error_expected(Parse_Ctx *ctx, const char *expected, Token *got)
+INTERNAL void report_error_expected(Parse_Ctx *ctx, const char *expected, QC_Token *got)
 {
 	report_error(ctx, "Expected %s, got '%.*s'", expected, BUF_STR_ARGS(got->text));
 }
@@ -318,7 +318,7 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_scope(Parse_Ctx *ctx, AST_Scope **ret, bool already_created);
 INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_uop(Parse_Ctx *ctx, AST_Node **ret);
-INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, Token_Type ending);
+INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, QC_Token_Type ending);
 INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret);
 INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type *type_hint, bool semi);
 INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret);
@@ -336,11 +336,11 @@ INTERNAL bool parse_ident(Parse_Ctx *ctx, AST_Ident **ret, AST_Node *decl)
 	begin_node_parsing(ctx, AST_BASE(ident));
 
 	/* Consume dot before designated initializer identifier */
-	if (accept_tok(ctx, Token_dot))
+	if (accept_tok(ctx, QC_Token_dot))
 		ident->designated = true;
 	append_str(&ident->text, "%.*s", BUF_STR_ARGS(cur_tok(ctx)->text));
 
-	if (cur_tok(ctx)->type != Token_name) {
+	if (cur_tok(ctx)->type != QC_Token_name) {
 		report_error(ctx, "'%.*s' is not an identifier", BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
@@ -366,7 +366,7 @@ INTERNAL bool parse_type_decl(Parse_Ctx *ctx, AST_Node **ret)
 	AST_Type_Decl *decl = create_type_decl_node();
 	begin_node_parsing(ctx, AST_BASE(decl));
 
-	if (!accept_tok(ctx, Token_kw_struct))
+	if (!accept_tok(ctx, QC_Token_kw_struct))
 		goto mismatch;
 
 	if (!parse_ident(ctx, &decl->ident, AST_BASE(decl))) {
@@ -396,7 +396,7 @@ INTERNAL bool parse_typedef(Parse_Ctx *ctx, AST_Node **ret)
 	AST_Typedef *def = create_typedef_node();
 	begin_node_parsing(ctx, AST_BASE(def));
 
-	if (!accept_tok(ctx, Token_kw_typedef)) {
+	if (!accept_tok(ctx, QC_Token_kw_typedef)) {
 		report_error_expected(ctx, "typedef", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -404,7 +404,7 @@ INTERNAL bool parse_typedef(Parse_Ctx *ctx, AST_Node **ret)
 	if (!parse_type_and_ident(ctx, &def->type, &def->ident, AST_BASE(def)))
 		goto mismatch;
 
-	if (!accept_tok(ctx, Token_semi)) {
+	if (!accept_tok(ctx, QC_Token_semi)) {
 		report_error_expected(ctx, ";", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -549,51 +549,51 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 		Builtin_Type bt = {0};
 		bool recognized = true;
 
-		if (accept_tok(ctx, Token_kw_const))
+		if (accept_tok(ctx, QC_Token_kw_const))
 			type->is_const = true;
 
 		/* Gather all builtin type specifiers (like int, matrix(), field()) */
 		while (recognized) {
-			Token *tok = cur_tok(ctx);
+			QC_Token *tok = cur_tok(ctx);
 
 			switch (tok->type) {
-			case Token_kw_void:
+			case QC_Token_kw_void:
 				bt.is_void = true;
 				advance_tok(ctx);
 			break;
-			case Token_kw_int:
+			case QC_Token_kw_int:
 				bt.is_integer = true;
 				bt.bitness = 0; /* Not specified */
 				advance_tok(ctx);
 			break;
-			case Token_kw_size_t:
+			case QC_Token_kw_size_t:
 				bt.is_integer = true;
 				bt.bitness = sizeof(size_t)*8; /* @todo Assuming target is same architecture than host */
 				bt.is_unsigned = true;
 				advance_tok(ctx);
 			break;
-			case Token_kw_char:
+			case QC_Token_kw_char:
 				bt.is_char = true;
 				bt.bitness = 8;
 				advance_tok(ctx);
 			break;
-			case Token_kw_float:
+			case QC_Token_kw_float:
 				bt.is_float = true;
 				bt.bitness = 32;
 				advance_tok(ctx);
 			break;
-			case Token_kw_matrix: {
+			case QC_Token_kw_matrix: {
 				bt.is_matrix = true;
 				advance_tok(ctx);
 
-				if (!accept_tok(ctx, Token_open_paren)) {
+				if (!accept_tok(ctx, QC_Token_open_paren)) {
 					report_error_expected(ctx, "'('", cur_tok(ctx));
 					goto mismatch;
 				}
 
 				{ /* Parse dimension list */
 					/* @todo Support constant expressions */
-					while (cur_tok(ctx)->type == Token_int) {
+					while (cur_tok(ctx)->type == QC_Token_int) {
 						int dim = str_to_int(cur_tok(ctx)->text);
 						bt.matrix_dim[bt.matrix_rank++] = dim;
 						advance_tok(ctx);
@@ -603,17 +603,17 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 							goto mismatch;
 						}
 
-						if (!accept_tok(ctx, Token_comma))
+						if (!accept_tok(ctx, QC_Token_comma))
 							break;
 					}
 				}
 
-				if (!accept_tok(ctx, Token_close_paren)) {
+				if (!accept_tok(ctx, QC_Token_close_paren)) {
 					report_error_expected(ctx, "')'", cur_tok(ctx));
 					goto mismatch;
 				}
 			} break;
-			case Token_kw_field: {
+			case QC_Token_kw_field: {
 				AST_Node *dim_expr = NULL;
 				AST_Literal dim_value;
 				bt.is_field = true;
@@ -697,7 +697,7 @@ INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, AST_Type **ret_type, AST_Iden
 	}
 
 	/* Pointer * */
-	while (accept_tok(ctx, Token_mul))
+	while (accept_tok(ctx, QC_Token_mul))
 		++type->ptr_depth;
 
 	if (ret_ident && enclosing_decl) {
@@ -727,10 +727,10 @@ INTERNAL bool parse_var_decl(Parse_Ctx *ctx, AST_Node **ret, bool is_param_decl)
 		goto mismatch;
 
 	if (!is_param_decl) {
-		if (accept_tok(ctx, Token_assign)) {
+		if (accept_tok(ctx, QC_Token_assign)) {
 			if (!parse_expr(ctx, &decl->value, 0, NULL, true))
 				goto mismatch;
-		} else if (!accept_tok(ctx, Token_semi)) {
+		} else if (!accept_tok(ctx, QC_Token_semi)) {
 			report_error_expected(ctx, "';'", cur_tok(ctx));
 			goto mismatch;
 		}
@@ -754,18 +754,18 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret)
 	if (!parse_type_and_ident(ctx, &decl->return_type, &decl->ident, AST_BASE(decl)))
 		goto mismatch;
 
-	if (!accept_tok(ctx, Token_open_paren)) {
+	if (!accept_tok(ctx, QC_Token_open_paren)) {
 		report_error_expected(ctx, "'('", cur_tok(ctx));
 		goto mismatch;
 	}
 
 	{ /* Parse parameter declaration list */
-		while (cur_tok(ctx)->type != Token_close_paren) {
+		while (cur_tok(ctx)->type != QC_Token_close_paren) {
 			AST_Var_Decl *param_decl = NULL;
-			if (cur_tok(ctx)->type == Token_comma)
+			if (cur_tok(ctx)->type == QC_Token_comma)
 				advance_tok(ctx);
 
-			if (accept_tok(ctx, Token_ellipsis)) {
+			if (accept_tok(ctx, QC_Token_ellipsis)) {
 				decl->ellipsis = true;
 				continue;
 			}
@@ -777,14 +777,14 @@ INTERNAL bool parse_func_decl(Parse_Ctx *ctx, AST_Node **ret)
 		}
 	}
 
-	if (!accept_tok(ctx, Token_close_paren)) {
+	if (!accept_tok(ctx, QC_Token_close_paren)) {
 		report_error_expected(ctx, "')'", cur_tok(ctx));
 		goto mismatch;
 	}
 
-	if (cur_tok(ctx)->type == Token_semi) {
+	if (cur_tok(ctx)->type == QC_Token_semi) {
 		/* No body */
-		accept_tok(ctx, Token_semi);
+		accept_tok(ctx, QC_Token_semi);
 	} else if (parse_scope(ctx, &decl->body, false)) {
 		;
 	} else {
@@ -808,12 +808,12 @@ INTERNAL bool parse_scope(Parse_Ctx *ctx, AST_Scope **ret, bool already_created)
 
 	begin_node_parsing(ctx, AST_BASE(scope));
 
-	if (!accept_tok(ctx, Token_open_brace)) {
+	if (!accept_tok(ctx, QC_Token_open_brace)) {
 		report_error_expected(ctx, "'{'", cur_tok(ctx));
 		goto mismatch;
 	}
 
-	while (!accept_tok(ctx, Token_close_brace)) {
+	while (!accept_tok(ctx, QC_Token_close_brace)) {
 		AST_Node *element = NULL;
 		if (!parse_element(ctx, &element))
 			goto mismatch;
@@ -834,34 +834,34 @@ mismatch:
 INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret)
 {
 	AST_Literal *literal = create_literal_node();
-	Token *tok = cur_tok(ctx);
+	QC_Token *tok = cur_tok(ctx);
 
 	begin_node_parsing(ctx, AST_BASE(literal));
 
 	switch (tok->type) {
-		case Token_int:
+		case QC_Token_int:
 			literal->type = Literal_int;
 			literal->value.integer = str_to_int(tok->text);
 			literal->base_type_decl = create_builtin_decl(ctx, int_builtin_type());
 			advance_tok(ctx);
 		break;
-		case Token_float:
+		case QC_Token_float:
 			literal->type = Literal_float;
 			literal->value.floating = str_to_float(tok->text);
 			literal->base_type_decl = create_builtin_decl(ctx, float_builtin_type());
 			advance_tok(ctx);
 		break;
-		case Token_string:
+		case QC_Token_string:
 			literal->type = Literal_string;
 			literal->value.string = tok->text;
 			literal->base_type_decl = create_builtin_decl(ctx, char_builtin_type());
 			advance_tok(ctx);
 		break;
-		case Token_kw_null:
+		case QC_Token_kw_null:
 			literal->type = Literal_null;
 			advance_tok(ctx);
 		break;
-		case Token_open_paren:
+		case QC_Token_open_paren:
 			/* Compound literal */
 			literal->type = Literal_compound;
 			literal->value.compound.subnodes = create_array(AST_Node_Ptr)(2);
@@ -870,27 +870,27 @@ INTERNAL bool parse_literal(Parse_Ctx *ctx, AST_Node **ret)
 			advance_tok(ctx);
 			if (!parse_type(ctx, &literal->value.compound.type))
 				goto mismatch;
-			if (!accept_tok(ctx, Token_close_paren)) {
+			if (!accept_tok(ctx, QC_Token_close_paren)) {
 				report_error_expected(ctx, "')'", cur_tok(ctx));
 				goto mismatch;
 			}
 
 			/* {...} part */
-			if (!accept_tok(ctx, Token_open_brace)) {
+			if (!accept_tok(ctx, QC_Token_open_brace)) {
 				report_error_expected(ctx, "'{'", cur_tok(ctx));
 				goto mismatch;
 			}
-			if (!parse_arg_list(ctx, &literal->value.compound.subnodes, Token_close_brace))
+			if (!parse_arg_list(ctx, &literal->value.compound.subnodes, QC_Token_close_brace))
 				goto mismatch;
 		break;
-		case Token_open_brace:
+		case QC_Token_open_brace:
 			/* Initializer list */
 
 			literal->type = Literal_compound;
 			literal->value.compound.subnodes = create_array(AST_Node_Ptr)(2);
 
 			advance_tok(ctx); /* Skip '{' */
-			if (!parse_arg_list(ctx, &literal->value.compound.subnodes, Token_close_brace))
+			if (!parse_arg_list(ctx, &literal->value.compound.subnodes, QC_Token_close_brace))
 				goto mismatch;
 		break;
 		default:
@@ -938,11 +938,11 @@ mismatch:
 
 
 /* Parses 'foo, bar)' */
-INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, Token_Type ending)
+INTERNAL bool parse_arg_list(Parse_Ctx *ctx, Array(AST_Node_Ptr) *ret, QC_Token_Type ending)
 {
 	while (cur_tok(ctx)->type != ending) {
 		AST_Node *arg = NULL;
-		if (cur_tok(ctx)->type == Token_comma)
+		if (cur_tok(ctx)->type == QC_Token_comma)
 			advance_tok(ctx);
 
 		/* Normal expression */
@@ -967,7 +967,7 @@ mismatch:
 /* Parse example: (4 * 2) */
 INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret)
 {
-	if (!accept_tok(ctx, Token_open_paren)) {
+	if (!accept_tok(ctx, QC_Token_open_paren)) {
 		report_error_expected(ctx, "'('", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -975,7 +975,7 @@ INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, AST_Node **ret)
 	if (!parse_expr(ctx, ret, 0, NULL, false))
 		goto mismatch;
 
-	if (!accept_tok(ctx, Token_close_paren)) {
+	if (!accept_tok(ctx, QC_Token_close_paren)) {
 		report_error_expected(ctx, "')'", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -1003,12 +1003,12 @@ INTERNAL bool parse_call_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node *expr, AS
 	if (expr->type == AST_ident)
 		call->ident = (AST_Ident*)expr;
 
-	if (!accept_tok(ctx, Token_open_paren)) {
+	if (!accept_tok(ctx, QC_Token_open_paren)) {
 		report_error_expected(ctx, "'('", cur_tok(ctx));
 		goto mismatch;
 	}
 
-	if (!parse_arg_list(ctx, &call->args, Token_close_paren))
+	if (!parse_arg_list(ctx, &call->args, QC_Token_close_paren))
 		goto mismatch;
 
 	if (!resolve_call(&ctx->parent_map, call, hint)) {
@@ -1067,7 +1067,7 @@ INTERNAL bool parse_biop_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node *lhs)
 {
 	AST_Biop *biop = create_biop_node();
 	AST_Node *rhs = NULL;
-	Token *tok = cur_tok(ctx);
+	QC_Token *tok = cur_tok(ctx);
 	AST_Type new_type_hint;
 	AST_Type *new_type_hint_ptr = NULL;
 	int prec = biop_prec(tok->type);
@@ -1115,7 +1115,7 @@ INTERNAL bool parse_member_access_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node 
 
 	begin_node_parsing(ctx, AST_BASE(access));
 
-	if (!accept_tok(ctx, Token_dot) && !accept_tok(ctx, Token_right_arrow))
+	if (!accept_tok(ctx, QC_Token_dot) && !accept_tok(ctx, QC_Token_right_arrow))
 		goto mismatch;
 
 	if (!expr_type(&base_type, base)) {
@@ -1154,7 +1154,7 @@ INTERNAL bool parse_element_access_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node
 
 	begin_node_parsing(ctx, AST_BASE(access));
 
-	if (!accept_tok(ctx, Token_open_paren))
+	if (!accept_tok(ctx, QC_Token_open_paren))
 		goto mismatch;
 
 	access->is_element_access = true;
@@ -1172,7 +1172,7 @@ INTERNAL bool parse_element_access_expr(Parse_Ctx *ctx, AST_Node **ret, AST_Node
 		goto mismatch;
 	}
 
-	if (!parse_arg_list(ctx, &access->args, Token_close_paren))
+	if (!parse_arg_list(ctx, &access->args, QC_Token_close_paren))
 		goto mismatch;
 
 	*ret = AST_BASE(access);
@@ -1223,7 +1223,7 @@ INTERNAL bool parse_expr(Parse_Ctx *ctx, AST_Node **ret, int min_prec, AST_Type 
 		}
 	}
 
-	if (semi && !accept_tok(ctx, Token_semi)) {
+	if (semi && !accept_tok(ctx, QC_Token_semi)) {
 		report_error_expected(ctx, "';'", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -1252,29 +1252,29 @@ mismatch:
 /* Parse example: return 42; */
 INTERNAL bool parse_control(Parse_Ctx *ctx, AST_Node **ret)
 {
-	Token *tok = cur_tok(ctx);
+	QC_Token *tok = cur_tok(ctx);
 	AST_Control *control = create_control_node();
 	control->type = tok->type;
 
 	begin_node_parsing(ctx, AST_BASE(control));
 
 	switch (tok->type) {
-		case Token_kw_return: {
+		case QC_Token_kw_return: {
 			advance_tok(ctx);
 			if (!parse_element(ctx, &control->value)) {
 				report_error_expected(ctx, "return value", cur_tok(ctx));
 				goto mismatch;
 			}
 		} break;
-		case Token_kw_goto: {
+		case QC_Token_kw_goto: {
 			advance_tok(ctx);
 			if (!parse_element(ctx, &control->value)) {
 				report_error_expected(ctx, "goto label", cur_tok(ctx));
 				goto mismatch;
 			}
 		} break;
-		case Token_kw_continue:
-		case Token_kw_break:
+		case QC_Token_kw_continue:
+		case QC_Token_kw_break:
 			advance_tok(ctx);
 		break;
 		default:
@@ -1298,7 +1298,7 @@ INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret)
 	AST_Cond *cond = create_cond_node();
 	begin_node_parsing(ctx, AST_BASE(cond));
 
-	if (!accept_tok(ctx, Token_kw_if)) {
+	if (!accept_tok(ctx, QC_Token_kw_if)) {
 		report_error_expected(ctx, "'if'", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -1306,7 +1306,7 @@ INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret)
 	if (!parse_expr_inside_parens(ctx, &cond->expr))
 		goto mismatch;
 
-	if (!accept_tok(ctx, Token_semi)) {
+	if (!accept_tok(ctx, QC_Token_semi)) {
 		if (parse_scope(ctx, &cond->body, false)) {
 			;
 		} else {
@@ -1324,8 +1324,8 @@ INTERNAL bool parse_cond(Parse_Ctx *ctx, AST_Node **ret)
 		}
 	}
 
-	if (accept_tok(ctx, Token_kw_else)) {
-		if (!accept_tok(ctx, Token_semi)) {
+	if (accept_tok(ctx, QC_Token_kw_else)) {
+		if (!accept_tok(ctx, QC_Token_semi)) {
 			if (!parse_element(ctx, &cond->after_else))
 				goto mismatch;
 		}
@@ -1353,8 +1353,8 @@ INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret)
 	AST_Loop *loop = create_loop_node();
 	begin_node_parsing(ctx, AST_BASE(loop));
 
-	if (accept_tok(ctx, Token_kw_for)) {
-		if (!accept_tok(ctx, Token_open_paren)) {
+	if (accept_tok(ctx, QC_Token_kw_for)) {
+		if (!accept_tok(ctx, QC_Token_open_paren)) {
 			report_error_expected(ctx, "'('", cur_tok(ctx));
 			goto mismatch;
 		}
@@ -1369,11 +1369,11 @@ INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret)
 			goto mismatch;
 		}
 
-		if (!accept_tok(ctx, Token_close_paren)) {
+		if (!accept_tok(ctx, QC_Token_close_paren)) {
 			report_error_expected(ctx, "')'", cur_tok(ctx));
 			goto mismatch;
 		}
-	} else if (accept_tok(ctx, Token_kw_while)) {
+	} else if (accept_tok(ctx, QC_Token_kw_while)) {
 		if (!parse_expr_inside_parens(ctx, &loop->cond))
 			goto mismatch;
 	} else {
@@ -1381,7 +1381,7 @@ INTERNAL bool parse_loop(Parse_Ctx *ctx, AST_Node **ret)
 		goto mismatch;
 	}
 
-	if (!accept_tok(ctx, Token_semi)) {
+	if (!accept_tok(ctx, QC_Token_semi)) {
 		if (parse_scope(ctx, &loop->body, false)) {
 			;
 		} else {
@@ -1414,10 +1414,10 @@ INTERNAL bool parse_parallel(Parse_Ctx *ctx, AST_Node **ret)
 	AST_Parallel *parallel = create_parallel_node();
 	begin_node_parsing(ctx, AST_BASE(parallel));
 
-	if (!accept_tok(ctx, Token_kw_parallel))
+	if (!accept_tok(ctx, QC_Token_kw_parallel))
 		goto mismatch;
 
-	if (!accept_tok(ctx, Token_open_paren)) {
+	if (!accept_tok(ctx, QC_Token_open_paren)) {
 		report_error_expected(ctx, "'('", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -1438,7 +1438,7 @@ INTERNAL bool parse_parallel(Parse_Ctx *ctx, AST_Node **ret)
 	if (!parse_expr(ctx, &parallel->input, 0, NULL, false))
 		goto mismatch;
 
-	if (!accept_tok(ctx, Token_close_paren)) {
+	if (!accept_tok(ctx, QC_Token_close_paren)) {
 		report_error_expected(ctx, "')'", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -1481,7 +1481,7 @@ INTERNAL bool parse_element(Parse_Ctx *ctx, AST_Node **ret)
 	AST_Node *result = NULL;
 
 	/* @todo Heuristic */
-	if (accept_tok(ctx, Token_semi)) {
+	if (accept_tok(ctx, QC_Token_semi)) {
 		report_error(ctx, "Unexpected ';'");
 		goto mismatch;
 	} else if (parse_type_decl(ctx, &result))
@@ -1514,7 +1514,7 @@ mismatch:
 	return false;
 }
 
-AST_Scope *parse_tokens(Token *toks)
+AST_Scope *parse_tokens(QC_Token *toks)
 {
 	bool failure = false;
 	Parse_Ctx ctx = {0};
@@ -1535,7 +1535,7 @@ AST_Scope *parse_tokens(Token *toks)
 	}
 
 	begin_node_parsing(&ctx, AST_BASE(root));
-	while (ctx.tok->type != Token_eof) {
+	while (ctx.tok->type != QC_Token_eof) {
 		AST_Node *elem = NULL;
 		if (!parse_element(&ctx, &elem)) {
 			failure = true;
@@ -1560,7 +1560,7 @@ AST_Scope *parse_tokens(Token *toks)
 	}
 
 	if (failure) {
-		Token *tok = ctx.error_tok;
+		QC_Token *tok = ctx.error_tok;
 		const char *msg = ctx.error_msg.data;
 		if (tok && msg) {
 			printf("Error at line %i near token '%.*s':\n   %s\n",

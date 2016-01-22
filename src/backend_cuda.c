@@ -70,7 +70,7 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 								))
 							))
 						)),
-						create_chained_expr(size_accesses.data, size_accesses.size, Token_mul)
+						create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul)
 					);
 
 					push_array(AST_Node_Ptr)(&alloc_func->body->nodes, AST_BASE(elements_assign));
@@ -203,7 +203,7 @@ void add_builtin_cuda_funcs(AST_Scope *root)
 									create_ident_with_text(NULL, "cudaMemcpy"),
 									AST_BASE(access_dst_field),
 									AST_BASE(access_src_field),
-									create_chained_expr(size_accesses.data, size_accesses.size, Token_mul),
+									create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul),
 									AST_BASE(create_ident_with_text(NULL, cuda_memcpy_enums[k]))
 								))
 								);

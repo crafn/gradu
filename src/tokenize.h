@@ -4,82 +4,82 @@
 #include "core.h"
 
 typedef enum {
-	Token_eof,
-	Token_name, /* single_word_like_this */
-	Token_int, /* 2538 */
-	Token_float, /* 2538.0 */
-	Token_string, /* "something" */
-	Token_assign, /* = */
-	Token_semi, /* ; */
-	Token_comma, /* , */
-	Token_open_paren, /* ( */
-	Token_close_paren, /* ) */
-	Token_open_brace, /* { */
-	Token_close_brace, /* } */
-	Token_open_square, /* [ */
-	Token_close_square, /* ] */
-	Token_rdiv, /* `\` */
-	Token_right_arrow, /* -> */
-	Token_equals, /* == */
-	Token_nequals, /* != */
-	Token_less, /* < */
-	Token_greater, /* > */
-	Token_leq, /* <= */
-	Token_geq, /* >= */
-	Token_add_assign, /* += */
-	Token_sub_assign, /* -= */
-	Token_mul_assign, /* *= */
-	Token_div_assign, /* /= */
-	Token_add, /* + */
-	Token_sub, /* - */
-	Token_mul, /* * */
-	Token_div, /* / */
-	Token_incr, /* ++ */
-	Token_decr, /* -- */
-	Token_and, /* && */
-	Token_or, /* || */
-	Token_mod, /* % */
-	Token_dot, /* . */
-	Token_addrof, /* & */
-	Token_hat, /* ^ */
-	Token_tilde, /* ~ */
-	Token_ellipsis, /* .. */ /* @todo Three dots */
-	Token_question, /* ? */
-	Token_squote, /* ' */
-	Token_line_comment, /* // this is comment */
-	Token_block_comment, /* this is block comment */
-	Token_kw_struct, /* struct */
-	Token_kw_return, /* return */
-	Token_kw_goto, /* goto */
-	Token_kw_break, /* break */
-	Token_kw_continue, /* continue */
-	Token_kw_else, /* else */
-	Token_kw_null, /* NULL */
-	Token_kw_for, /* for */
-	Token_kw_while, /* while */
-	Token_kw_if, /* if */
-	Token_kw_true, /* true */
-	Token_kw_false, /* false */
-	Token_kw_sizeof, /* sizeof */
-	Token_kw_typedef, /* typedef */
-	Token_kw_parallel, /* for_field */
+	QC_Token_eof,
+	QC_Token_name, /* single_word_like_this */
+	QC_Token_int, /* 2538 */
+	QC_Token_float, /* 2538.0 */
+	QC_Token_string, /* "something" */
+	QC_Token_assign, /* = */
+	QC_Token_semi, /* ; */
+	QC_Token_comma, /* , */
+	QC_Token_open_paren, /* ( */
+	QC_Token_close_paren, /* ) */
+	QC_Token_open_brace, /* { */
+	QC_Token_close_brace, /* } */
+	QC_Token_open_square, /* [ */
+	QC_Token_close_square, /* ] */
+	QC_Token_rdiv, /* `\` */
+	QC_Token_right_arrow, /* -> */
+	QC_Token_equals, /* == */
+	QC_Token_nequals, /* != */
+	QC_Token_less, /* < */
+	QC_Token_greater, /* > */
+	QC_Token_leq, /* <= */
+	QC_Token_geq, /* >= */
+	QC_Token_add_assign, /* += */
+	QC_Token_sub_assign, /* -= */
+	QC_Token_mul_assign, /* *= */
+	QC_Token_div_assign, /* /= */
+	QC_Token_add, /* + */
+	QC_Token_sub, /* - */
+	QC_Token_mul, /* * */
+	QC_Token_div, /* / */
+	QC_Token_incr, /* ++ */
+	QC_Token_decr, /* -- */
+	QC_Token_and, /* && */
+	QC_Token_or, /* || */
+	QC_Token_mod, /* % */
+	QC_Token_dot, /* . */
+	QC_Token_addrof, /* & */
+	QC_Token_hat, /* ^ */
+	QC_Token_tilde, /* ~ */
+	QC_Token_ellipsis, /* .. */ /* @todo Three dots */
+	QC_Token_question, /* ? */
+	QC_Token_squote, /* ' */
+	QC_Token_line_comment, /* // this is comment */
+	QC_Token_block_comment, /* this is block comment */
+	QC_Token_kw_struct, /* struct */
+	QC_Token_kw_return, /* return */
+	QC_Token_kw_goto, /* goto */
+	QC_Token_kw_break, /* break */
+	QC_Token_kw_continue, /* continue */
+	QC_Token_kw_else, /* else */
+	QC_Token_kw_null, /* NULL */
+	QC_Token_kw_for, /* for */
+	QC_Token_kw_while, /* while */
+	QC_Token_kw_if, /* if */
+	QC_Token_kw_true, /* true */
+	QC_Token_kw_false, /* false */
+	QC_Token_kw_sizeof, /* sizeof */
+	QC_Token_kw_typedef, /* typedef */
+	QC_Token_kw_parallel, /* for_field */
 	/* Type-related */
-	Token_kw_void,
-	Token_kw_int,
-	Token_kw_size_t,
-	Token_kw_char,
-	Token_kw_float,
-	Token_kw_matrix,
-	Token_kw_field,
-	Token_kw_const,
-	Token_unknown
-} Token_Type;
+	QC_Token_kw_void,
+	QC_Token_kw_int,
+	QC_Token_kw_size_t,
+	QC_Token_kw_char,
+	QC_Token_kw_float,
+	QC_Token_kw_matrix,
+	QC_Token_kw_field,
+	QC_Token_kw_const,
+	QC_Token_unknown
+} QC_Token_Type;
 
-const char* tokentype_str(Token_Type type);
-const char* tokentype_codestr(Token_Type type);
+const char* tokentype_str(QC_Token_Type type);
+const char* tokentype_codestr(QC_Token_Type type);
 
-typedef struct Token {
-	Token_Type type;
+typedef struct QC_Token {
+	QC_Token_Type type;
 	Buf_Str text; /* Not terminated! */
 	int line;
 
@@ -89,16 +89,16 @@ typedef struct Token {
 	/* Used only for comments */
 	int comment_bound_to; /* -1 == prev token, 1 == next_token */
 	int comment_ast_depth; /* Used by parser */
-} Token;
+} QC_Token;
 
-static bool is_comment_tok(Token_Type type) { return type == Token_line_comment || type == Token_block_comment; }
+static bool is_comment_tok(QC_Token_Type type) { return type == QC_Token_line_comment || type == QC_Token_block_comment; }
 
-DECLARE_ARRAY(Token)
+DECLARE_ARRAY(QC_Token)
 
-/* Tokens will be pointing to the 'src' string */
-Array(Token) tokenize(const char* src, int src_size);
+/* QC_Tokens will be pointing to the 'src' string */
+Array(QC_Token) tokenize(const char* src, int src_size);
 
-void print_tokens(Token *tokens, int token_count);
+void print_tokens(QC_Token *tokens, int token_count);
 
 
 #endif

@@ -27,10 +27,10 @@ typedef enum {
 struct AST_Node;
 struct AST_Decl;
 typedef struct AST_Node *AST_Node_Ptr;
-typedef struct Token *Token_Ptr;
+typedef struct QC_Token *QC_Token_Ptr;
 
 DECLARE_ARRAY(AST_Node_Ptr)
-DECLARE_ARRAY(Token_Ptr)
+DECLARE_ARRAY(QC_Token_Ptr)
 DECLARE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
 static U32 hash(AST_Node_Ptr)(AST_Node_Ptr node) { return hash(Void_Ptr)(node); }
 
@@ -41,11 +41,11 @@ typedef struct AST_Node {
 	/* Information for human-readable output */
 
 	/* @todo Inline struct with needed info. Then generated code can have vertical spacing etc. */
-	Token *begin_tok;
+	QC_Token *begin_tok;
 
 	/* Comments on the previous line(s) (like this comment) */
-	Array(Token_Ptr) pre_comments;
-	Array(Token_Ptr) post_comments; /* On the same line (like this comment) */
+	Array(QC_Token_Ptr) pre_comments;
+	Array(QC_Token_Ptr) post_comments; /* On the same line (like this comment) */
 
 	const char *attribute; /* Just a quick test for __global__ */
 } AST_Node;
@@ -173,7 +173,7 @@ typedef struct AST_Literal {
 /* @todo Rename to AST_Expr */
 typedef struct AST_Biop {
 	AST_Node b;
-	Token_Type type;
+	QC_Token_Type type;
 	AST_Node *lhs; /* NULL for unary operations like '-5' */
 	AST_Node *rhs; /* NULL for unary operations like 'i++' */
 
@@ -183,7 +183,7 @@ typedef struct AST_Biop {
 /* return, goto, continue, break */
 typedef struct AST_Control {
 	AST_Node b;
-	Token_Type type;
+	QC_Token_Type type;
 	/* For return and goto */
 	AST_Node *value;
 } AST_Control;
@@ -400,7 +400,7 @@ AST_Control *create_return(AST_Node *expr);
 AST_Biop *create_sizeof(AST_Node *expr);
 AST_Biop *create_deref(AST_Node *expr);
 AST_Biop *create_addrof(AST_Node *expr);
-AST_Biop *create_biop(Token_Type type, AST_Node *lhs, AST_Node *rhs);
+AST_Biop *create_biop(QC_Token_Type type, AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_assign(AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_mul(AST_Node *lhs, AST_Node *rhs);
 AST_Biop *create_less_than(AST_Node *lhs, AST_Node *rhs);
@@ -426,10 +426,10 @@ Builtin_Type float_builtin_type();
 Builtin_Type char_builtin_type();
 
 /* elem[0] chainop elem[1] */
-AST_Node *create_chained_expr(AST_Node **elems, int elem_count, Token_Type chainop);
+AST_Node *create_chained_expr(AST_Node **elems, int elem_count, QC_Token_Type chainop);
 
 /* (lhs[0] biop rhs[0]) chainop (lhs[1] biop rhs[1]) */
-AST_Node *create_chained_expr_2(AST_Node **lhs_elems, AST_Node **rhs_elems, int elem_count, Token_Type biop, Token_Type chainop);
+AST_Node *create_chained_expr_2(AST_Node **lhs_elems, AST_Node **rhs_elems, int elem_count, QC_Token_Type biop, QC_Token_Type chainop);
 
 void add_parallel_id_init(AST_Scope *root, AST_Parallel *parallel, int ix, AST_Node *value);
 

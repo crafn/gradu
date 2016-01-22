@@ -2,7 +2,7 @@
 
 DEFINE_ARRAY(AST_Node_Ptr)
 DEFINE_ARRAY(AST_Var_Decl_Ptr)
-DEFINE_ARRAY(Token_Ptr)
+DEFINE_ARRAY(QC_Token_Ptr)
 DEFINE_HASH_TABLE(AST_Node_Ptr, AST_Node_Ptr)
 
 bool type_node_equals(AST_Type a, AST_Type b)
@@ -37,8 +37,8 @@ INTERNAL AST_Node *create_node_impl(AST_Node_Type type, int size)
 {
 	AST_Node *n = calloc(1, size);
 	n->type = type;
-	n->pre_comments = create_array(Token_Ptr)(0);
-	n->post_comments = create_array(Token_Ptr)(0);
+	n->pre_comments = create_array(QC_Token_Ptr)(0);
+	n->post_comments = create_array(QC_Token_Ptr)(0);
 	return n;
 }
 #define CREATE_NODE(type, type_enum) ((type*)create_node_impl(type_enum, sizeof(type)))
@@ -143,9 +143,9 @@ void copy_ast_node_base(AST_Node *dst, AST_Node *src)
 	/*dst->type = src->type;*/
 	dst->begin_tok = src->begin_tok;
 	for (i = 0; i < src->pre_comments.size; ++i)
-		push_array(Token_Ptr)(&dst->pre_comments, src->pre_comments.data[i]);
+		push_array(QC_Token_Ptr)(&dst->pre_comments, src->pre_comments.data[i]);
 	for (i = 0; i < src->post_comments.size; ++i)
-		push_array(Token_Ptr)(&dst->post_comments, src->post_comments.data[i]);
+		push_array(QC_Token_Ptr)(&dst->post_comments, src->post_comments.data[i]);
 	dst->attribute = src->attribute;
 }
 
@@ -621,8 +621,8 @@ void shallow_destroy_node(AST_Node *node)
 	default: FAIL(("shallow_destroy_node: Unknown node type %i", node->type));
 	};
 
-	destroy_array(Token_Ptr)(&node->pre_comments);
-	destroy_array(Token_Ptr)(&node->post_comments);
+	destroy_array(QC_Token_Ptr)(&node->pre_comments);
+	destroy_array(QC_Token_Ptr)(&node->post_comments);
 	free(node);
 }
 
@@ -680,7 +680,7 @@ bool expr_type(AST_Type *ret, AST_Node *expr)
 		} else if (biop->rhs) {
 			/* op value */
 			success = expr_type(ret, biop->rhs);
-			if (biop->type == Token_mul) { /* Deref */
+			if (biop->type == QC_Token_mul) { /* Deref */
 				--ret->ptr_depth;
 			}
 		} else if (biop->lhs) {
@@ -725,14 +725,14 @@ bool eval_const_expr(AST_Literal *ret, AST_Node *expr)
 			}
 
 			switch (biop->type) {
-			case Token_add:
+			case QC_Token_add:
 				switch (lhs.type) {
 				case Literal_int: ret->value.integer = lhs.value.integer + rhs.value.integer; break;
 				case Literal_float: ret->value.floating = lhs.value.floating + rhs.value.floating; break;
 				default: FAIL(("Unhandled literal type %i", lhs.type));
 				}
 			break;
-			case Token_sub:
+			case QC_Token_sub:
 				switch (lhs.type) {
 				case Literal_int: ret->value.integer = lhs.value.integer - rhs.value.integer; break;
 				case Literal_float: ret->value.floating = lhs.value.floating - rhs.value.floating; break;
@@ -1713,7 +1713,7 @@ AST_Call *create_call_4(AST_Ident *ident, AST_Node *arg1, AST_Node *arg2, AST_No
 AST_Control *create_return(AST_Node *expr)
 {
 	AST_Control *ret = create_control_node();
-	ret->type = Token_kw_return;
+	ret->type = QC_Token_kw_return;
 	ret->value = expr;
 	return ret;
 }
@@ -1721,7 +1721,7 @@ AST_Control *create_return(AST_Node *expr)
 AST_Biop *create_sizeof(AST_Node *expr)
 {
 	AST_Biop *op = create_biop_node();
-	op->type = Token_kw_sizeof;
+	op->type = QC_Token_kw_sizeof;
 	op->rhs = expr;
 	return op;
 }
@@ -1729,7 +1729,7 @@ AST_Biop *create_sizeof(AST_Node *expr)
 AST_Biop *create_deref(AST_Node *expr)
 {
 	AST_Biop *op = create_biop_node();
-	op->type = Token_mul;
+	op->type = QC_Token_mul;
 	op->rhs = expr;
 	return op;
 }
@@ -1737,12 +1737,12 @@ AST_Biop *create_deref(AST_Node *expr)
 AST_Biop *create_addrof(AST_Node *expr)
 {
 	AST_Biop *op = create_biop_node();
-	op->type = Token_addrof;
+	op->type = QC_Token_addrof;
 	op->rhs = expr;
 	return op;
 }
 
-AST_Biop *create_biop(Token_Type type, AST_Node *lhs, AST_Node *rhs)
+AST_Biop *create_biop(QC_Token_Type type, AST_Node *lhs, AST_Node *rhs)
 {
 	AST_Biop *op = create_biop_node();
 	op->type = type;
@@ -1752,25 +1752,25 @@ AST_Biop *create_biop(Token_Type type, AST_Node *lhs, AST_Node *rhs)
 }
 
 AST_Biop *create_assign(AST_Node *lhs, AST_Node *rhs)
-{ return create_biop(Token_assign, lhs, rhs); }
+{ return create_biop(QC_Token_assign, lhs, rhs); }
 
 AST_Biop *create_mul(AST_Node *lhs, AST_Node *rhs)
-{ return create_biop(Token_mul, lhs, rhs); }
+{ return create_biop(QC_Token_mul, lhs, rhs); }
 
 AST_Biop *create_less_than(AST_Node *lhs, AST_Node *rhs)
 {
 	ASSERT(lhs && rhs);
-	return create_biop(Token_less, lhs, rhs);
+	return create_biop(QC_Token_less, lhs, rhs);
 }
 
 AST_Biop *create_equals(AST_Node *lhs, AST_Node *rhs)
-{ return create_biop(Token_equals, lhs, rhs); }
+{ return create_biop(QC_Token_equals, lhs, rhs); }
 
 AST_Biop *create_and(AST_Node *lhs, AST_Node *rhs)
-{ return create_biop(Token_and, lhs, rhs); }
+{ return create_biop(QC_Token_and, lhs, rhs); }
 
 AST_Biop *create_pre_increment(AST_Node *expr)
-{ return create_biop(Token_incr, NULL, expr); }
+{ return create_biop(QC_Token_incr, NULL, expr); }
 
 AST_Cast *create_cast(AST_Type *type, AST_Node *target)
 {
@@ -1910,7 +1910,7 @@ Builtin_Type char_builtin_type()
 	return bt;
 }
 
-AST_Node *create_chained_expr(AST_Node **elems, int elem_count, Token_Type chainop)
+AST_Node *create_chained_expr(AST_Node **elems, int elem_count, QC_Token_Type chainop)
 {
 	int i;
 	AST_Node *ret = NULL;
@@ -1929,7 +1929,7 @@ AST_Node *create_chained_expr(AST_Node **elems, int elem_count, Token_Type chain
 	return ret;
 }
 
-AST_Node *create_chained_expr_2(AST_Node **lhs_elems, AST_Node **rhs_elems, int elem_count, Token_Type biop, Token_Type chainop)
+AST_Node *create_chained_expr_2(AST_Node **lhs_elems, AST_Node **rhs_elems, int elem_count, QC_Token_Type biop, QC_Token_Type chainop)
 {
 	int i;
 	AST_Node *ret = NULL;

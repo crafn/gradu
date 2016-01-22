@@ -54,7 +54,7 @@ int main(int argc, const char **argv)
 	bool verbose;
 	char *src_buf = NULL;
 	int src_size;
-	Array(Token) tokens = {0};
+	Array(QC_Token) tokens = {0};
 	AST_Scope *root = NULL;
 	Array(char) gen_code = {0};
 
@@ -98,7 +98,7 @@ int main(int argc, const char **argv)
 			goto error;
 
 		if (verbose) {
-			printf("Tokens\n");
+			printf("QC_Tokens\n");
 			print_tokens(tokens.data, tokens.size);
 		}
 
@@ -136,7 +136,7 @@ int main(int argc, const char **argv)
 cleanup:
 	destroy_array(char)(&gen_code);
 	destroy_ast(root);
-	destroy_array(Token)(&tokens);
+	destroy_array(QC_Token)(&tokens);
 	free(src_buf);
 	if (file)
 		fclose(file);

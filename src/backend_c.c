@@ -88,10 +88,10 @@ void append_expr_c_func_name(Array(char) *buf, AST_Node *expr)
 		case AST_biop: {
 			CASTED_NODE(AST_Biop, biop, node);
 			switch (biop->type) {
-			case Token_add: append_str(buf, "add_"); break;
-			case Token_sub: append_str(buf, "sub_"); break;
-			case Token_mul: append_str(buf, "mul_"); break;
-			case Token_div: append_str(buf, "div_"); break;
+			case QC_Token_add: append_str(buf, "add_"); break;
+			case QC_Token_sub: append_str(buf, "sub_"); break;
+			case QC_Token_mul: append_str(buf, "mul_"); break;
+			case QC_Token_div: append_str(buf, "div_"); break;
 			default: append_str(buf, "_unhandled_op_");
 			}
 		} break;
@@ -270,7 +270,7 @@ INTERNAL AST_Node *create_matrix_mul_expr(AST_Var_Decl *lhs, AST_Var_Decl *rhs, 
 			create_array_access(AST_BASE(rhs_m_access), AST_BASE(create_integer_literal(rhs_index, NULL)));
 		AST_Biop *mul = create_biop_node();
 
-		mul->type = Token_mul;
+		mul->type = QC_Token_mul;
 		mul->lhs = AST_BASE(lhs_arr_access);
 		mul->rhs = AST_BASE(rhs_arr_access);
 
@@ -278,7 +278,7 @@ INTERNAL AST_Node *create_matrix_mul_expr(AST_Var_Decl *lhs, AST_Var_Decl *rhs, 
 			expr = AST_BASE(mul);
 		} else {
 			AST_Biop *sum = create_biop_node();
-			sum->type = Token_add;
+			sum->type = QC_Token_add;
 			sum->lhs = expr;
 			sum->rhs = AST_BASE(mul);
 
@@ -683,14 +683,14 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 								create_array_access(AST_BASE(member_access),
 													AST_BASE(create_integer_literal(index, NULL)));
 
-							assign->type = Token_assign;
+							assign->type = QC_Token_assign;
 							assign->lhs = AST_BASE(array_access);
 							assign->rhs = create_matrix_mul_expr(lhs_decl, rhs_decl, member_decl, bt, x, y);
 							push_array(AST_Node_Ptr)(&mul_decl->body->nodes, AST_BASE(assign));
 						}
 					}
 
-					return_stmt->type = Token_kw_return;
+					return_stmt->type = QC_Token_kw_return;
 					return_stmt->value = AST_BASE(create_access_for_var(ret_decl));
 					push_array(AST_Node_Ptr)(&mul_decl->body->nodes, AST_BASE(return_stmt));
 				}
@@ -748,7 +748,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 								(AST_Type*)copy_ast(AST_BASE(c_mat_elements_decl(field_decl)->type)),
 								AST_BASE(create_call_1(
 									create_ident_with_text(NULL, "malloc"),
-									create_chained_expr(size_accesses.data, size_accesses.size, Token_mul)
+									create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul)
 								))
 							))
 						);
@@ -856,7 +856,7 @@ void add_builtin_c_decls_to_global_scope(AST_Scope *root, bool cpu_device_impl)
 							create_ident_with_text(NULL, "memcpy"),
 							AST_BASE(access_dst_field),
 							AST_BASE(access_src_field),
-							create_chained_expr(size_accesses.data, size_accesses.size, Token_mul)
+							create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul)
 							);
 
 					destroy_array(AST_Node_Ptr)(&size_accesses);
@@ -927,7 +927,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 			AST_Type type;
 			Builtin_Type bt;
 
-			if (biop->type == Token_assign)
+			if (biop->type == QC_Token_assign)
 				continue;
 			if (!expr_type(&type, AST_BASE(biop)))
 				continue;
@@ -1015,7 +1015,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 					}
 					ASSERT(multipliers.size == access->args.size);
 					index_expr = create_chained_expr_2(multipliers.data, access->args.data,
-							access->args.size, Token_mul, Token_add);
+							access->args.size, QC_Token_mul, QC_Token_add);
 					push_array(AST_Node_Ptr)(&array_access->args, index_expr);
 
 					destroy_array(AST_Node_Ptr)(&multipliers);
@@ -1031,7 +1031,7 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 					}
 					ASSERT(multipliers.size == access->args.size);
 					index_expr = create_chained_expr_2(multipliers.data, access->args.data,
-							access->args.size, Token_mul, Token_add);
+							access->args.size, QC_Token_mul, QC_Token_add);
 					push_array(AST_Node_Ptr)(&array_access->args, index_expr);
 
 					destroy_array(AST_Node_Ptr)(&multipliers);
@@ -1057,9 +1057,9 @@ void apply_c_operator_overloading(AST_Scope *root, bool convert_mat_expr)
 	destroy_array(AST_Node_Ptr)(&replace_list_new);
 }
 
-INTERNAL void append_c_comment(Array(char) *buf, Token *comment)
+INTERNAL void append_c_comment(Array(char) *buf, QC_Token *comment)
 {
-	if (comment->type == Token_line_comment)
+	if (comment->type == QC_Token_line_comment)
 		append_str(buf, "/*%.*s */", BUF_STR_ARGS(comment->text));
 	else
 		append_str(buf, "/*%.*s*/", BUF_STR_ARGS(comment->text));
@@ -1097,7 +1097,7 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 
 			/* Comments are enabled only for scope nodes for now */
 			for (k = 0; k < sub->pre_comments.size; ++k) {
-				Token *comment = sub->pre_comments.data[k];
+				QC_Token *comment = sub->pre_comments.data[k];
 				if (comment->empty_line_before)
 					append_str(buf, "\n");
 				append_str(buf, "%*s", new_indent, "");
@@ -1239,7 +1239,7 @@ bool ast_to_c_str(Array(char) *buf, int indent, AST_Node *node)
 			if (rhs_parens)
 				append_str(buf, ")");
 		} else {
-			bool parens_inside = (biop->type == Token_kw_sizeof);
+			bool parens_inside = (biop->type == QC_Token_kw_sizeof);
 
 			/* Unary op */
 			append_str(buf, "%s", tokentype_codestr(biop->type));

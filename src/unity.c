@@ -1,7 +1,5 @@
-#include "ast.c"
-#include "backend_c.c"
-#include "backend_cuda.c"
-#include "core.c"
+#define QC_BACKEND_C
+#define QC_BACKEND_CUDA
+
+#include "lib_unity.c"
 #include "main.c"
-#include "parse.c"
-#include "tokenize.c"

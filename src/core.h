@@ -1,16 +1,6 @@
 #ifndef QC_CORE_H
 #define QC_CORE_H
 
-/* Library user settings */
-
-#ifndef QC_MALLOC
-#	define QC_MALLOC malloc
-#endif
-
-#ifndef QC_FREE
-#	define QC_FREE free
-#endif
-
 /* Commonly used utils */
 
 #include <assert.h>

@@ -34,14 +34,14 @@ const char *get_arg(const char **argv, int argc, const char *flag)
 	return NULL;
 }
 
-bool has_arg(const char **argv, int argc, const char *flag)
+QC_Bool has_arg(const char **argv, int argc, const char *flag)
 {
 	int i;
 	for (i = 1; i < argc; ++i) {
 		if (!strcmp(flag, argv[i]))
-			return true;
+			return QC_true;
 	}
-	return false;
+	return QC_false;
 }
 
 int main(int argc, const char **argv)
@@ -51,7 +51,7 @@ int main(int argc, const char **argv)
 	const char *src_path;
 	const char *backend_str;
 	const char *output_path = NULL;
-	bool verbose;
+	QC_Bool verbose;
 	char *src_buf = NULL;
 	int src_size;
 	QC_Array(QC_Token) tokens = {0};
@@ -86,7 +86,7 @@ int main(int argc, const char **argv)
 		size = ftell(file);
 		fseek(file, 0, SEEK_SET);
 
-		src_buf = malloc(size);
+		src_buf = QC_MALLOC(size);
 		count = fread(src_buf, size, 1, file);
 		QC_ASSERT(count == 1);
 		src_size = size;
@@ -137,7 +137,7 @@ cleanup:
 	qc_destroy_array(char)(&gen_code);
 	qc_destroy_ast(root);
 	qc_destroy_array(QC_Token)(&tokens);
-	free(src_buf);
+	QC_FREE(src_buf);
 	if (file)
 		fclose(file);
 	return ret;

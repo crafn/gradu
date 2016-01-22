@@ -58,8 +58,8 @@ typedef enum {
 	QC_Token_kw_for, /* for */
 	QC_Token_kw_while, /* while */
 	QC_Token_kw_if, /* if */
-	QC_Token_kw_true, /* true */
-	QC_Token_kw_false, /* false */
+	QC_Token_kw_QC_true, /* QC_true */
+	QC_Token_kw_QC_false, /* QC_false */
 	QC_Token_kw_sizeof, /* sizeof */
 	QC_Token_kw_typedef, /* typedef */
 	QC_Token_kw_parallel, /* for_field */
@@ -83,15 +83,15 @@ typedef struct QC_Token {
 	QC_Buf_Str text; /* Not terminated! */
 	int line;
 
-	bool empty_line_before;
-	bool last_on_line;
+	QC_Bool empty_line_before;
+	QC_Bool last_on_line;
 
 	/* Used only for comments */
 	int comment_bound_to; /* -1 == prev token, 1 == next_token */
 	int comment_ast_depth; /* Used by parser */
 } QC_Token;
 
-static bool qc_is_comment_tok(QC_Token_Type type) { return type == QC_Token_line_comment || type == QC_Token_block_comment; }
+static QC_Bool qc_is_comment_tok(QC_Token_Type type) { return type == QC_Token_line_comment || type == QC_Token_block_comment; }
 
 QC_DECLARE_ARRAY(QC_Token)
 

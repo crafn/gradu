@@ -54,7 +54,7 @@ typedef struct QC_AST_Node {
 typedef struct QC_AST_Scope {
 	QC_AST_Node b;
 	QC_Array(QC_AST_Node_Ptr) nodes;
-	bool is_root;
+	QC_Bool is_root;
 } QC_AST_Scope;
 
 /* Identifier */
@@ -62,7 +62,7 @@ typedef struct QC_AST_Ident {
 	QC_AST_Node b;
 	/* @todo Change to QC_Array(char) */
 	QC_Array(char) text; /* NULL-terminated */
-	bool designated; /* Dot before identifier */
+	QC_Bool designated; /* Dot before identifier */
 
 	struct QC_AST_Node *decl; /* Not owned */
 } QC_AST_Ident;
@@ -80,31 +80,31 @@ typedef struct QC_AST_Type {
 	int ptr_depth;
 	/* @todo 2-dimensional arrays, pointers to arrays, ... (?) */
 	int array_size; /* 0 for no array */
-	bool is_const; /* Just to propagate consts to output */
+	QC_Bool is_const; /* Just to propagate consts to output */
 
 	/* When adding members, remember to update type_node_equals! */
 } QC_AST_Type;
-bool type_node_equals(QC_AST_Type a, QC_AST_Type b);
+QC_Bool type_node_equals(QC_AST_Type a, QC_AST_Type b);
 
 typedef struct QC_Builtin_Type {
-	bool is_void;
-	bool is_integer;
-	bool is_char; /* int8_t != char */
-	bool is_float;
+	QC_Bool is_void;
+	QC_Bool is_integer;
+	QC_Bool is_char; /* int8_t != char */
+	QC_Bool is_float;
 	int bitness; /* Zero for "not explicitly specified" */
-	bool is_unsigned;
+	QC_Bool is_unsigned;
 
-	bool is_matrix;
+	QC_Bool is_matrix;
 #define QC_MAX_MATRIX_RANK 10 /* Could be made dynamic */
 	int matrix_rank;
 	int matrix_dim[QC_MAX_MATRIX_RANK];
 
-	bool is_field;
+	QC_Bool is_field;
 	int field_dim;
 
 	/* When adding members, remember to update builtin_type_equals! */
 } QC_Builtin_Type;
-bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b);
+QC_Bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b);
 
 /* Type declaration / definition */
 typedef struct QC_AST_Type_Decl {
@@ -113,7 +113,7 @@ typedef struct QC_AST_Type_Decl {
 	QC_AST_Scope *body;
 
 	/* 'body' and 'ident' are NULL for builtin types */
-	bool is_builtin; /* void, int, char etc. */
+	QC_Bool is_builtin; /* void, int, char etc. */
 	QC_Builtin_Type builtin_type;
 	struct QC_AST_Type_Decl *builtin_sub_type_decl; /* Not owner. Matrix/scalar for a field. Scalar for a matrix. */
 	struct QC_AST_Type_Decl *builtin_concrete_decl; /* Not owned. Backend can use this to point generated types. */
@@ -137,10 +137,10 @@ typedef struct QC_AST_Func_Decl {
 	QC_AST_Type *return_type;
 	QC_AST_Ident *ident;
 	QC_Array(QC_AST_Var_Decl_Ptr) params;
-	bool ellipsis;
+	QC_Bool ellipsis;
 	QC_AST_Scope *body;
 
-	bool is_builtin; /* Field allocation and deallocation functions */
+	QC_Bool is_builtin; /* Field allocation and deallocation functions */
 	struct QC_AST_Func_Decl *builtin_concrete_decl; /* Not owned. Backend can use this to point generated types. */
 } QC_AST_Func_Decl;
 
@@ -177,7 +177,7 @@ typedef struct QC_AST_Biop {
 	QC_AST_Node *lhs; /* NULL for unary operations like '-5' */
 	QC_AST_Node *rhs; /* NULL for unary operations like 'i++' */
 
-	bool is_top_level; /* This is not part of another expression */
+	QC_Bool is_top_level; /* This is not part of another expression */
 } QC_AST_Biop;
 
 /* return, goto, continue, break */
@@ -206,11 +206,11 @@ typedef struct QC_AST_Access {
 	 * 'base' is wrapped in an extra Access, because then '(base + 0)->sub' and '(base)->sub' and 'base.sub'
 	 * are handled uniformly (every expression has two Access nodes) */
 
-	bool is_member_access;
-	bool is_element_access; /* Matrix or field element access */
-	bool is_array_access;
+	QC_Bool is_member_access;
+	QC_Bool is_element_access; /* Matrix or field element access */
+	QC_Bool is_array_access;
 
-	bool implicit_deref; /* 'a->b' or 'field_ptr(1, 2)' */
+	QC_Bool implicit_deref; /* 'a->b' or 'field_ptr(1, 2)' */
 
 	/* @todo Field access etc. */
 } QC_AST_Access;
@@ -221,7 +221,7 @@ typedef struct QC_AST_Cond {
 
 	QC_AST_Node *expr;
 	QC_AST_Scope *body;
-	bool implicit_scope; /* Original source had no { } */
+	QC_Bool implicit_scope; /* Original source had no { } */
 
 	/* Must be QC_AST_Scope or QC_AST_Cond or NULL */
 	QC_AST_Node *after_else;
@@ -237,7 +237,7 @@ typedef struct QC_AST_Loop {
 	QC_AST_Node *incr;
 
 	QC_AST_Scope *body;
-	bool implicit_scope; /* Original source had no { } */
+	QC_Bool implicit_scope; /* Original source had no { } */
 
 	/* @todo do-while */
 } QC_AST_Loop;
@@ -335,10 +335,10 @@ void qc_shallow_destroy_node(QC_AST_Node *node);
 /* Evaluation */
 /* Don't destroy nodes returned by evaluation, they are not constructed by qc_create_*, just containers of data */
 
-bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr);
-bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr);
+QC_Bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr);
+QC_Bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr);
 
-bool qc_is_decl(QC_AST_Node *node);
+QC_Bool qc_is_decl(QC_AST_Node *node);
 QC_AST_Ident *qc_decl_ident(QC_AST_Node *node);
 QC_AST_Ident *qc_access_ident(QC_AST_Access *access);
 
@@ -357,7 +357,7 @@ QC_AST_Node *qc_find_parent_node(QC_AST_Parent_Map *map, QC_AST_Node *node);
 void qc_set_parent_node(QC_AST_Parent_Map *map, QC_AST_Node *sub, QC_AST_Node *parent);
 int qc_find_in_scope(QC_AST_Scope *scope, QC_AST_Node *needle);
 QC_AST_Func_Decl *qc_find_enclosing_func(QC_AST_Parent_Map *map, QC_AST_Node *node);
-bool qc_is_subnode(QC_AST_Parent_Map *map, QC_AST_Node *parent, QC_AST_Node *sub);
+QC_Bool qc_is_subnode(QC_AST_Parent_Map *map, QC_AST_Node *parent, QC_AST_Node *sub);
 
 QC_AST_Ident *qc_resolve_ident(QC_AST_Parent_Map *map, QC_AST_Ident *ident);
 /* Resolves call to specific overload */
@@ -372,9 +372,9 @@ void qc_push_immediate_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *nod
 /* Gathers immediate referenced (not owned) nodes */
 void qc_push_immediate_refnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *node);
 /* Gathers the whole subnode tree to array */
-void qc_push_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *node, bool qc_push_before_recursing);
+void qc_push_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *node, QC_Bool qc_push_before_recursing);
 /* Rewrites nodes in tree, old_nodes[i] -> new_nodes[i]
- * Doesn't free or allocate any nodes.
+ * Doesn't QC_FREE or allocate any nodes.
  * Doesn't recurse into old_nodes. They can be dangling.
  * Is recursive, so if some new_nodes[i] contain old_nodes[k], it will also be replaced. */
 QC_AST_Node *qc_replace_nodes_in_ast(QC_AST_Node *node, QC_AST_Node **old_nodes, QC_AST_Node **new_nodes, int node_count);

@@ -102,7 +102,7 @@ int qc_biop_assoc(QC_Token_Type type)
 	}
 }
 
-bool is_binary_op(QC_Token_Type type)
+QC_Bool is_binary_op(QC_Token_Type type)
 {
 	switch (type) {
 
@@ -127,12 +127,12 @@ bool is_binary_op(QC_Token_Type type)
 	case QC_Token_sub_assign:
 	case QC_Token_mul_assign:
 	case QC_Token_div_assign:
-		return true;
-	default: return false;
+		return QC_true;
+	default: return QC_false;
 	}
 }
 
-bool is_unary_op(QC_Token_Type type)
+QC_Bool is_unary_op(QC_Token_Type type)
 {
 	switch (type) {
 		case QC_Token_add:
@@ -142,8 +142,8 @@ bool is_unary_op(QC_Token_Type type)
 		case QC_Token_decr:
 		case QC_Token_addrof:
 		case QC_Token_mul: /* deref */
-			return true;
-		default: return false;
+			return QC_true;
+		default: return QC_false;
 	}
 }
 
@@ -156,11 +156,11 @@ typedef struct Parse_Stack_Frame {
 } Parse_Stack_Frame;
 
 QC_DECLARE_ARRAY(Parse_Stack_Frame)
-DEFINE_ARRAY(Parse_Stack_Frame)
+QC_DEFINE_ARRAY(Parse_Stack_Frame)
 
 typedef QC_AST_Type_Decl* QC_AST_Type_Decl_Ptr;
 QC_DECLARE_ARRAY(QC_AST_Type_Decl_Ptr)
-DEFINE_ARRAY(QC_AST_Type_Decl_Ptr)
+QC_DEFINE_ARRAY(QC_AST_Type_Decl_Ptr)
 
 typedef struct Parse_Ctx {
 	QC_AST_Scope *root;
@@ -191,13 +191,13 @@ QC_INTERNAL void advance_tok(Parse_Ctx *ctx)
 	} while (qc_is_comment_tok(ctx->tok->type));
 }
 
-QC_INTERNAL bool accept_tok(Parse_Ctx *ctx, QC_Token_Type type)
+QC_INTERNAL QC_Bool accept_tok(Parse_Ctx *ctx, QC_Token_Type type)
 {
 	if (ctx->tok->type == type) {
 		advance_tok(ctx);
-		return true;
+		return QC_true;
 	}
-	return false;
+	return QC_false;
 }
 
 
@@ -219,7 +219,7 @@ QC_INTERNAL void begin_node_parsing(Parse_Ctx *ctx, QC_AST_Node *node)
 	qc_push_array(Parse_Stack_Frame)(&ctx->parse_stack, frame);
 }
 
-QC_INTERNAL bool can_have_post_comments(QC_AST_Node *node)
+QC_INTERNAL QC_Bool can_have_post_comments(QC_AST_Node *node)
 {
 	/* if or loop without explicit scope can't have post-comments -- only the statement can */
 	if (node->type == QC_AST_cond) {
@@ -229,7 +229,7 @@ QC_INTERNAL bool can_have_post_comments(QC_AST_Node *node)
 		QC_CASTED_NODE(QC_AST_Loop, loop, node);
 		return !loop->implicit_scope;
 	}
-	return true;
+	return QC_true;
 }
 
 QC_INTERNAL void end_node_parsing(Parse_Ctx *ctx)
@@ -238,13 +238,13 @@ QC_INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 	QC_ASSERT(frame.node);
 
 	/* frame.node is used in end_node_parsing because node might not yet be created at the begin_node_parsing */
-	/* That ^ is false now! Can be moved to begin. */
+	/* That ^ is QC_false now! Can be moved to begin. */
 	frame.node->begin_tok = frame.begin_tok;
 
 	/*	Gather comments around node if this is the first time calling end_node_parsing with this node.
 		It's possible to have multiple begin...end_node_parsing with the same node because of nesting,
 		like when parsing statement: 'foo;', which yields parse_expr(parse_ident()). */
-	/* That ^ is false now! Not possible to have multiple begin..end with the same node anymore. */
+	/* That ^ is QC_false now! Not possible to have multiple begin..end with the same node anymore. */
 	if (frame.node->pre_comments.size == 0) {
 		QC_Token *tok = frame.begin_tok - 1;
 		/* Rewind first */
@@ -308,28 +308,28 @@ QC_INTERNAL void report_error_expected(Parse_Ctx *ctx, const char *expected, QC_
 /* Parsing */
 
 /* @todo QC_AST_Node -> specific node type. <-- not so sure about that.. */
-QC_INTERNAL bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *decl);
-QC_INTERNAL bool parse_type_decl(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_typedef(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, bool is_param_decl);
-QC_INTERNAL bool parse_type(Parse_Ctx *ctx, QC_AST_Type **ret_type);
-QC_INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC_AST_Ident **ret_ident, QC_AST_Node *enclosing_decl);
-QC_INTERNAL bool parse_func_decl(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_scope(Parse_Ctx *ctx, QC_AST_Scope **ret, bool already_created);
-QC_INTERNAL bool parse_literal(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_uop(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_arg_list(Parse_Ctx *ctx, QC_Array(QC_AST_Node_Ptr) *ret, QC_Token_Type ending);
-QC_INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, QC_AST_Type *type_hint, bool semi);
-QC_INTERNAL bool parse_control(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL bool parse_element(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *decl);
+QC_INTERNAL QC_Bool parse_type_decl(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_typedef(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, QC_Bool is_param_decl);
+QC_INTERNAL QC_Bool parse_type(Parse_Ctx *ctx, QC_AST_Type **ret_type);
+QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC_AST_Ident **ret_ident, QC_AST_Node *enclosing_decl);
+QC_INTERNAL QC_Bool parse_func_decl(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_scope(Parse_Ctx *ctx, QC_AST_Scope **ret, QC_Bool already_created);
+QC_INTERNAL QC_Bool parse_literal(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_uop(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_arg_list(Parse_Ctx *ctx, QC_Array(QC_AST_Node_Ptr) *ret, QC_Token_Type ending);
+QC_INTERNAL QC_Bool parse_expr_inside_parens(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, QC_AST_Type *type_hint, QC_Bool semi);
+QC_INTERNAL QC_Bool parse_control(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_element(Parse_Ctx *ctx, QC_AST_Node **ret);
 
 /* If decl is NULL, then declaration is searched. */
 /* Parse example: foo */
-QC_INTERNAL bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *decl)
+QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *decl)
 {
 	QC_AST_Ident *ident = qc_create_ident_node();
 
@@ -337,7 +337,7 @@ QC_INTERNAL bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *de
 
 	/* Consume dot before designated initializer identifier */
 	if (accept_tok(ctx, QC_Token_dot))
-		ident->designated = true;
+		ident->designated = QC_true;
 	qc_append_str(&ident->text, "%.*s", QC_BUF_STR_ARGS(cur_tok(ctx)->text));
 
 	if (cur_tok(ctx)->type != QC_Token_name) {
@@ -353,15 +353,15 @@ QC_INTERNAL bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *de
 	end_node_parsing(ctx);
 
 	*ret = ident;
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 /* Parse examples: int test -- int func() { } -- struct foo { } */
-QC_INTERNAL bool parse_type_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_type_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Type_Decl *decl = qc_create_type_decl_node();
 	begin_node_parsing(ctx, QC_AST_BASE(decl));
@@ -374,7 +374,7 @@ QC_INTERNAL bool parse_type_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
 		goto mismatch;
 	}
 
-	if (parse_scope(ctx, &decl->body, false))
+	if (parse_scope(ctx, &decl->body, QC_false))
 		;
 	else {
 		report_error_expected(ctx, "'{'", cur_tok(ctx));
@@ -384,14 +384,14 @@ QC_INTERNAL bool parse_type_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
 	end_node_parsing(ctx);
 
 	*ret = QC_AST_BASE(decl);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
-QC_INTERNAL bool parse_typedef(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_typedef(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Typedef *def = qc_create_typedef_node();
 	begin_node_parsing(ctx, QC_AST_BASE(def));
@@ -412,11 +412,11 @@ QC_INTERNAL bool parse_typedef(Parse_Ctx *ctx, QC_AST_Node **ret)
 	end_node_parsing(ctx);
 
 	*ret = QC_AST_BASE(def);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
@@ -436,7 +436,7 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 	{ /* Create new builtin decl if not found */
 		QC_AST_Type_Decl *tdecl = qc_create_type_decl_node();
 		/* Note that the declaration doesn't have ident -- it's up to backend to generate it */
-		tdecl->is_builtin = true;
+		tdecl->is_builtin = QC_true;
 		tdecl->builtin_type = bt;
 		qc_push_array(QC_AST_Node_Ptr)(&ctx->parent_map.builtin_decls, QC_AST_BASE(tdecl));
 
@@ -446,7 +446,7 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 			for (type = 0; type < 2; ++type) { 
 				const char *names[2] = { "alloc_field", "alloc_device_field" };
 				QC_AST_Func_Decl *fdecl = qc_create_func_decl_node();
-				fdecl->is_builtin = true;
+				fdecl->is_builtin = QC_true;
 
 				fdecl->return_type = qc_create_type_node();
 				fdecl->return_type->base_type_decl = tdecl;
@@ -464,11 +464,11 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 				qc_push_array(QC_AST_Node_Ptr)(&ctx->parent_map.builtin_decls, QC_AST_BASE(fdecl));
 			}
 
-			/* Create field free funcs */
+			/* Create field QC_FREE funcs */
 			for (type = 0; type < 2; ++type) { 
-				const char *names[2] = { "free_field", "free_device_field" };
+				const char *names[2] = { "QC_FREE_field", "QC_FREE_device_field" };
 				QC_AST_Func_Decl *fdecl = qc_create_func_decl_node();
-				fdecl->is_builtin = true;
+				fdecl->is_builtin = QC_true;
 
 				fdecl->return_type = qc_create_type_node();
 				fdecl->return_type->base_type_decl = qc_create_builtin_decl(ctx, qc_void_builtin_type());
@@ -488,7 +488,7 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 
 			{ /* Create field memcpy func */
 				QC_AST_Func_Decl *fdecl = qc_create_func_decl_node();
-				fdecl->is_builtin = true;
+				fdecl->is_builtin = QC_true;
 
 				fdecl->return_type = qc_create_type_node();
 				fdecl->return_type->base_type_decl = qc_create_builtin_decl(ctx, qc_void_builtin_type());
@@ -507,7 +507,7 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 
 			{ /* Create field size query func */
 				QC_AST_Func_Decl *fdecl = qc_create_func_decl_node();
-				fdecl->is_builtin = true;
+				fdecl->is_builtin = QC_true;
 
 				fdecl->return_type = qc_create_simple_type(qc_create_builtin_decl(ctx, qc_int_builtin_type()));
 				fdecl->ident = qc_create_ident_with_text(QC_AST_BASE(fdecl), "size");
@@ -530,13 +530,13 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 	}
 }
 
-QC_INTERNAL bool parse_type(Parse_Ctx *ctx, QC_AST_Type **ret_type)
+QC_INTERNAL QC_Bool parse_type(Parse_Ctx *ctx, QC_AST_Type **ret_type)
 {
 	return parse_type_and_ident(ctx, ret_type, NULL, NULL);
 }
 
 /* Type and ident in same function because of cases like 'int (*foo)()' */
-QC_INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC_AST_Ident **ret_ident, QC_AST_Node *enclosing_decl)
+QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC_AST_Ident **ret_ident, QC_AST_Node *enclosing_decl)
 {
 	QC_AST_Type *type = qc_create_type_node();
 	begin_node_parsing(ctx, QC_AST_BASE(type));
@@ -545,12 +545,12 @@ QC_INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC
 
 	{ /* Type */
 		QC_AST_Node *found_decl = NULL;
-		bool is_builtin = false;
+		QC_Bool is_builtin = QC_false;
 		QC_Builtin_Type bt = {0};
-		bool recognized = true;
+		QC_Bool recognized = QC_true;
 
 		if (accept_tok(ctx, QC_Token_kw_const))
-			type->is_const = true;
+			type->is_const = QC_true;
 
 		/* Gather all builtin type specifiers (like int, matrix(), field()) */
 		while (recognized) {
@@ -558,32 +558,32 @@ QC_INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC
 
 			switch (tok->type) {
 			case QC_Token_kw_void:
-				bt.is_void = true;
+				bt.is_void = QC_true;
 				advance_tok(ctx);
 			break;
 			case QC_Token_kw_int:
-				bt.is_integer = true;
+				bt.is_integer = QC_true;
 				bt.bitness = 0; /* Not specified */
 				advance_tok(ctx);
 			break;
 			case QC_Token_kw_size_t:
-				bt.is_integer = true;
+				bt.is_integer = QC_true;
 				bt.bitness = sizeof(size_t)*8; /* @todo Assuming target is same architecture than host */
-				bt.is_unsigned = true;
+				bt.is_unsigned = QC_true;
 				advance_tok(ctx);
 			break;
 			case QC_Token_kw_char:
-				bt.is_char = true;
+				bt.is_char = QC_true;
 				bt.bitness = 8;
 				advance_tok(ctx);
 			break;
 			case QC_Token_kw_float:
-				bt.is_float = true;
+				bt.is_float = QC_true;
 				bt.bitness = 32;
 				advance_tok(ctx);
 			break;
 			case QC_Token_kw_matrix: {
-				bt.is_matrix = true;
+				bt.is_matrix = QC_true;
 				advance_tok(ctx);
 
 				if (!accept_tok(ctx, QC_Token_open_paren)) {
@@ -616,7 +616,7 @@ QC_INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC
 			case QC_Token_kw_field: {
 				QC_AST_Node *dim_expr = NULL;
 				QC_AST_Literal dim_value;
-				bt.is_field = true;
+				bt.is_field = QC_true;
 				advance_tok(ctx);
 
 				if (!parse_expr_inside_parens(ctx, &dim_expr))
@@ -633,10 +633,10 @@ QC_INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC
 				/* Constant expression is removed */
 				qc_destroy_node(dim_expr);
 			} break;
-			default: recognized = false;
+			default: recognized = QC_false;
 			}
 			if (recognized)
-				is_builtin = true;
+				is_builtin = QC_true;
 		}
 
 		/* Create builtin decls for types included in the type */
@@ -647,14 +647,14 @@ QC_INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC
 
 			if (bt.is_field) {
 				QC_Builtin_Type sub_type = bt;
-				sub_type.is_field = false;
+				sub_type.is_field = QC_false;
 				field_sub_type = qc_create_builtin_decl(ctx, sub_type);
 			}
 
 			if (bt.is_matrix) {
 				QC_Builtin_Type sub_type = bt;
-				sub_type.is_matrix = false;
-				sub_type.is_field = false;
+				sub_type.is_matrix = QC_false;
+				sub_type.is_field = QC_false;
 				matrix_sub_type = qc_create_builtin_decl(ctx, sub_type);
 
 				/* 'int matrix field' generates int, matrix, and field type decls.
@@ -711,14 +711,14 @@ QC_INTERNAL bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC
 	end_node_parsing(ctx);
 
 	*ret_type = type;
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
-QC_INTERNAL bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, bool is_param_decl)
+QC_INTERNAL QC_Bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, QC_Bool is_param_decl)
 {
 	QC_AST_Var_Decl *decl = qc_create_var_decl_node();
 	begin_node_parsing(ctx, QC_AST_BASE(decl));
@@ -728,7 +728,7 @@ QC_INTERNAL bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, bool is_param
 
 	if (!is_param_decl) {
 		if (accept_tok(ctx, QC_Token_assign)) {
-			if (!parse_expr(ctx, &decl->value, 0, NULL, true))
+			if (!parse_expr(ctx, &decl->value, 0, NULL, QC_true))
 				goto mismatch;
 		} else if (!accept_tok(ctx, QC_Token_semi)) {
 			report_error_expected(ctx, "';'", cur_tok(ctx));
@@ -739,14 +739,14 @@ QC_INTERNAL bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, bool is_param
 	end_node_parsing(ctx);
 
 	*ret = QC_AST_BASE(decl);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
-QC_INTERNAL bool parse_func_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_func_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Func_Decl *decl = qc_create_func_decl_node();
 	begin_node_parsing(ctx, QC_AST_BASE(decl));
@@ -766,11 +766,11 @@ QC_INTERNAL bool parse_func_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
 				advance_tok(ctx);
 
 			if (accept_tok(ctx, QC_Token_ellipsis)) {
-				decl->ellipsis = true;
+				decl->ellipsis = QC_true;
 				continue;
 			}
 
-			if (!parse_var_decl(ctx, (QC_AST_Node**)&param_decl, true))
+			if (!parse_var_decl(ctx, (QC_AST_Node**)&param_decl, QC_true))
 				goto mismatch;
 
 			qc_push_array(QC_AST_Var_Decl_Ptr)(&decl->params, param_decl);
@@ -785,7 +785,7 @@ QC_INTERNAL bool parse_func_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
 	if (cur_tok(ctx)->type == QC_Token_semi) {
 		/* No body */
 		accept_tok(ctx, QC_Token_semi);
-	} else if (parse_scope(ctx, &decl->body, false)) {
+	} else if (parse_scope(ctx, &decl->body, QC_false)) {
 		;
 	} else {
 		goto mismatch;
@@ -794,15 +794,15 @@ QC_INTERNAL bool parse_func_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
 	end_node_parsing(ctx);
 
 	*ret = QC_AST_BASE(decl);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 /* Parse example: { .... } */
-QC_INTERNAL bool parse_scope(Parse_Ctx *ctx, QC_AST_Scope **ret, bool already_created)
+QC_INTERNAL QC_Bool parse_scope(Parse_Ctx *ctx, QC_AST_Scope **ret, QC_Bool already_created)
 {
 	QC_AST_Scope *scope = (already_created ? *ret : qc_create_scope_node());
 
@@ -823,15 +823,15 @@ QC_INTERNAL bool parse_scope(Parse_Ctx *ctx, QC_AST_Scope **ret, bool already_cr
 	end_node_parsing(ctx);
 
 	*ret = scope;
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 /* Parse example: 1234 */
-QC_INTERNAL bool parse_literal(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_literal(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Literal *literal = qc_create_literal_node();
 	QC_Token *tok = cur_tok(ctx);
@@ -901,14 +901,14 @@ QC_INTERNAL bool parse_literal(Parse_Ctx *ctx, QC_AST_Node **ret)
 	end_node_parsing(ctx);
 
 	*ret = QC_AST_BASE(literal);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
-QC_INTERNAL bool parse_uop(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_uop(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Biop *biop = qc_create_biop_node();
 
@@ -922,23 +922,23 @@ QC_INTERNAL bool parse_uop(Parse_Ctx *ctx, QC_AST_Node **ret)
 	advance_tok(ctx);
 
 	/* The precedence should be higher than any binary operation, because -1 op 2 != -(1 op 2) */
-	if (!parse_expr(ctx, &biop->rhs, UOP_PRECEDENCE, NULL, false)) {
+	if (!parse_expr(ctx, &biop->rhs, UOP_PRECEDENCE, NULL, QC_false)) {
 		goto mismatch;
 	}
 
 	end_node_parsing(ctx);
 
 	*ret = QC_AST_BASE(biop);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 
 /* Parses 'foo, bar)' */
-QC_INTERNAL bool parse_arg_list(Parse_Ctx *ctx, QC_Array(QC_AST_Node_Ptr) *ret, QC_Token_Type ending)
+QC_INTERNAL QC_Bool parse_arg_list(Parse_Ctx *ctx, QC_Array(QC_AST_Node_Ptr) *ret, QC_Token_Type ending)
 {
 	while (cur_tok(ctx)->type != ending) {
 		QC_AST_Node *arg = NULL;
@@ -946,7 +946,7 @@ QC_INTERNAL bool parse_arg_list(Parse_Ctx *ctx, QC_Array(QC_AST_Node_Ptr) *ret, 
 			advance_tok(ctx);
 
 		/* Normal expression */
-		if (!parse_expr(ctx, (QC_AST_Node**)&arg, 0, NULL, false))
+		if (!parse_expr(ctx, (QC_AST_Node**)&arg, 0, NULL, QC_false))
 			goto mismatch;
 
 		qc_push_array(QC_AST_Node_Ptr)(ret, arg);
@@ -958,21 +958,21 @@ QC_INTERNAL bool parse_arg_list(Parse_Ctx *ctx, QC_Array(QC_AST_Node_Ptr) *ret, 
 		goto mismatch;
 	}
 
-	return true;
+	return QC_true;
 
 mismatch:
-	return false;
+	return QC_false;
 }
 
 /* Parse example: (4 * 2) */
-QC_INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_expr_inside_parens(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	if (!accept_tok(ctx, QC_Token_open_paren)) {
 		report_error_expected(ctx, "'('", cur_tok(ctx));
 		goto mismatch;
 	}
 
-	if (!parse_expr(ctx, ret, 0, NULL, false))
+	if (!parse_expr(ctx, ret, 0, NULL, QC_false))
 		goto mismatch;
 
 	if (!accept_tok(ctx, QC_Token_close_paren)) {
@@ -980,17 +980,17 @@ QC_INTERNAL bool parse_expr_inside_parens(Parse_Ctx *ctx, QC_AST_Node **ret)
 		goto mismatch;
 	}
 
-	return true;
+	return QC_true;
 
 mismatch:
-	return false;
+	return QC_false;
 }
 
 
 /* Functions '*_expr' are part of 'parse_expr', and therefore take lhs as a param */
 
 /* Parse example: pre-parsed-expr + '(a, b, c)' */
-QC_INTERNAL bool parse_call_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *expr, QC_AST_Type *hint)
+QC_INTERNAL QC_Bool parse_call_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *expr, QC_AST_Type *hint)
 {
 	QC_AST_Call *call = qc_create_call_node();
 	QC_Array(QC_AST_Type) types = {0};
@@ -1019,16 +1019,16 @@ QC_INTERNAL bool parse_call_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node 
 	qc_destroy_array(QC_AST_Type)(&types);
 
 	*ret = QC_AST_BASE(call);
-	return true;
+	return QC_true;
 
 mismatch:
 	qc_destroy_array(QC_AST_Type)(&types);
 	call->ident = NULL;
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
-QC_INTERNAL bool parse_var_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *expr)
+QC_INTERNAL QC_Bool parse_var_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *expr)
 {
 	QC_AST_Access *access = qc_create_access_node();
 	begin_node_parsing(ctx, QC_AST_BASE(access));
@@ -1055,15 +1055,15 @@ QC_INTERNAL bool parse_var_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST
 	end_node_parsing(ctx);
 
 	*ret = QC_AST_BASE(access);
-	return true;
+	return QC_true;
 
 mismatch:
 	access->base = NULL;
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
-QC_INTERNAL bool parse_biop_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *lhs)
+QC_INTERNAL QC_Bool parse_biop_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *lhs)
 {
 	QC_AST_Biop *biop = qc_create_biop_node();
 	QC_AST_Node *rhs = NULL;
@@ -1088,7 +1088,7 @@ QC_INTERNAL bool parse_biop_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node 
 	/* E.g. LHS of 'field = alloc_field(1);' chooses the allocation function through type hint */ 
 	if (qc_expr_type(&new_type_hint, lhs))
 		new_type_hint_ptr = &new_type_hint;
-	if (!parse_expr(ctx, &rhs, next_min_prec, new_type_hint_ptr, false))
+	if (!parse_expr(ctx, &rhs, next_min_prec, new_type_hint_ptr, QC_false))
 		goto mismatch;
 
 	/* @todo Type checking */
@@ -1101,14 +1101,14 @@ QC_INTERNAL bool parse_biop_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node 
 	end_node_parsing(ctx);
 
 	*ret = QC_AST_BASE(biop);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
-QC_INTERNAL bool parse_member_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *base)
+QC_INTERNAL QC_Bool parse_member_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *base)
 {
 	QC_AST_Access *access = qc_create_access_node();
 	QC_AST_Type base_type;
@@ -1126,7 +1126,7 @@ QC_INTERNAL bool parse_member_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_
 	{
 		QC_AST_Ident *sub = NULL;
 		access->base = base;
-		access->is_member_access = true;
+		access->is_member_access = QC_true;
 
 		{
 			QC_AST_Scope *base_type_scope = base_type.base_type_decl->body;
@@ -1140,14 +1140,14 @@ QC_INTERNAL bool parse_member_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_
 	}
 
 	*ret = QC_AST_BASE(access);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
-QC_INTERNAL bool parse_element_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *base)
+QC_INTERNAL QC_Bool parse_element_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *base)
 {
 	QC_AST_Access *access = qc_create_access_node();
 	QC_AST_Type base_type;
@@ -1157,7 +1157,7 @@ QC_INTERNAL bool parse_element_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC
 	if (!accept_tok(ctx, QC_Token_open_paren))
 		goto mismatch;
 
-	access->is_element_access = true;
+	access->is_element_access = QC_true;
 	access->base = base;
 
 	if (!qc_expr_type(&base_type, access->base)) {
@@ -1166,7 +1166,7 @@ QC_INTERNAL bool parse_element_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC
 	}
 
 	if (base_type.ptr_depth == 1) {
-		access->implicit_deref = true;
+		access->implicit_deref = QC_true;
 	} else if (base_type.ptr_depth > 1) {
 		report_error(ctx, "Trying to access elements of ptr (depth %i). Only 1 level of implicit dereferencing allowed.", base_type.ptr_depth);
 		goto mismatch;
@@ -1176,16 +1176,16 @@ QC_INTERNAL bool parse_element_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC
 		goto mismatch;
 
 	*ret = QC_AST_BASE(access);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 
 /* Parse example: var = 5 + 3 * 2; */
-QC_INTERNAL bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, QC_AST_Type *type_hint, bool semi)
+QC_INTERNAL QC_Bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, QC_AST_Type *type_hint, QC_Bool semi)
 {
 	QC_AST_Node *expr = NULL;
 
@@ -1241,16 +1241,16 @@ QC_INTERNAL bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, QC_
 
 	QC_ASSERT(expr);
 	*ret = expr;
-	return true;
+	return QC_true;
 
 mismatch:
 
 	--ctx->expr_depth;
-	return false;
+	return QC_false;
 }
 
 /* Parse example: return 42; */
-QC_INTERNAL bool parse_control(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_control(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_Token *tok = cur_tok(ctx);
 	QC_AST_Control *control = qc_create_control_node();
@@ -1285,15 +1285,15 @@ QC_INTERNAL bool parse_control(Parse_Ctx *ctx, QC_AST_Node **ret)
 	end_node_parsing(ctx);
 
 	*ret = QC_AST_BASE(control);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 /* Parse example: if (..) { .. } else { .. } */
-QC_INTERNAL bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Cond *cond = qc_create_cond_node();
 	begin_node_parsing(ctx, QC_AST_BASE(cond));
@@ -1307,14 +1307,14 @@ QC_INTERNAL bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret)
 		goto mismatch;
 
 	if (!accept_tok(ctx, QC_Token_semi)) {
-		if (parse_scope(ctx, &cond->body, false)) {
+		if (parse_scope(ctx, &cond->body, QC_false)) {
 			;
 		} else {
 			/* Always have scope, because then we can expand one statement to multiple ones without worry */
 			QC_AST_Scope *scope = qc_create_scope_node();
 			QC_AST_Node *elem = NULL;
 			cond->body = scope;
-			cond->implicit_scope = true;
+			cond->implicit_scope = QC_true;
 
 			if (parse_element(ctx, &elem)) {
 				qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, elem);
@@ -1340,15 +1340,15 @@ QC_INTERNAL bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret)
 
 	end_node_parsing(ctx);
 	*ret = QC_AST_BASE(cond);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 /* Parse example: while(1) { .. } -- for (i = 0; i < 10; ++i) { .. } */
-QC_INTERNAL bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Loop *loop = qc_create_loop_node();
 	begin_node_parsing(ctx, QC_AST_BASE(loop));
@@ -1362,10 +1362,10 @@ QC_INTERNAL bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret)
 		if (!parse_element(ctx, &loop->init))
 			goto mismatch;
 
-		if (!parse_expr(ctx, &loop->cond, 0, NULL, true))
+		if (!parse_expr(ctx, &loop->cond, 0, NULL, QC_true))
 			goto mismatch;
 
-		if (!parse_expr(ctx, &loop->incr, 0, NULL, false)) {
+		if (!parse_expr(ctx, &loop->incr, 0, NULL, QC_false)) {
 			goto mismatch;
 		}
 
@@ -1382,14 +1382,14 @@ QC_INTERNAL bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret)
 	}
 
 	if (!accept_tok(ctx, QC_Token_semi)) {
-		if (parse_scope(ctx, &loop->body, false)) {
+		if (parse_scope(ctx, &loop->body, QC_false)) {
 			;
 		} else {
 			/* Always have scope, because then we can expand one statement to multiple ones without worry */
 			QC_AST_Scope *scope = qc_create_scope_node();
 			QC_AST_Node *elem = NULL;
 			loop->body = scope;
-			loop->implicit_scope = true;
+			loop->implicit_scope = QC_true;
 
 			if (parse_element(ctx, &elem)) {
 				qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, elem);
@@ -1401,15 +1401,15 @@ QC_INTERNAL bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret)
 
 	end_node_parsing(ctx);
 	*ret = QC_AST_BASE(loop);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 /* Parse example: for_field (output; input) { .. } */
-QC_INTERNAL bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Parallel *parallel = qc_create_parallel_node();
 	begin_node_parsing(ctx, QC_AST_BASE(parallel));
@@ -1422,7 +1422,7 @@ QC_INTERNAL bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret)
 		goto mismatch;
 	}
 
-	if (!parse_expr(ctx, &parallel->output, 0, NULL, true))
+	if (!parse_expr(ctx, &parallel->output, 0, NULL, QC_true))
 		goto mismatch;
 
 	{ /* Fetch dimension from output type */
@@ -1435,7 +1435,7 @@ QC_INTERNAL bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret)
 		parallel->dim = out_type.base_type_decl->builtin_type.field_dim;
 	}
 
-	if (!parse_expr(ctx, &parallel->input, 0, NULL, false))
+	if (!parse_expr(ctx, &parallel->input, 0, NULL, QC_false))
 		goto mismatch;
 
 	if (!accept_tok(ctx, QC_Token_close_paren)) {
@@ -1449,8 +1449,8 @@ QC_INTERNAL bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret)
 			QC_AST_Type_Decl *bt_decl;
 			QC_AST_Var_Decl *id_decl;
 			QC_Builtin_Type bt = {0};
-			bt.is_integer = true;
-			bt.is_matrix = true;
+			bt.is_integer = QC_true;
+			bt.is_matrix = QC_true;
 			bt.matrix_rank = 1;
 			bt.matrix_dim[0] = parallel->dim;
 			bt_decl = qc_create_builtin_decl(ctx, bt);
@@ -1459,7 +1459,7 @@ QC_INTERNAL bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret)
 			qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_AST_BASE(id_decl));
 		}
 
-		if (!parse_scope(ctx, &scope, true))
+		if (!parse_scope(ctx, &scope, QC_true))
 			goto mismatch;
 
 		parallel->body = scope;
@@ -1467,16 +1467,16 @@ QC_INTERNAL bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret)
 
 	end_node_parsing(ctx);
 	*ret = QC_AST_BASE(parallel);
-	return true;
+	return QC_true;
 
 mismatch:
 	cancel_node_parsing(ctx);
-	return false;
+	return QC_false;
 }
 
 /* Parse the next self-contained thing - var decl, function decl, statement, expr... */
 /* @todo Should this be named "parse_statement"? */
-QC_INTERNAL bool parse_element(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_element(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Node *result = NULL;
 
@@ -1488,15 +1488,15 @@ QC_INTERNAL bool parse_element(Parse_Ctx *ctx, QC_AST_Node **ret)
 		;
 	else if (parse_typedef(ctx, &result))
 		;
-	else if (parse_var_decl(ctx, &result, false))
+	else if (parse_var_decl(ctx, &result, QC_false))
 		;
 	else if (parse_func_decl(ctx, &result))
 		;
-	else if (parse_expr(ctx, &result, 0, NULL, true))
+	else if (parse_expr(ctx, &result, 0, NULL, QC_true))
 		;
 	else if (parse_control(ctx, &result))
 		;
-	else if (parse_scope(ctx, (QC_AST_Scope**)&result, false))
+	else if (parse_scope(ctx, (QC_AST_Scope**)&result, QC_false))
 		;
 	else if (parse_cond(ctx, &result))
 		;
@@ -1508,15 +1508,15 @@ QC_INTERNAL bool parse_element(Parse_Ctx *ctx, QC_AST_Node **ret)
 		goto mismatch;
 
 	*ret = result;
-	return true;
+	return QC_true;
 
 mismatch:
-	return false;
+	return QC_false;
 }
 
 QC_AST_Scope *qc_parse_tokens(QC_Token *toks)
 {
-	bool failure = false;
+	QC_Bool failure = QC_false;
 	Parse_Ctx ctx = {0};
 	QC_AST_Scope *root = qc_create_ast();
 
@@ -1538,7 +1538,7 @@ QC_AST_Scope *qc_parse_tokens(QC_Token *toks)
 	while (ctx.tok->type != QC_Token_eof) {
 		QC_AST_Node *elem = NULL;
 		if (!parse_element(&ctx, &elem)) {
-			failure = true;
+			failure = QC_true;
 			break;
 		}
 		qc_push_array(QC_AST_Node_Ptr)(&root->nodes, elem); 

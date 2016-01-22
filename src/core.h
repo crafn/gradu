@@ -1,6 +1,16 @@
 #ifndef QC_CORE_H
 #define QC_CORE_H
 
+/* Library user settings */
+
+#ifndef QC_MALLOC
+#	define QC_MALLOC malloc
+#endif
+
+#ifndef QC_FREE
+#	define QC_FREE free
+#endif
+
 /* Commonly used utils */
 
 #include <assert.h>
@@ -15,16 +25,16 @@ typedef uint64_t QC_U64;
 typedef void *QC_Void_Ptr; /* Just for some macro fiddling */
 
 /* Usage: QC_FAIL(("Something %i", 10)) */
-#define QC_FAIL(args) do { printf("QC_INTERNAL QC_FAILURE: "); printf args; printf("\n"); abort(); } while(0)
+#define QC_FAIL(args) do { printf("INTERNAL FAILURE: "); printf args; printf("\n"); abort(); } while(0)
 #define QC_ASSERT(x) assert(x)
 
-#define QC_NONULL(x) QC_nonull_impl(x)
-void *QC_nonull_impl(void *ptr) { if (!ptr) abort(); return ptr; }
+#define QC_NONULL(x) qc_nonull_impl(x)
+void *qc_nonull_impl(void *ptr) { if (!ptr) abort(); return ptr; }
 
 #define QC_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define QC_MAX(a, b) ((a) > (b) ? (a) : (b))
 
-typedef enum { false, true } bool;
+typedef enum { QC_false, QC_true } QC_Bool;
 
 #define QC_INTERNAL static
 #define QC_LOCAL_PERSIST static
@@ -41,7 +51,7 @@ typedef struct QC_Buf_Str {
 	int len;
 } QC_Buf_Str;
 
-bool qc_buf_str_equals(QC_Buf_Str a, QC_Buf_Str b);
+QC_Bool qc_buf_str_equals(QC_Buf_Str a, QC_Buf_Str b);
 QC_Buf_Str qc_c_str_to_buf_str(const char* str);
 
 /* Args for printf %.*s specifier */
@@ -80,12 +90,12 @@ void qc_erase_array(V)(QC_Array(V) *arr, int at_place, int erase_count);\
 QC_Array(V) qc_copy_array(V)(QC_Array(V) *arr);\
 void qc_clear_array(V)(QC_Array(V) *arr);\
 
-#define DEFINE_ARRAY(V)\
+#define QC_DEFINE_ARRAY(V)\
 QC_Array(V) qc_create_array(V)(int init_capacity)\
 {\
 	QC_Array(V) arr = {0};\
 	if (init_capacity > 0) {\
-		arr.data = (V*)malloc(init_capacity*sizeof(*arr.data));\
+		arr.data = (V*)QC_MALLOC(init_capacity*sizeof(*arr.data));\
 		arr.capacity = init_capacity;\
 	}\
 	return arr;\
@@ -93,7 +103,7 @@ QC_Array(V) qc_create_array(V)(int init_capacity)\
 void qc_destroy_array(V)(QC_Array(V) *arr)\
 {\
 	QC_ASSERT(arr);\
-	free(arr->data);\
+	QC_FREE(arr->data);\
 }\
 V *qc_release_array(V)(QC_Array(V) *arr)\
 {\
@@ -149,7 +159,7 @@ V qc_pop_array(V)(QC_Array(V) *arr)\
 QC_Array(V) qc_copy_array(V)(QC_Array(V) *arr)\
 {\
 	QC_Array(V) copy = {0};\
-	copy.data = (V*)malloc(arr->capacity*sizeof(*arr->data));\
+	copy.data = (V*)QC_MALLOC(arr->capacity*sizeof(*arr->data));\
 	memcpy(copy.data, arr->data, arr->size*sizeof(*arr->data));\
 	copy.size = arr->size;\
 	copy.capacity = arr->capacity;\
@@ -223,7 +233,7 @@ QC_Hash_Table(K, V) qc_create_tbl(K, V)(K null_key, V null_value, int max_size)\
 	tbl.null_key = null_key;\
 	tbl.null_value = null_value;\
 	tbl.array_size = max_size;\
-	tbl.array = malloc(sizeof(*tbl.array)*max_size);\
+	tbl.array = QC_MALLOC(sizeof(*tbl.array)*max_size);\
 	for (i = 0; i < max_size; ++i)\
 		tbl.array[i] = qc_null_tbl_entry(K, V)(&tbl);\
 	return tbl;\
@@ -231,7 +241,7 @@ QC_Hash_Table(K, V) qc_create_tbl(K, V)(K null_key, V null_value, int max_size)\
 \
 void qc_destroy_tbl(K, V)(QC_Hash_Table(K, V) *tbl)\
 {\
-	free(tbl->array);\
+	QC_FREE(tbl->array);\
 	tbl->array = NULL;\
 }\
 \
@@ -260,10 +270,10 @@ void qc_set_tbl(K, V)(QC_Hash_Table(K, V) *tbl, K key, V value)\
 \
 	{\
 		QC_Hash_Table_Entry(K, V) *entry = &tbl->array[ix];\
-		bool modify_existing = 	value != tbl->null_value && entry->key != tbl->null_key;\
-		bool insert_new =		value != tbl->null_value && entry->key == tbl->null_key;\
-		bool remove_existing =	value == tbl->null_value && entry->key != tbl->null_key;\
-		bool remove_new =		value == tbl->null_value && entry->key == tbl->null_key;\
+		QC_Bool modify_existing = 	value != tbl->null_value && entry->key != tbl->null_key;\
+		QC_Bool insert_new =		value != tbl->null_value && entry->key == tbl->null_key;\
+		QC_Bool remove_existing =	value == tbl->null_value && entry->key != tbl->null_key;\
+		QC_Bool remove_new =		value == tbl->null_value && entry->key == tbl->null_key;\
 	\
 		if (modify_existing) {\
 			entry->value = value;\

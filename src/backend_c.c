@@ -1,9 +1,9 @@
 #include "backend_c.h"
 
-QC_INTERNAL bool nested_expr_needs_parens(QC_AST_Node *expr, QC_AST_Node *nested)
+QC_INTERNAL QC_Bool nested_expr_needs_parens(QC_AST_Node *expr, QC_AST_Node *nested)
 {
 	if (expr->type != QC_AST_biop || nested->type != QC_AST_biop)
-		return false;
+		return QC_false;
 	{
 		QC_CASTED_NODE(QC_AST_Biop, op, expr);
 		QC_CASTED_NODE(QC_AST_Biop, subop, nested);
@@ -13,7 +13,7 @@ QC_INTERNAL bool nested_expr_needs_parens(QC_AST_Node *expr, QC_AST_Node *nested
 }
 
 #if 0
-QC_INTERNAL bool is_builtin_decl(QC_AST_Node *node)
+QC_INTERNAL QC_Bool is_builtin_decl(QC_AST_Node *node)
 {
 	if (node->type == QC_AST_type_decl) {
 		QC_CASTED_NODE(QC_AST_Type_Decl, decl, node);
@@ -23,7 +23,7 @@ QC_INTERNAL bool is_builtin_decl(QC_AST_Node *node)
 		return decl->is_builtin;
 	}
 
-	return false;
+	return QC_false;
 }
 #endif
 
@@ -65,7 +65,7 @@ void qc_append_expr_c_func_name(QC_Array(char) *buf, QC_AST_Node *expr)
 	QC_Array(QC_AST_Node_Ptr) nodes = qc_create_array(QC_AST_Node_Ptr)(0);
 	int i;
 	qc_push_array(QC_AST_Node_Ptr)(&nodes, expr);
-	qc_push_subnodes(&nodes, expr, true);
+	qc_push_subnodes(&nodes, expr, QC_true);
 
 	for (i = 0; i < nodes.size; ++i) {
 		QC_AST_Node *node = nodes.data[i];
@@ -150,7 +150,7 @@ QC_INTERNAL QC_AST_Access *qc_create_array_access(QC_AST_Node *expr, QC_AST_Node
 	QC_AST_Access *access = qc_create_access_node();
 	access->base = expr;
 	qc_push_array(QC_AST_Node_Ptr)(&access->args, index);
-	access->is_array_access = true;
+	access->is_array_access = QC_true;
 	return access;
 }
 
@@ -162,13 +162,13 @@ QC_INTERNAL QC_AST_Access *qc_create_member_access(QC_AST_Node *base, QC_AST_Var
 
 	access->base = base;
 	qc_push_array(QC_AST_Node_Ptr)(&access->args, QC_AST_BASE(member_ident));
-	access->is_member_access = true;
+	access->is_member_access = QC_true;
 
 	return access;
 }
 
 /* @todo to ast.h */
-QC_INTERNAL QC_AST_Access *qc_create_member_array_access(QC_AST_Node *base, QC_AST_Var_Decl *member_decl, QC_AST_Node *index, bool deref)
+QC_INTERNAL QC_AST_Access *qc_create_member_array_access(QC_AST_Node *base, QC_AST_Var_Decl *member_decl, QC_AST_Node *index, QC_Bool deref)
 {
 	QC_AST_Access *member = qc_create_member_access(base, member_decl);
 	member->implicit_deref = deref;
@@ -223,7 +223,7 @@ QC_INTERNAL QC_AST_Access *c_create_field_dim_size(QC_AST_Access *field_access, 
 		qc_create_full_deref(QC_AST_BASE(field_access)),
 		c_field_size_decl(type.base_type_decl),
 		QC_AST_BASE(qc_create_integer_literal(dim_i, NULL)),
-		false
+		QC_false
 	);
 }
 
@@ -558,11 +558,11 @@ void qc_lift_types_and_funcs_to_global_scope(QC_AST_Scope *root)
 }
 
 /* Modifies the QC_AST */
-void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_impl)
+void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_device_impl)
 {
 	int i, k;
 	QC_AST_Func_Decl *last_alloc_field_func = NULL;
-	QC_AST_Func_Decl *last_free_field_func = NULL;
+	QC_AST_Func_Decl *last_QC_FREE_field_func = NULL;
 
 	/* Create c decls for matrix and field builtin types */
 	for (i = 0; i < root->nodes.size; ++i) {
@@ -597,12 +597,12 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 					QC_AST_Type_Decl *m_type_decl = qc_create_type_decl_node(); /* @todo Use existing type decl */
 
 					/* Copy base type from matrix type for the struct member */
-					m_type_decl->is_builtin = true;
+					m_type_decl->is_builtin = QC_true;
 					m_type_decl->builtin_type = bt;
 					if (m_type_decl->builtin_type.is_field)
-						m_type_decl->builtin_type.is_field = false;
+						m_type_decl->builtin_type.is_field = QC_false;
 					else if (m_type_decl->builtin_type.is_matrix)
-						m_type_decl->builtin_type.is_matrix = false;
+						m_type_decl->builtin_type.is_matrix = QC_false;
 
 					member_decl = qc_create_simple_var_decl(m_type_decl, "m");
 					if (bt.is_field)
@@ -617,8 +617,8 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 							QC_AST_Var_Decl *s_decl;
 
 							/* Copy base type from matrix type for the struct member */
-							s_type_decl->is_builtin = true;
-							s_type_decl->builtin_type.is_integer = true;
+							s_type_decl->is_builtin = QC_true;
+							s_type_decl->builtin_type.is_integer = QC_true;
 
 							s_decl = qc_create_simple_var_decl(s_type_decl, "size");
 							s_decl->type->array_size = bt.field_dim;
@@ -712,7 +712,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 
 				QC_ASSERT(!alloc_func->body);
 
-				alloc_func->is_builtin = false;
+				alloc_func->is_builtin = QC_false;
 				func_decl->builtin_concrete_decl = alloc_func;
 				qc_append_str(&alloc_func->ident->text, "_");
 				qc_append_builtin_type_c_str(&alloc_func->ident->text,
@@ -747,7 +747,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 							QC_AST_BASE(qc_create_cast( /* For c++ */
 								(QC_AST_Type*)qc_copy_ast(QC_AST_BASE(c_mat_elements_decl(field_decl)->type)),
 								QC_AST_BASE(qc_create_call_1(
-									qc_create_ident_with_text(NULL, "malloc"),
+									qc_create_ident_with_text(NULL, "QC_MALLOC"),
 									qc_create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul)
 								))
 							))
@@ -785,42 +785,42 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 
 				last_alloc_field_func = alloc_func;
 				generated[0] = QC_AST_BASE(alloc_func);
-			} else if (!strcmp(func_decl->ident->text.data, "free_field")) {
-				QC_AST_Func_Decl *free_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_AST_BASE(func_decl));
-				QC_AST_Type_Decl *field_decl = free_func->params.data[0]->type->base_type_decl;
+			} else if (!strcmp(func_decl->ident->text.data, "QC_FREE_field")) {
+				QC_AST_Func_Decl *QC_FREE_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_AST_BASE(func_decl));
+				QC_AST_Type_Decl *field_decl = QC_FREE_func->params.data[0]->type->base_type_decl;
 				QC_Builtin_Type bt = field_decl->builtin_type;
 				field_decl = field_decl->builtin_concrete_decl;
 
-				QC_ASSERT(!free_func->body);
-				QC_ASSERT(free_func->params.size == 1);
+				QC_ASSERT(!QC_FREE_func->body);
+				QC_ASSERT(QC_FREE_func->params.size == 1);
 
-				free_func->is_builtin = false;
-				func_decl->builtin_concrete_decl = free_func;
-				qc_append_str(&free_func->ident->text, "_");
-				qc_append_builtin_type_c_str(&free_func->ident->text, bt);
+				QC_FREE_func->is_builtin = QC_false;
+				func_decl->builtin_concrete_decl = QC_FREE_func;
+				qc_append_str(&QC_FREE_func->ident->text, "_");
+				qc_append_builtin_type_c_str(&QC_FREE_func->ident->text, bt);
 
 				{ /* Function contents */
 					QC_AST_Access *access_field_data = qc_create_member_access(
-							qc_copy_ast(QC_AST_BASE(free_func->params.data[0]->ident)),
+							qc_copy_ast(QC_AST_BASE(QC_FREE_func->params.data[0]->ident)),
 							c_mat_elements_decl(field_decl));
-					QC_AST_Call *libc_free_call = qc_create_call_1(
-							qc_create_ident_with_text(NULL, "free"),
+					QC_AST_Call *libc_QC_FREE_call = qc_create_call_1(
+							qc_create_ident_with_text(NULL, "QC_FREE"),
 							QC_AST_BASE(access_field_data));
 
-					free_func->body = qc_create_scope_node();
-					qc_push_array(QC_AST_Node_Ptr)(&free_func->body->nodes, QC_AST_BASE(libc_free_call));
+					QC_FREE_func->body = qc_create_scope_node();
+					qc_push_array(QC_AST_Node_Ptr)(&QC_FREE_func->body->nodes, QC_AST_BASE(libc_QC_FREE_call));
 				}
 
-				last_free_field_func = free_func;
-				generated[0] = QC_AST_BASE(free_func);
+				last_QC_FREE_field_func = QC_FREE_func;
+				generated[0] = QC_AST_BASE(QC_FREE_func);
 			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "alloc_device_field")) {
 				/* @todo Call to alloc_field */
 				QC_ASSERT(last_alloc_field_func);
 				func_decl->builtin_concrete_decl = last_alloc_field_func;
-			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "free_device_field")) {
-				/* @todo Call to free_field */
-				QC_ASSERT(last_free_field_func);
-				func_decl->builtin_concrete_decl = last_free_field_func;
+			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "QC_FREE_device_field")) {
+				/* @todo Call to QC_FREE_field */
+				QC_ASSERT(last_QC_FREE_field_func);
+				func_decl->builtin_concrete_decl = last_QC_FREE_field_func;
 			} else if (cpu_device_impl && !strcmp(func_decl->ident->text.data, "memcpy_field")) {
 				QC_AST_Func_Decl *memcpy_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_AST_BASE(func_decl));
 				QC_AST_Var_Decl *dst_field_var_decl = memcpy_func->params.data[0];
@@ -828,7 +828,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 				QC_Builtin_Type bt = field_decl->builtin_type;
 				field_decl = field_decl->builtin_concrete_decl; /* From builtin to struct decl */
 
-				memcpy_func->is_builtin = false;
+				memcpy_func->is_builtin = QC_false;
 				func_decl->builtin_concrete_decl = memcpy_func;
 
 				qc_append_str(&memcpy_func->ident->text, "_");
@@ -842,7 +842,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 					QC_AST_Access *access_src_field = qc_create_member_access(
 							qc_copy_ast(QC_AST_BASE(memcpy_func->params.data[1]->ident)),
 							c_mat_elements_decl(field_decl));
-					QC_AST_Call *libc_free_call;
+					QC_AST_Call *libc_QC_FREE_call;
 
 					QC_Array(QC_AST_Node_Ptr) size_accesses = qc_create_array(QC_AST_Node_Ptr)(3);
 					qc_push_array(QC_AST_Node_Ptr)(&size_accesses,
@@ -852,7 +852,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 							QC_AST_BASE(c_create_field_dim_size(qc_create_simple_access(dst_field_var_decl), k)));
 					}
 
-					libc_free_call = qc_create_call_3(
+					libc_QC_FREE_call = qc_create_call_3(
 							qc_create_ident_with_text(NULL, "memcpy"),
 							QC_AST_BASE(access_dst_field),
 							QC_AST_BASE(access_src_field),
@@ -862,7 +862,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 					qc_destroy_array(QC_AST_Node_Ptr)(&size_accesses);
 
 					memcpy_func->body = qc_create_scope_node();
-					qc_push_array(QC_AST_Node_Ptr)(&memcpy_func->body->nodes, QC_AST_BASE(libc_free_call));
+					qc_push_array(QC_AST_Node_Ptr)(&memcpy_func->body->nodes, QC_AST_BASE(libc_QC_FREE_call));
 				}
 
 				generated[0] = QC_AST_BASE(memcpy_func);
@@ -875,7 +875,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 				QC_ASSERT(!size_func->body);
 				QC_ASSERT(size_func->params.size == 2);
 
-				size_func->is_builtin = false;
+				size_func->is_builtin = QC_false;
 				func_decl->builtin_concrete_decl = size_func;
 				qc_append_str(&size_func->ident->text, "_");
 				qc_append_builtin_type_c_str(&size_func->ident->text, bt);
@@ -887,7 +887,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 								qc_copy_ast(QC_AST_BASE(size_func->params.data[0]->ident)), /* @todo Access var */
 								c_field_size_decl(field_decl),
 								qc_copy_ast(QC_AST_BASE(size_func->params.data[1]->ident)), /* @todo Access var */
-								false
+								QC_false
 							))
 						))
 					);
@@ -912,13 +912,13 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, bool cpu_device_
 	}
 }
 
-void qc_apply_c_operator_overloading(QC_AST_Scope *root, bool convert_mat_expr)
+void qc_apply_c_operator_overloading(QC_AST_Scope *root, QC_Bool convert_mat_expr)
 {
 	int i, k;
 	QC_Array(QC_AST_Node_Ptr) replace_list_old = qc_create_array(QC_AST_Node_Ptr)(0);
 	QC_Array(QC_AST_Node_Ptr) replace_list_new = qc_create_array(QC_AST_Node_Ptr)(0);
 	QC_Array(QC_AST_Node_Ptr) subnodes = qc_create_array(QC_AST_Node_Ptr)(0);
-	qc_push_subnodes(&subnodes, QC_AST_BASE(root), false);
+	qc_push_subnodes(&subnodes, QC_AST_BASE(root), QC_false);
 
 	for (i = 0; i < subnodes.size; ++i) {
 		/* Handle matrix "operator overloading" */
@@ -982,10 +982,10 @@ void qc_apply_c_operator_overloading(QC_AST_Scope *root, bool convert_mat_expr)
 				member_access->base = access->base;
 				qc_push_array(QC_AST_Node_Ptr)(&member_access->args, qc_copy_ast(QC_AST_BASE(member_decl->ident)));
 				member_access->implicit_deref = access->implicit_deref;
-				member_access->is_member_access = true;
+				member_access->is_member_access = QC_true;
 
 				array_access->base = QC_AST_BASE(member_access);
-				array_access->is_array_access = true;
+				array_access->is_array_access = QC_true;
 
 				if (bt.is_field) {
 					/* Field access */
@@ -1073,10 +1073,10 @@ void qc_append_c_stdlib_includes(QC_Array(char) *buf)
 	qc_append_str(buf, "\n");
 }
 
-bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
+QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 {
 	int i, k;
-	bool omitted = false;
+	QC_Bool omitted = QC_false;
 	int indent_add = 4;
 
 	if (node->attribute)
@@ -1093,7 +1093,7 @@ bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 			qc_append_str(buf, "{\n");
 		for (i = 0; i < scope->nodes.size; ++i) {
 			QC_AST_Node *sub = scope->nodes.data[i];
-			bool statement_omitted;
+			QC_Bool statement_omitted;
 
 			/* Comments are enabled only for scope nodes for now */
 			for (k = 0; k < sub->pre_comments.size; ++k) {
@@ -1148,7 +1148,7 @@ bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 	case QC_AST_type_decl: {
 		QC_CASTED_NODE(QC_AST_Type_Decl, decl, node);
 		if (decl->is_builtin) {
-			omitted = true;
+			omitted = QC_true;
 		} else {
 			qc_append_str(buf, "typedef struct ");
 			qc_append_str(buf, "%s\n", decl->ident->text.data);
@@ -1169,7 +1169,7 @@ bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 	case QC_AST_func_decl: {
 		QC_CASTED_NODE(QC_AST_Func_Decl, decl, node);
 		if (decl->is_builtin) {
-			omitted = true;
+			omitted = QC_true;
 			break;
 		}
 		append_type_and_ident_str(buf, decl->return_type, decl->ident->text.data);
@@ -1223,8 +1223,8 @@ bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 	case QC_AST_biop: {
 		QC_CASTED_NODE(QC_AST_Biop, biop, node);
 		if (biop->lhs && biop->rhs) {
-			bool lhs_parens = nested_expr_needs_parens(node, biop->lhs);
-			bool rhs_parens = nested_expr_needs_parens(node, biop->rhs);
+			QC_Bool lhs_parens = nested_expr_needs_parens(node, biop->lhs);
+			QC_Bool rhs_parens = nested_expr_needs_parens(node, biop->rhs);
 			if (lhs_parens)
 				qc_append_str(buf, "(");
 			qc_ast_to_c_str(buf, indent, biop->lhs);
@@ -1239,7 +1239,7 @@ bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 			if (rhs_parens)
 				qc_append_str(buf, ")");
 		} else {
-			bool parens_inside = (biop->type == QC_Token_kw_sizeof);
+			QC_Bool parens_inside = (biop->type == QC_Token_kw_sizeof);
 
 			/* Unary op */
 			qc_append_str(buf, "%s", qc_tokentype_codestr(biop->type));
@@ -1282,7 +1282,7 @@ bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 	case QC_AST_access: {
 		QC_CASTED_NODE(QC_AST_Access, access, node);
 		if (access->is_member_access) {
-			bool parens = (access->base->type != QC_AST_ident && access->base->type != QC_AST_access);
+			QC_Bool parens = (access->base->type != QC_AST_ident && access->base->type != QC_AST_access);
 			if (parens)
 				qc_append_str(buf, "(");
 			qc_ast_to_c_str(buf, indent, access->base);
@@ -1385,8 +1385,8 @@ QC_Array(char) qc_gen_c_code(QC_AST_Scope *root)
 	qc_parallel_loops_to_ordinary(modified_ast);
 	qc_lift_var_decls(modified_ast);
 	qc_lift_types_and_funcs_to_global_scope(modified_ast);
-	qc_add_builtin_c_decls_to_global_scope(modified_ast, true);
-	qc_apply_c_operator_overloading(modified_ast, true);
+	qc_add_builtin_c_decls_to_global_scope(modified_ast, QC_true);
+	qc_apply_c_operator_overloading(modified_ast, QC_true);
 
 	qc_append_c_stdlib_includes(&gen_src);
 	qc_ast_to_c_str(&gen_src, 0, QC_AST_BASE(modified_ast));

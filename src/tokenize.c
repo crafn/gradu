@@ -1,11 +1,11 @@
 #include "tokenize.h"
 
-DEFINE_ARRAY(QC_Token)
+QC_DEFINE_ARRAY(QC_Token)
 
-QC_INTERNAL bool whitespace(char ch)
+QC_INTERNAL QC_Bool whitespace(char ch)
 { return ch == ' ' || ch == '\t' || ch == '\n'; }
 
-QC_INTERNAL bool linebreak(char ch)
+QC_INTERNAL QC_Bool linebreak(char ch)
 { return ch == '\n'; }
 
 QC_INTERNAL QC_Token_Type single_char_tokentype(char ch)
@@ -77,13 +77,13 @@ QC_INTERNAL QC_Token_Type double_char_tokentype(char ch1, char ch2)
 	return QC_Token_unknown;
 }
 
-/* Differs from strncmp by str_equals_buf("ab", "ab", 1) == false */
-QC_INTERNAL bool str_equals_buf(const char *c_str, const char *buf, int buf_size)
+/* Differs from strncmp by str_equals_buf("ab", "ab", 1) == QC_false */
+QC_INTERNAL QC_Bool str_equals_buf(const char *c_str, const char *buf, int buf_size)
 {
 	int i;
 	for (i = 0; i < buf_size && c_str[i] != '\0'; ++i) {
 		if (c_str[i] != buf[i])
-			return false;
+			return QC_false;
 	}
 	return c_str[i] == '\0' && i == buf_size;
 }
@@ -110,12 +110,12 @@ QC_INTERNAL QC_Token_Type kw_tokentype(const char *buf, int size)
 		return QC_Token_kw_while;
 	if (str_equals_buf("if", buf, size))
 		return QC_Token_kw_if;
-	if (str_equals_buf("true", buf, size))
-		return QC_Token_kw_true;
-	if (str_equals_buf("true", buf, size))
-		return QC_Token_kw_true;
-	if (str_equals_buf("false", buf, size))
-		return QC_Token_kw_false;
+	if (str_equals_buf("QC_true", buf, size))
+		return QC_Token_kw_QC_true;
+	if (str_equals_buf("QC_true", buf, size))
+		return QC_Token_kw_QC_true;
+	if (str_equals_buf("QC_false", buf, size))
+		return QC_Token_kw_QC_false;
 	if (str_equals_buf("sizeof", buf, size))
 		return QC_Token_kw_sizeof;
 	if (str_equals_buf("typedef", buf, size))
@@ -157,7 +157,7 @@ typedef struct QC_Tokenize_Ctx {
 	int block_comment_depth;
 	const char *end;
 	int cur_line;
-	bool last_line_was_empty;
+	QC_Bool last_line_was_empty;
 	int tokens_on_line;
 	int comments_on_line;
 	QC_Array(QC_Token) tokens;
@@ -167,7 +167,7 @@ QC_INTERNAL void commit_token(QC_Tokenize_Ctx *t, const char *b, const char *e, 
 {
 	if (e > b) {
 		QC_Token tok = {0};
-		bool last_on_line = e + 1 < t->end && linebreak(*e);
+		QC_Bool last_on_line = e + 1 < t->end && linebreak(*e);
 		if (type == QC_Token_name) {
 			QC_Token_Type kw = kw_tokentype(b, e - b);
 			if (kw != QC_Token_unknown)
@@ -302,7 +302,7 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 		eof.text.buf = "eof";
 		eof.text.len = strlen(eof.text.buf);
 		eof.line = t.cur_line;
-		eof.last_on_line = true;
+		eof.last_on_line = QC_true;
 		qc_push_array(QC_Token)(&t.tokens, eof);
 	}
 	return t.tokens;
@@ -362,8 +362,8 @@ const char* qc_tokentype_str(QC_Token_Type type)
 		case QC_Token_kw_null: return "kw_null";
 		case QC_Token_kw_for: return "kw_for";
 		case QC_Token_kw_if: return "kw_if";
-		case QC_Token_kw_true: return "kw_true";
-		case QC_Token_kw_false: return "kw_false";
+		case QC_Token_kw_QC_true: return "kw_QC_true";
+		case QC_Token_kw_QC_false: return "kw_QC_false";
 		case QC_Token_kw_sizeof: return "kw_sizeof";
 		case QC_Token_kw_typedef: return "kw_typedef";
 		case QC_Token_kw_parallel: return "kw_parallel";
@@ -435,8 +435,8 @@ const char* qc_tokentype_codestr(QC_Token_Type type)
 		case QC_Token_kw_for: return "for";
 		case QC_Token_kw_while: return "while";
 		case QC_Token_kw_if: return "if";
-		case QC_Token_kw_true: return "true";
-		case QC_Token_kw_false: return "false";
+		case QC_Token_kw_QC_true: return "QC_true";
+		case QC_Token_kw_QC_false: return "QC_false";
 		case QC_Token_kw_sizeof: return "sizeof";
 		case QC_Token_kw_typedef: return "typedef";
 		case QC_Token_kw_parallel: return "for_field";

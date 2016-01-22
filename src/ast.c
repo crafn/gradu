@@ -1,24 +1,24 @@
 #include "ast.h"
 
-DEFINE_ARRAY(QC_AST_Node_Ptr)
-DEFINE_ARRAY(QC_AST_Var_Decl_Ptr)
-DEFINE_ARRAY(QC_Token_Ptr)
+QC_DEFINE_ARRAY(QC_AST_Node_Ptr)
+QC_DEFINE_ARRAY(QC_AST_Var_Decl_Ptr)
+QC_DEFINE_ARRAY(QC_Token_Ptr)
 DEFINE_HASH_TABLE(QC_AST_Node_Ptr, QC_AST_Node_Ptr)
 
-bool type_node_equals(QC_AST_Type a, QC_AST_Type b)
+QC_Bool type_node_equals(QC_AST_Type a, QC_AST_Type b)
 {
 	if (	a.ptr_depth != b.ptr_depth ||
 			a.array_size != b.array_size ||
 			a.is_const != b.is_const ||
 			a.base_type_decl != b.base_type_decl)
-		return false;
-	return true;
+		return QC_false;
+	return QC_true;
 }
 
-bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b)
+QC_Bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b)
 {
-	bool is_same_matrix = (a.is_matrix == b.is_matrix);
-	bool is_same_field = (a.is_field == b.is_field);
+	QC_Bool is_same_matrix = (a.is_matrix == b.is_matrix);
+	QC_Bool is_same_field = (a.is_field == b.is_field);
 	if (is_same_matrix && a.is_matrix)
 		is_same_matrix = !memcmp(a.matrix_dim, b.matrix_dim, sizeof(a.matrix_dim));
 	if (is_same_field && a.is_field)
@@ -35,7 +35,8 @@ bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b)
 
 QC_INTERNAL QC_AST_Node *qc_create_node_impl(QC_AST_Node_Type type, int size)
 {
-	QC_AST_Node *n = calloc(1, size);
+	QC_AST_Node *n = QC_MALLOC(size);
+	memset(n, 0, size);
 	n->type = type;
 	n->pre_comments = qc_create_array(QC_Token_Ptr)(0);
 	n->post_comments = qc_create_array(QC_Token_Ptr)(0);
@@ -341,7 +342,7 @@ void qc_copy_func_decl_node(QC_AST_Func_Decl *copy, QC_AST_Func_Decl *decl, QC_A
 
 void qc_copy_literal_node(QC_AST_Literal *copy, QC_AST_Literal *literal, QC_AST_Node *comp_type, QC_AST_Node **comp_subs, int comp_sub_count, QC_AST_Node *type_decl_ref)
 {
-	bool is_same = (copy == literal);
+	QC_Bool is_same = (copy == literal);
 	if (!is_same && copy->type == QC_Literal_compound) {
 		qc_destroy_array(QC_AST_Node_Ptr)(&copy->value.compound.subnodes);
 	}
@@ -623,12 +624,12 @@ void qc_shallow_destroy_node(QC_AST_Node *node)
 
 	qc_destroy_array(QC_Token_Ptr)(&node->pre_comments);
 	qc_destroy_array(QC_Token_Ptr)(&node->post_comments);
-	free(node);
+	QC_FREE(node);
 }
 
-bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr)
+QC_Bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr)
 {
-	bool success = false;
+	QC_Bool success = QC_false;
 	memset(ret, 0, sizeof(*ret));
 
 	switch (expr->type) {
@@ -640,7 +641,7 @@ bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr)
 		{
 			QC_CASTED_NODE(QC_AST_Var_Decl, decl, ident->decl);
 			*ret = *decl->type;
-			success = true;
+			success = QC_true;
 		}
 	} break;
 
@@ -650,7 +651,7 @@ bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr)
 		QC_ASSERT(ret->base_type_decl);
 		if (literal->type == QC_Literal_string)
 			++ret->ptr_depth;
-		success = true;
+		success = QC_true;
 	} break;
 
 	case QC_AST_access: {
@@ -695,9 +696,9 @@ bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr)
 	return success;
 }
 
-bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr)
+QC_Bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr)
 {
-	bool success = false;
+	QC_Bool success = QC_false;
 	memset(ret, 0, sizeof(*ret));
 
 	switch (expr->type) {
@@ -705,7 +706,7 @@ bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr)
 		QC_CASTED_NODE(QC_AST_Literal, literal, expr);
 		ret->type = literal->type;
 		ret->value = literal->value;
-		success = true;
+		success = QC_true;
 	} break;
 
 	case QC_AST_biop: {
@@ -720,7 +721,7 @@ bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr)
 			if (!success)
 				break;
 			if (lhs.type != rhs.type) {
-				success = false;
+				success = QC_false;
 				break;
 			}
 
@@ -752,7 +753,7 @@ bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr)
 	return success;
 }
 
-bool qc_is_decl(QC_AST_Node *node)
+QC_Bool qc_is_decl(QC_AST_Node *node)
 { return	node->type == QC_AST_type_decl ||
 			node->type == QC_AST_var_decl ||
 			node->type == QC_AST_func_decl ||
@@ -794,7 +795,7 @@ QC_AST_Ident *qc_access_ident(QC_AST_Access *access)
 QC_AST_Scope *qc_create_ast()
 {
 	QC_AST_Scope *root = qc_create_scope_node();
-	root->is_root = true;
+	root->is_root = QC_true;
 	return root;
 }
 
@@ -1018,19 +1019,19 @@ QC_AST_Func_Decl *qc_find_enclosing_func(QC_AST_Parent_Map *map, QC_AST_Node *no
 	return (QC_AST_Func_Decl*)parent;
 }
 
-bool qc_is_subnode(QC_AST_Parent_Map *map, QC_AST_Node *parent, QC_AST_Node *sub)
+QC_Bool qc_is_subnode(QC_AST_Parent_Map *map, QC_AST_Node *parent, QC_AST_Node *sub)
 {
 	QC_AST_Node *p = qc_find_parent_node(map, sub);
 	while (p) {
 		if (p == parent)
-			return true;
+			return QC_true;
 		p = qc_find_parent_node(map, p);
 	}
-	return false;
+	return QC_false;
 }
 
 /* @todo Use in resolve_node and not in ast parsing directly */
-QC_INTERNAL bool qc_resolve_ident_in_scope(QC_AST_Ident *ident, QC_AST_Scope *search_scope)
+QC_INTERNAL QC_Bool qc_resolve_ident_in_scope(QC_AST_Ident *ident, QC_AST_Scope *search_scope)
 {
 	/* Search from given scope */
 	int i;
@@ -1042,15 +1043,15 @@ QC_INTERNAL bool qc_resolve_ident_in_scope(QC_AST_Ident *ident, QC_AST_Scope *se
 			continue;
 
 		ident->decl = subnode;
-		return true;
+		return QC_true;
 	}
 
-	return false;
+	return QC_false;
 }
 
 /* @todo Split to multiple functions */
 /* Use 'arg_count = -1' for non-function identifier resolution */
-QC_INTERNAL bool resolve_node(QC_AST_Parent_Map *map, QC_AST_Ident *ident, QC_AST_Type *hint, QC_AST_Type *arg_types, int arg_count)
+QC_INTERNAL QC_Bool resolve_node(QC_AST_Parent_Map *map, QC_AST_Ident *ident, QC_AST_Type *hint, QC_AST_Type *arg_types, int arg_count)
 {
 	QC_Array(QC_AST_Node_Ptr) decls = qc_create_array(QC_AST_Node_Ptr)(0);
 	int i, k;
@@ -1090,7 +1091,7 @@ QC_INTERNAL bool resolve_node(QC_AST_Parent_Map *map, QC_AST_Ident *ident, QC_AS
 				break;
 			} else if (decl->type == QC_AST_func_decl) {
 				QC_CASTED_NODE(QC_AST_Func_Decl, func_decl, decl);
-				bool arg_types_matched = true;
+				QC_Bool arg_types_matched = QC_true;
 
 				if (hint && !type_node_equals(*hint, *func_decl->return_type))
 					continue;
@@ -1101,7 +1102,7 @@ QC_INTERNAL bool resolve_node(QC_AST_Parent_Map *map, QC_AST_Ident *ident, QC_AS
 				/* Match argument types */
 				for (k = 0; k < arg_count; ++k) {
 					if (!type_node_equals(*func_decl->params.data[k]->type, arg_types[k])) {
-						arg_types_matched = false;
+						arg_types_matched = QC_false;
 						break;
 					}
 				}
@@ -1130,23 +1131,23 @@ QC_AST_Ident *qc_resolve_ident(QC_AST_Parent_Map *map, QC_AST_Ident *ident)
 }
 
 QC_DECLARE_ARRAY(QC_AST_Type)
-DEFINE_ARRAY(QC_AST_Type)
+QC_DEFINE_ARRAY(QC_AST_Type)
 
 QC_AST_Call *qc_resolve_call(QC_AST_Parent_Map *map, QC_AST_Call *call, QC_AST_Type *return_type_hint)
 {
 	int i;
-	bool success = true;
+	QC_Bool success = QC_true;
 	QC_Array(QC_AST_Type) types = qc_create_array(QC_AST_Type)(call->args.size);
 	for (i = 0; i < call->args.size; ++i) {
 		QC_AST_Type type;
 		if (!qc_expr_type(&type, call->args.data[i])) {
-			success = false;
+			success = QC_false;
 			break;
 		}
 		qc_push_array(QC_AST_Type)(&types, type);
 	}
 	if (!resolve_node(map, call->ident, return_type_hint, types.data, types.size))
-		success = false;
+		success = QC_false;
 
 	qc_destroy_array(QC_AST_Type)(&types);
 
@@ -1161,7 +1162,7 @@ void qc_resolve_ast(QC_AST_Scope *root)
 	int i;
 	QC_AST_Parent_Map parent_map = qc_create_parent_map(QC_AST_BASE(root));
 	QC_Array(QC_AST_Node_Ptr) subnodes = qc_create_array(QC_AST_Node_Ptr)(0);
-	qc_push_subnodes(&subnodes, QC_AST_BASE(root), false);
+	qc_push_subnodes(&subnodes, QC_AST_BASE(root), QC_false);
 
 	for (i = 0; i < subnodes.size; ++i) {
 		QC_AST_Node *node = subnodes.data[i];
@@ -1196,7 +1197,7 @@ void qc_unresolve_ast(QC_AST_Node *root)
 {
 	int i;
 	QC_Array(QC_AST_Node_Ptr) subnodes = qc_create_array(QC_AST_Node_Ptr)(0);
-	qc_push_subnodes(&subnodes, root, false);
+	qc_push_subnodes(&subnodes, root, QC_false);
 
 	for (i = 0; i < subnodes.size; ++i) {
 		QC_AST_Node *node = subnodes.data[i];
@@ -1378,7 +1379,7 @@ void qc_push_immediate_refnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *nod
 	}
 }
 
-void qc_push_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *node, bool qc_push_before_recursing)
+void qc_push_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *node, QC_Bool qc_push_before_recursing)
 {
 	int i;
 	QC_Array(QC_AST_Node_Ptr) subnodes = qc_create_array(QC_AST_Node_Ptr)(0);
@@ -1454,7 +1455,7 @@ void qc_find_subnodes_of_type(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node_Type t
 {
 	int i;
 	QC_Array(QC_AST_Node_Ptr) subnodes = qc_create_array(QC_AST_Node_Ptr)(0);
-	qc_push_subnodes(&subnodes, node, false);
+	qc_push_subnodes(&subnodes, node, QC_false);
 
 	for (i = 0; i < subnodes.size; ++i) {
 		if (subnodes.data[i]->type == type)
@@ -1828,7 +1829,7 @@ QC_AST_Access *qc_create_element_access_1(QC_AST_Node *base, QC_AST_Node *arg)
 	QC_AST_Access *access = qc_create_access_node();
 	access->base = base;
 	qc_push_array(QC_AST_Node_Ptr)(&access->args, arg);
-	access->is_element_access = true;
+	access->is_element_access = QC_true;
 	return access;
 }
 
@@ -1848,7 +1849,7 @@ QC_AST_Access *qc_create_simple_member_access(QC_AST_Var_Decl *base, QC_AST_Var_
 	base_access->base = qc_shallow_copy_ast(QC_AST_BASE(base->ident));
 	access->base = QC_AST_BASE(base_access);
 	qc_push_array(QC_AST_Node_Ptr)(&access->args, QC_AST_BASE(member_ident));
-	access->is_member_access = true;
+	access->is_member_access = QC_true;
 
 	return access;
 }
@@ -1884,21 +1885,21 @@ QC_AST_Node *qc_create_full_deref(QC_AST_Node *expr)
 QC_Builtin_Type qc_void_builtin_type()
 {
 	QC_Builtin_Type bt = {0};
-	bt.is_void = true;
+	bt.is_void = QC_true;
 	return bt;
 }
 
 QC_Builtin_Type qc_int_builtin_type()
 {
 	QC_Builtin_Type bt = {0};
-	bt.is_integer = true;
+	bt.is_integer = QC_true;
 	return bt;
 }
 
 QC_Builtin_Type qc_float_builtin_type()
 {
 	QC_Builtin_Type bt = {0};
-	bt.is_float = true;
+	bt.is_float = QC_true;
 	bt.bitness = 32;
 	return bt;
 }
@@ -1906,7 +1907,7 @@ QC_Builtin_Type qc_float_builtin_type()
 QC_Builtin_Type qc_char_builtin_type()
 {
 	QC_Builtin_Type bt = {0};
-	bt.is_char = true;
+	bt.is_char = QC_true;
 	return bt;
 }
 

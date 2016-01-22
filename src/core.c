@@ -1,12 +1,12 @@
 #include "core.h"
 
-DEFINE_ARRAY(char)
-DEFINE_ARRAY(int)
+QC_DEFINE_ARRAY(char)
+QC_DEFINE_ARRAY(int)
 
-bool qc_buf_str_equals(QC_Buf_Str a, QC_Buf_Str b)
+QC_Bool qc_buf_str_equals(QC_Buf_Str a, QC_Buf_Str b)
 {
 	if (a.len != b.len)
-		return false;
+		return QC_false;
 	return !strncmp(a.buf, b.buf, a.len);
 }
 

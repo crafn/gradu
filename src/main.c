@@ -8,7 +8,8 @@
     - tests with different dimensional fields
     - cuda error checking
 	- overloading test
-	- attributes to QC_AST (like __global__ in cuda)
+	- test for correct error messages
+	- error recovery -- don't stop parsing at first error
 	- handle (ignore but preserve) C preprocessor
 	- handle (ignore but preserve) other C stuff
 */

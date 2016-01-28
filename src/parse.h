@@ -4,6 +4,7 @@
 #include "ast.h"
 #include "tokenize.h"
 
+/* @todo To *precedence and *associativity */
 int qc_biop_prec(QC_Token_Type type);
 int qc_biop_assoc(QC_Token_Type type);
 

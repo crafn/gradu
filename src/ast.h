@@ -268,6 +268,10 @@ typedef struct QC_AST_Parallel {
 	int dim; /* Essentially output field dimension */
 } QC_AST_Parallel;
 
+
+const char *qc_node_type_str(QC_AST_Node_Type type);
+
+
 /* Usage: QC_CASTED_NODE(QC_AST_Ident, ident, generic_node); printf("%c", ident->text_buf[0]); */
 #define QC_CASTED_NODE(type, name, assign) \
 	type *name = (type*)assign

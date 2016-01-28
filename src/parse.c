@@ -162,6 +162,9 @@ typedef QC_AST_Type_Decl* QC_AST_Type_Decl_Ptr;
 QC_DECLARE_ARRAY(QC_AST_Type_Decl_Ptr)
 QC_DEFINE_ARRAY(QC_AST_Type_Decl_Ptr)
 
+#define QC_PRIORITY_UNDECLARED 10
+#define QC_PRIORITY_DEFAULT 0
+
 typedef struct Parse_Ctx {
 	QC_AST_Scope *root;
 	QC_Token *first_tok; /* @todo Consider having some QC_Token_sof, corresponding to QC_Token_eof*/
@@ -171,8 +174,10 @@ typedef struct Parse_Ctx {
 
 	/* Builtin type and funcs decls are generated while parsing */
 
+	int error_priority;
 	QC_Array(char) error_msg;
 	QC_Token *error_tok;
+
 	QC_Array(Parse_Stack_Frame) parse_stack;
 
 	QC_AST_Parent_Map parent_map; /* Built incrementally during parsing */
@@ -201,13 +206,16 @@ QC_INTERNAL QC_Bool accept_tok(Parse_Ctx *ctx, QC_Token_Type type)
 	return QC_false;
 }
 
-
 /* Backtracking / stack traversing */
 
 QC_INTERNAL void begin_node_parsing(Parse_Ctx *ctx, QC_AST_Node *node)
 {
 	Parse_Stack_Frame frame = {0};
 	QC_ASSERT(node);
+
+#if QC_PARSE_DEBUG
+	printf("begin_node_parsing %s\n", qc_node_type_str(node->type));
+#endif
 
 	if (ctx->parse_stack.size > 0) {
 		QC_AST_Node *parent = ctx->parse_stack.data[ctx->parse_stack.size - 1].node;
@@ -238,6 +246,14 @@ QC_INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 	Parse_Stack_Frame frame = qc_pop_array(Parse_Stack_Frame)(&ctx->parse_stack);
 	QC_ASSERT(frame.node);
 
+	/* Something was succesfully parsed, so recovery from previous error has happened */
+	ctx->error_priority = 0;
+	ctx->error_tok = NULL;
+
+#if QC_PARSE_DEBUG
+	printf("end_node_parsing (%s)\n", qc_node_type_str(frame.node->type));
+#endif
+
 	/* frame.node is used in end_node_parsing because node might not yet be created at the begin_node_parsing */
 	/* That ^ is QC_false now! Can be moved to begin. */
 	if (!ctx->dont_ref_tokens)
@@ -246,7 +262,7 @@ QC_INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 	/*	Gather comments around node if this is the first time calling end_node_parsing with this node.
 		It's possible to have multiple begin...end_node_parsing with the same node because of nesting,
 		like when parsing statement: 'foo;', which yields parse_expr(parse_ident()). */
-	/* That ^ is QC_false now! Not possible to have multiple begin..end with the same node anymore. */
+	/* That ^ is false now! Not possible to have multiple begin..end with the same node anymore. */
 	if (!ctx->dont_ref_tokens) {
 		if (frame.node->pre_comments.size == 0) {
 			QC_Token *tok = frame.begin_tok - 1;
@@ -279,6 +295,10 @@ QC_INTERNAL void cancel_node_parsing(Parse_Ctx *ctx)
 	Parse_Stack_Frame frame = qc_pop_array(Parse_Stack_Frame)(&ctx->parse_stack);
 	QC_ASSERT(frame.node);
 
+#if QC_PARSE_DEBUG
+	printf("cancel_node_parsing\n");
+#endif
+
 	/* Backtrack */
 	ctx->tok = frame.begin_tok;
 	qc_set_parent_node(&ctx->parent_map, frame.node, NULL);
@@ -286,7 +306,7 @@ QC_INTERNAL void cancel_node_parsing(Parse_Ctx *ctx)
 	qc_destroy_node(frame.node);
 }
 
-QC_INTERNAL void report_error(Parse_Ctx *ctx, const char *fmt, ...)
+QC_INTERNAL void report_error(Parse_Ctx *ctx, int priority, const char *fmt, ...)
 {
 	QC_Array(char) msg;
 	va_list args;
@@ -299,20 +319,27 @@ QC_INTERNAL void report_error(Parse_Ctx *ctx, const char *fmt, ...)
 	qc_safe_vsprintf(&msg, fmt, args);
 	va_end(args);
 
-	qc_destroy_array(char)(&ctx->error_msg);
-	ctx->error_msg = msg;
-	ctx->error_tok = cur_tok(ctx);
+	if (priority >= ctx->error_priority) {
+#if QC_PARSE_DEBUG
+		printf("ERROR %s\n", msg.data);
+#endif
+		qc_destroy_array(char)(&ctx->error_msg);
+		ctx->error_priority = priority;
+		ctx->error_msg = msg;
+		ctx->error_tok = cur_tok(ctx);
+	}
 }
 
 QC_INTERNAL void report_error_expected(Parse_Ctx *ctx, const char *expected, QC_Token *got)
 {
-	report_error(ctx, "Expected %s, got '%.*s'", expected, QC_BUF_STR_ARGS(got->text));
+	report_error(ctx, QC_PRIORITY_DEFAULT, "Expected %s, got '%.*s'", expected, QC_BUF_STR_ARGS(got->text));
 }
 
 /* Parsing */
 
 /* @todo QC_AST_Node -> specific node type. <-- not so sure about that.. */
 QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *decl);
+QC_INTERNAL QC_Bool resolve_parsed_ident(Parse_Ctx *ctx, QC_AST_Ident *ident);
 QC_INTERNAL QC_Bool parse_type_decl(Parse_Ctx *ctx, QC_AST_Node **ret);
 QC_INTERNAL QC_Bool parse_typedef(Parse_Ctx *ctx, QC_AST_Node **ret);
 QC_INTERNAL QC_Bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, QC_Bool is_param_decl);
@@ -329,7 +356,7 @@ QC_INTERNAL QC_Bool parse_control(Parse_Ctx *ctx, QC_AST_Node **ret);
 QC_INTERNAL QC_Bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret);
 QC_INTERNAL QC_Bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret);
 QC_INTERNAL QC_Bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret);
-QC_INTERNAL QC_Bool parse_element(Parse_Ctx *ctx, QC_AST_Node **ret);
+QC_INTERNAL QC_Bool parse_statement(Parse_Ctx *ctx, QC_AST_Node **ret);
 
 /* If decl is NULL, then declaration is searched. */
 /* Parse example: foo */
@@ -345,7 +372,7 @@ QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node 
 	qc_append_str(&ident->text, "%.*s", QC_BUF_STR_ARGS(cur_tok(ctx)->text));
 
 	if (cur_tok(ctx)->type != QC_Token_name) {
-		report_error(ctx, "'%.*s' is not an identifier", QC_BUF_STR_ARGS(cur_tok(ctx)->text));
+		report_error(ctx, QC_PRIORITY_DEFAULT, "'%.*s' is not an identifier", QC_BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
 
@@ -361,6 +388,15 @@ QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node 
 
 mismatch:
 	cancel_node_parsing(ctx);
+	return QC_false;
+}
+
+QC_Bool resolve_parsed_ident(Parse_Ctx *ctx, QC_AST_Ident *ident)
+{
+	if (qc_resolve_ident(&ctx->parent_map, ident))
+		return QC_true;
+
+	report_error(ctx, QC_PRIORITY_UNDECLARED, "Undeclared identifier '%s'", ident->text.data);
 	return QC_false;
 }
 
@@ -603,7 +639,7 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 						advance_tok(ctx);
 
 						if (bt.matrix_rank > QC_MAX_MATRIX_RANK) {
-							report_error(ctx, "Too high rank for a matrix. Max is %i", QC_MAX_MATRIX_RANK);
+							report_error(ctx, QC_PRIORITY_DEFAULT, "Too high rank for a matrix. Max is %i", QC_MAX_MATRIX_RANK);
 							goto mismatch;
 						}
 
@@ -627,11 +663,11 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 					goto mismatch;
 				dim_value = qc_eval_const_expr(dim_expr);
 				if (!dim_value) {
-					report_error(ctx, "Field dimension must be a constant expression");
+					report_error(ctx, QC_PRIORITY_DEFAULT, "Field dimension must be a constant expression");
 					goto mismatch;
 				}
 				if (dim_value->type != QC_Literal_int) {
-					report_error(ctx, "Field dimension must be an integer");
+					report_error(ctx, QC_PRIORITY_DEFAULT, "Field dimension must be an integer");
 					goto mismatch;
 				}
 				bt.field_dim = dim_value->value.integer;
@@ -682,7 +718,7 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 			QC_AST_Ident *ident = NULL;
 			if (!parse_ident(ctx, &ident, NULL))
 				goto mismatch;
-			if (!qc_resolve_ident(&ctx->parent_map, ident)) {
+			if (!resolve_parsed_ident(ctx, ident)) {
 				qc_destroy_node(QC_AST_BASE(ident));
 				goto mismatch;
 			}
@@ -821,7 +857,7 @@ QC_INTERNAL QC_Bool parse_scope(Parse_Ctx *ctx, QC_AST_Scope **ret, QC_Bool alre
 
 	while (!accept_tok(ctx, QC_Token_close_brace)) {
 		QC_AST_Node *element = NULL;
-		if (!parse_element(ctx, &element))
+		if (!parse_statement(ctx, &element))
 			goto mismatch;
 		qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, element);
 	}
@@ -960,7 +996,7 @@ QC_INTERNAL QC_Bool parse_arg_list(Parse_Ctx *ctx, QC_Array(QC_AST_Node_Ptr) *re
 	}
 
 	if (!accept_tok(ctx, ending)) {
-		report_error(ctx, "List didn't end with '%s', but '%s'",
+		report_error(ctx, QC_PRIORITY_DEFAULT, "List didn't end with '%s', but '%s'",
 				qc_tokentype_str(ending), QC_BUF_STR_ARGS(cur_tok(ctx)->text));
 		goto mismatch;
 	}
@@ -1048,7 +1084,7 @@ QC_INTERNAL QC_Bool parse_var_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_
 	{
 		QC_CASTED_NODE(QC_AST_Ident, ident, expr);
 
-		if (!qc_resolve_ident(&ctx->parent_map, ident))
+		if (!resolve_parsed_ident(ctx, ident))
 			goto mismatch;
 
 		if (ident->decl->type == QC_AST_var_decl) {
@@ -1126,7 +1162,7 @@ QC_INTERNAL QC_Bool parse_member_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, 
 		goto mismatch;
 
 	if (!qc_expr_type(&base_type, base)) {
-		report_error(ctx, "Expression does not have accessible members");
+		report_error(ctx, QC_PRIORITY_DEFAULT, "Expression does not have accessible members");
 		goto mismatch;
 	}
 
@@ -1168,14 +1204,14 @@ QC_INTERNAL QC_Bool parse_element_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret,
 	access->base = base;
 
 	if (!qc_expr_type(&base_type, access->base)) {
-		report_error(ctx, "Invalid type");
+		report_error(ctx, QC_PRIORITY_DEFAULT, "Invalid type");
 		goto mismatch;
 	}
 
 	if (base_type.ptr_depth == 1) {
 		access->implicit_deref = QC_true;
 	} else if (base_type.ptr_depth > 1) {
-		report_error(ctx, "Trying to access elements of ptr (depth %i). Only 1 level of implicit dereferencing allowed.", base_type.ptr_depth);
+		report_error(ctx, QC_PRIORITY_DEFAULT, "Trying to access elements of ptr (depth %i). Only 1 level of implicit dereferencing allowed.", base_type.ptr_depth);
 		goto mismatch;
 	}
 
@@ -1199,7 +1235,7 @@ QC_INTERNAL QC_Bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, 
 	++ctx->expr_depth;
 
 	if (	parse_ident(ctx, (QC_AST_Ident**)&expr, NULL) &&
-			qc_resolve_ident(&ctx->parent_map, (QC_AST_Ident*)expr)) {
+			resolve_parsed_ident(ctx, (QC_AST_Ident*)expr)) {
 		/* If ident is var, wrap it in QC_AST_Access */
 		if (parse_var_access_expr(ctx, &expr, expr)) {
 			;
@@ -1239,7 +1275,7 @@ QC_INTERNAL QC_Bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, 
 	if (expr->type == QC_AST_ident) {
 		QC_CASTED_NODE(QC_AST_Ident, ident, expr);
 		if (!ident->decl) {
-			report_error(ctx, "'%s' not declared in this scope", ident->text.data);
+			report_error(ctx, QC_PRIORITY_UNDECLARED, "'%s' not declared in this scope", ident->text.data);
 			goto mismatch;
 		}
 	}
@@ -1268,14 +1304,14 @@ QC_INTERNAL QC_Bool parse_control(Parse_Ctx *ctx, QC_AST_Node **ret)
 	switch (tok->type) {
 		case QC_Token_kw_return: {
 			advance_tok(ctx);
-			if (!parse_element(ctx, &control->value)) {
+			if (!parse_statement(ctx, &control->value)) {
 				report_error_expected(ctx, "return value", cur_tok(ctx));
 				goto mismatch;
 			}
 		} break;
 		case QC_Token_kw_goto: {
 			advance_tok(ctx);
-			if (!parse_element(ctx, &control->value)) {
+			if (!parse_statement(ctx, &control->value)) {
 				report_error_expected(ctx, "goto label", cur_tok(ctx));
 				goto mismatch;
 			}
@@ -1323,7 +1359,7 @@ QC_INTERNAL QC_Bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret)
 			cond->body = scope;
 			cond->implicit_scope = QC_true;
 
-			if (parse_element(ctx, &elem)) {
+			if (parse_statement(ctx, &elem)) {
 				qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, elem);
 			} else {
 				goto mismatch;
@@ -1333,7 +1369,7 @@ QC_INTERNAL QC_Bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret)
 
 	if (accept_tok(ctx, QC_Token_kw_else)) {
 		if (!accept_tok(ctx, QC_Token_semi)) {
-			if (!parse_element(ctx, &cond->after_else))
+			if (!parse_statement(ctx, &cond->after_else))
 				goto mismatch;
 		}
 
@@ -1366,7 +1402,7 @@ QC_INTERNAL QC_Bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret)
 			goto mismatch;
 		}
 
-		if (!parse_element(ctx, &loop->init))
+		if (!parse_statement(ctx, &loop->init))
 			goto mismatch;
 
 		if (!parse_expr(ctx, &loop->cond, 0, NULL, QC_true))
@@ -1398,7 +1434,7 @@ QC_INTERNAL QC_Bool parse_loop(Parse_Ctx *ctx, QC_AST_Node **ret)
 			loop->body = scope;
 			loop->implicit_scope = QC_true;
 
-			if (parse_element(ctx, &elem)) {
+			if (parse_statement(ctx, &elem)) {
 				qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, elem);
 			} else {
 				goto mismatch;
@@ -1435,7 +1471,7 @@ QC_INTERNAL QC_Bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret)
 	{ /* Fetch dimension from output type */
 		QC_AST_Type out_type;
 		if (!qc_expr_type(&out_type, parallel->output) || !out_type.base_type_decl->is_builtin) {
-			report_error(ctx, "Parallel loop has invalid output type");
+			report_error(ctx, QC_PRIORITY_DEFAULT, "Parallel loop has invalid output type");
 			goto mismatch;
 		}
 
@@ -1482,14 +1518,13 @@ mismatch:
 }
 
 /* Parse the next self-contained thing - var decl, function decl, statement, expr... */
-/* @todo Should this be named "parse_statement"? */
-QC_INTERNAL QC_Bool parse_element(Parse_Ctx *ctx, QC_AST_Node **ret)
+QC_INTERNAL QC_Bool parse_statement(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Node *result = NULL;
 
 	/* @todo Heuristic */
 	if (accept_tok(ctx, QC_Token_semi)) {
-		report_error(ctx, "Unexpected ';'");
+		report_error(ctx, QC_PRIORITY_DEFAULT, "Unexpected ';'");
 		goto mismatch;
 	} else if (parse_type_decl(ctx, &result))
 		;
@@ -1545,15 +1580,18 @@ QC_AST_Scope *qc_parse_tokens(QC_Token *toks, QC_Bool dont_reference_tokens)
 	begin_node_parsing(&ctx, QC_AST_BASE(root));
 	while (ctx.tok->type != QC_Token_eof) {
 		QC_AST_Node *elem = NULL;
-		if (!parse_element(&ctx, &elem)) {
+		if (!parse_statement(&ctx, &elem)) {
 			failure = QC_true;
+			cancel_node_parsing(&ctx);
+			root = NULL;
 			break;
 		}
 		qc_push_array(QC_AST_Node_Ptr)(&root->nodes, elem); 
 	}
-	end_node_parsing(&ctx);
+	if (!failure)
+		end_node_parsing(&ctx);
 
-	{ /* Insert builtin declarations to beginning of root node */
+	if (!failure) { /* Insert builtin declarations to beginning of root node */
 		QC_Array(QC_AST_Node_Ptr) new_nodes = qc_create_array(QC_AST_Node_Ptr)(ctx.parent_map.builtin_decls.size + root->nodes.size);
 		int i;
 		/* @todo QC_Array insert function */
@@ -1574,7 +1612,7 @@ QC_AST_Scope *qc_parse_tokens(QC_Token *toks, QC_Bool dont_reference_tokens)
 			printf("Error at line %i near token '%.*s':\n   %s\n",
 					tok->line, QC_BUF_STR_ARGS(tok->text), msg);
 		} else {
-			printf("Internal parser error (excuse)\n");
+			printf("Internal parser error: no error message (this is a bug)\n");
 		}
 		printf("Compilation failed\n");
 		qc_destroy_ast(root);

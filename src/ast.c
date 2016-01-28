@@ -799,6 +799,31 @@ QC_AST_Ident *qc_access_ident(QC_AST_Access *access)
 	return qc_access_ident((QC_AST_Access*)access->base);
 }
 
+const char *qc_node_type_str(QC_AST_Node_Type type)
+{
+	switch (type) {
+	case QC_AST_none: return "none";
+	case QC_AST_scope: return "scope";
+	case QC_AST_ident: return "ident";
+	case QC_AST_type: return "type";
+	case QC_AST_type_decl: return "type_decl";
+	case QC_AST_var_decl: return "var_decl";
+	case QC_AST_func_decl: return "func_decl";
+	case QC_AST_literal: return "literal";
+	case QC_AST_biop: return "biop";
+	case QC_AST_control: return "control";
+	case QC_AST_call: return "call";
+	case QC_AST_access: return "access";
+	case QC_AST_cond: return "cond";
+	case QC_AST_loop: return "loop";
+	case QC_AST_cast: return "cast";
+	case QC_AST_typedef: return "typedef";
+	case QC_AST_parallel: return "parallel";
+	default: QC_FAIL(("Unhandled node type %i", type));
+	}
+}
+
+
 QC_AST_Scope *qc_create_ast()
 {
 	QC_AST_Scope *root = qc_create_scope_node();

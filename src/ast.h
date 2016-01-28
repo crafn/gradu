@@ -330,7 +330,6 @@ void qc_copy_typedef_node(QC_AST_Typedef *copy, QC_AST_Typedef *def, QC_AST_Node
 void qc_copy_parallel_node(QC_AST_Parallel *copy, QC_AST_Parallel *parallel, QC_AST_Node *output, QC_AST_Node *input, QC_AST_Node *body);
 
 /* Recursive */
-/* @todo Use qc_destroy_ast for this. "ast" -> whole tree, "node" -> only this node */
 void qc_destroy_node(QC_AST_Node *node);
 /* Use this to destroy the original node after qc_shallow_copy_ast_node.
  * Doesn't destroy any owned nodes. */

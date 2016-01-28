@@ -52,7 +52,7 @@ int main(int argc, const char **argv)
 	const char *src_path;
 	const char *backend_str;
 	const char *output_path = NULL;
-	QC_Bool verbose;
+	QC_Bool verbose, permissive;
 	char *src_buf = NULL;
 	int src_size;
 	QC_Array(QC_Token) tokens = {0};
@@ -60,6 +60,7 @@ int main(int argc, const char **argv)
 	QC_Array(char) gen_code = {0};
 
 	verbose = has_arg(argv, argc, "-verbose");
+	permissive = has_arg(argv, argc, "-permissive");
 
 	src_path = get_arg(argv, argc, NULL);
 	output_path = get_arg(argv, argc, "-output");
@@ -103,7 +104,7 @@ int main(int argc, const char **argv)
 			qc_print_tokens(tokens.data, tokens.size);
 		}
 
-		root = qc_parse_tokens(tokens.data, QC_false);
+		root = qc_parse_tokens(tokens.data, QC_false, permissive);
 		if (!root)
 			goto error;
 

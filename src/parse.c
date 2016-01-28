@@ -170,6 +170,7 @@ typedef struct Parse_Ctx {
 	QC_Token *first_tok; /* @todo Consider having some QC_Token_sof, corresponding to QC_Token_eof*/
 	QC_Token *tok; /* Access with cur_tok */
 	QC_Bool dont_ref_tokens; /* AST will not point to any tokens */
+	QC_Bool allow_undeclared; /* Don't error out with undeclared identifiers */
 	int expr_depth;
 
 	/* Builtin type and funcs decls are generated while parsing */
@@ -213,6 +214,7 @@ QC_INTERNAL void begin_node_parsing(Parse_Ctx *ctx, QC_AST_Node *node)
 	Parse_Stack_Frame frame = {0};
 	QC_ASSERT(node);
 
+#define QC_PARSE_DEBUG 0
 #if QC_PARSE_DEBUG
 	printf("begin_node_parsing %s\n", qc_node_type_str(node->type));
 #endif
@@ -394,6 +396,9 @@ mismatch:
 QC_Bool resolve_parsed_ident(Parse_Ctx *ctx, QC_AST_Ident *ident)
 {
 	if (qc_resolve_ident(&ctx->parent_map, ident))
+		return QC_true;
+
+	if (ctx->allow_undeclared)
 		return QC_true;
 
 	report_error(ctx, QC_PRIORITY_UNDECLARED, "Undeclared identifier '%s'", ident->text.data);
@@ -725,16 +730,19 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 			found_decl = ident->decl;
 			qc_destroy_node(QC_AST_BASE(ident));
 		}
-		QC_ASSERT(found_decl);
-		if (found_decl->type == QC_AST_type_decl) {
-			type->base_type_decl = (QC_AST_Type_Decl*)found_decl;
-		} else if (found_decl->type == QC_AST_typedef) {
-			QC_CASTED_NODE(QC_AST_Typedef, def, found_decl);
-			type->base_typedef = def;
-			type->base_type_decl = def->type->base_type_decl;
-		} else {
-			report_error_expected(ctx, "type name", cur_tok(ctx));
-			goto mismatch;
+
+		if (found_decl || !ctx->allow_undeclared) {
+			QC_ASSERT(found_decl);
+			if (found_decl->type == QC_AST_type_decl) {
+				type->base_type_decl = (QC_AST_Type_Decl*)found_decl;
+			} else if (found_decl->type == QC_AST_typedef) {
+				QC_CASTED_NODE(QC_AST_Typedef, def, found_decl);
+				type->base_typedef = def;
+				type->base_type_decl = def->type->base_type_decl;
+			} else {
+				report_error_expected(ctx, "type name", cur_tok(ctx));
+				goto mismatch;
+			}
 		}
 	}
 
@@ -1083,11 +1091,10 @@ QC_INTERNAL QC_Bool parse_var_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_
 
 	{
 		QC_CASTED_NODE(QC_AST_Ident, ident, expr);
-
 		if (!resolve_parsed_ident(ctx, ident))
 			goto mismatch;
 
-		if (ident->decl->type == QC_AST_var_decl) {
+		if (ctx->allow_undeclared || ident->decl->type == QC_AST_var_decl) {
 			access->base = QC_AST_BASE(ident);
 		} else {
 			ident->decl = NULL;
@@ -1266,7 +1273,8 @@ QC_INTERNAL QC_Bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, 
 		}
 	}
 
-	if (semi && !accept_tok(ctx, QC_Token_semi)) {
+	/* @todo Think about accept_tok(;) -> accept_stmt_end, which also checks for eof and ending scope */
+	if (semi && !accept_tok(ctx, QC_Token_semi) && cur_tok(ctx)->type != QC_Token_eof) {
 		report_error_expected(ctx, "';'", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -1556,7 +1564,7 @@ mismatch:
 	return QC_false;
 }
 
-QC_AST_Scope *qc_parse_tokens(QC_Token *toks, QC_Bool dont_reference_tokens)
+QC_AST_Scope *qc_parse_tokens(QC_Token *toks, QC_Bool dont_reference_tokens, QC_Bool allow_undeclared)
 {
 	QC_Bool failure = QC_false;
 	Parse_Ctx ctx = {0};
@@ -1567,6 +1575,7 @@ QC_AST_Scope *qc_parse_tokens(QC_Token *toks, QC_Bool dont_reference_tokens)
 	ctx.tok = ctx.first_tok = toks;
 	ctx.parent_map = qc_create_parent_map(NULL);
 	ctx.dont_ref_tokens = dont_reference_tokens;
+	ctx.allow_undeclared = allow_undeclared;
 	if (qc_is_comment_tok(ctx.tok->type))
 		advance_tok(&ctx);
 
@@ -1626,27 +1635,25 @@ QC_AST_Scope *qc_parse_tokens(QC_Token *toks, QC_Bool dont_reference_tokens)
 	return root;
 }
 
-QC_AST_Node *qc_parse_string(const char *string)
+QC_AST_Scope *qc_parse_string(QC_AST_Node **expr, const char *string)
 {
 	QC_Array(QC_Token) tokens = {0};
 	QC_AST_Scope *root = NULL;
-	QC_AST_Node *ret = NULL;
+	*expr = NULL;
 
 	tokens = qc_tokenize(string, strlen(string));
 	if (!tokens.data)
 		goto cleanup;
 
-	root = qc_parse_tokens(tokens.data, QC_true);
+	root = qc_parse_tokens(tokens.data, QC_true, QC_true);
 
 cleanup:
 	qc_destroy_array(QC_Token)(&tokens);
 
-	if (root->nodes.size == 1) {
-		ret = root->nodes.data[0];		
-		qc_shallow_destroy_node(QC_AST_BASE(root));
-	} else {
-		ret = QC_AST_BASE(root);
-	}
+	QC_ASSERT(root->nodes.size > 0);
 
-	return ret;
+	/* Last node in the global scope is the expr. There are builtin type decls before it. */
+	*expr = root->nodes.data[root->nodes.size - 1];	
+
+	return root;
 }

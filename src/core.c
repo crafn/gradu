@@ -3,6 +3,13 @@
 QC_DEFINE_ARRAY(char)
 QC_DEFINE_ARRAY(int)
 
+void *qc_nonull_impl(void *ptr)
+{
+	if (!ptr)
+		abort();
+	return ptr;
+}
+
 QC_Bool qc_buf_str_equals(QC_Buf_Str a, QC_Buf_Str b)
 {
 	if (a.len != b.len)

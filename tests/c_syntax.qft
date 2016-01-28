@@ -30,6 +30,8 @@ int main()
 		.max_speed = -2.0
 	};
 
+	car.year = 5;
+
 	/* @todo Rest of C99 */
 
 	/* @todo Make work */

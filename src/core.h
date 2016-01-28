@@ -19,7 +19,7 @@ typedef void *QC_Void_Ptr; /* Just for some macro fiddling */
 #define QC_ASSERT(x) assert(x)
 
 #define QC_NONULL(x) qc_nonull_impl(x)
-void *qc_nonull_impl(void *ptr) { if (!ptr) abort(); return ptr; }
+void *qc_nonull_impl(void *ptr);
 
 #define QC_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define QC_MAX(a, b) ((a) > (b) ? (a) : (b))

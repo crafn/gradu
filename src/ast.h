@@ -60,7 +60,6 @@ typedef struct QC_AST_Scope {
 /* Identifier */
 typedef struct QC_AST_Ident {
 	QC_AST_Node b;
-	/* @todo Change to QC_Array(char) */
 	QC_Array(char) text; /* NULL-terminated */
 	QC_Bool designated; /* Dot before identifier */
 
@@ -145,6 +144,7 @@ typedef struct QC_AST_Func_Decl {
 } QC_AST_Func_Decl;
 
 typedef enum {
+	/* @todo int -> integer, float -> floating as in QC_AST_Literal members */
 	QC_Literal_int,
 	QC_Literal_float,
 	QC_Literal_string,
@@ -159,7 +159,7 @@ typedef struct QC_AST_Literal {
 		/* @todo Different integer sizes etc */
 		int integer;
 		double floating;
-		QC_Buf_Str string;
+		QC_Array(char) string;
 		struct {
 			QC_AST_Type *type; /* NULL for initializer list */
 			QC_Array(QC_AST_Node_Ptr) subnodes;
@@ -326,17 +326,18 @@ void qc_copy_typedef_node(QC_AST_Typedef *copy, QC_AST_Typedef *def, QC_AST_Node
 void qc_copy_parallel_node(QC_AST_Parallel *copy, QC_AST_Parallel *parallel, QC_AST_Node *output, QC_AST_Node *input, QC_AST_Node *body);
 
 /* Recursive */
-/* @todo Use qc_destroy_ast for this */
+/* @todo Use qc_destroy_ast for this. "ast" -> whole tree, "node" -> only this node */
 void qc_destroy_node(QC_AST_Node *node);
 /* Use this to destroy the original node after qc_shallow_copy_ast_node.
  * Doesn't destroy any owned nodes. */
 void qc_shallow_destroy_node(QC_AST_Node *node);
 
 /* Evaluation */
-/* Don't destroy nodes returned by evaluation, they are not constructed by qc_create_*, just containers of data */
 
+/* Don't destroy *ret, it's not constructed by qc_create_*, just container of data */
 QC_Bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr);
-QC_Bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr);
+/* Return value needs to be qc_destroy_node'd */
+QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr);
 
 QC_Bool qc_is_decl(QC_AST_Node *node);
 QC_AST_Ident *qc_decl_ident(QC_AST_Node *node);
@@ -392,6 +393,7 @@ QC_AST_Var_Decl *qc_create_simple_var_decl(QC_AST_Type_Decl *type_decl, const ch
 QC_AST_Var_Decl *qc_create_var_decl(QC_AST_Type_Decl *type_decl, QC_AST_Ident *ident, QC_AST_Node *value);
 QC_AST_Type_Decl *qc_find_builtin_type_decl(QC_Builtin_Type bt, QC_AST_Scope *root);
 QC_AST_Literal *qc_create_integer_literal(int value, QC_AST_Scope *root);
+QC_AST_Literal *qc_create_floating_literal(double value, QC_AST_Scope *root);
 QC_AST_Call *qc_create_call_1(QC_AST_Ident *ident, QC_AST_Node *arg);
 QC_AST_Call *qc_create_call_2(QC_AST_Ident *ident, QC_AST_Node *arg1, QC_AST_Node *arg2);
 QC_AST_Call *qc_create_call_3(QC_AST_Ident *ident, QC_AST_Node *arg1, QC_AST_Node *arg2, QC_AST_Node *arg3);

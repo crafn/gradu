@@ -18,7 +18,7 @@ typedef enum {
 	QC_Token_close_brace, /* } */
 	QC_Token_open_square, /* [ */
 	QC_Token_close_square, /* ] */
-	QC_Token_rdiv, /* `\` */
+	QC_Token_rdiv, /* \ */
 	QC_Token_right_arrow, /* -> */
 	QC_Token_equals, /* == */
 	QC_Token_nequals, /* != */

@@ -222,7 +222,7 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 							(*cur >= 'A' && *cur <= 'Z') ||
 							(*cur == '_')) {
 					t.state = Tok_State_name;
-				} else if (*cur == '\"') {
+				} else if (*cur == '\"' || *cur == '\'') { /* @todo Remove temp hack of ' */
 					t.state = Tok_State_str;
 				} else if (linebreak(*cur)) {
 					on_linebreak(&t);
@@ -273,7 +273,7 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 				}
 			break;
 			case Tok_State_str:
-				if (*cur == '\"')
+				if (*cur == '\"' || *cur == '\'') /* @todo Remove temp hack of ' */
 					commit_token(&t, tok_begin + 1, cur, QC_Token_string);
 			break;
 			case Tok_State_line_comment:

@@ -343,8 +343,12 @@ void qc_copy_func_decl_node(QC_AST_Func_Decl *copy, QC_AST_Func_Decl *decl, QC_A
 void qc_copy_literal_node(QC_AST_Literal *copy, QC_AST_Literal *literal, QC_AST_Node *comp_type, QC_AST_Node **comp_subs, int comp_sub_count, QC_AST_Node *type_decl_ref)
 {
 	QC_Bool is_same = (copy == literal);
-	if (!is_same && copy->type == QC_Literal_compound) {
-		qc_destroy_array(QC_AST_Node_Ptr)(&copy->value.compound.subnodes);
+	if (!is_same) {
+		if (copy->type == QC_Literal_string) {
+			qc_destroy_array(char)(&copy->value.string);
+		} else if (copy->type == QC_Literal_compound) {
+			qc_destroy_array(QC_AST_Node_Ptr)(&copy->value.compound.subnodes);
+		}
 	}
 
 	QC_ASSERT(!type_decl_ref || type_decl_ref->type == QC_AST_type_decl);
@@ -353,7 +357,10 @@ void qc_copy_literal_node(QC_AST_Literal *copy, QC_AST_Literal *literal, QC_AST_
 	copy->value = literal->value;
 	copy->base_type_decl = (QC_AST_Type_Decl*)type_decl_ref;
 
-	if (literal->type == QC_Literal_compound) {
+	if (literal->type == QC_Literal_string) {
+		if (!is_same)
+			copy->value.string = qc_copy_array(char)(&literal->value.string);
+	} else if (literal->type == QC_Literal_compound) {
 		int i;
 		if (is_same)
 			qc_clear_array(QC_AST_Node_Ptr)(&copy->value.compound.subnodes);
@@ -596,7 +603,9 @@ void qc_shallow_destroy_node(QC_AST_Node *node)
 
 	case QC_AST_literal: {
 		QC_CASTED_NODE(QC_AST_Literal, literal, node);
-		if (literal->type == QC_Literal_compound) {
+		if (literal->type == QC_Literal_string) {
+			qc_destroy_array(char)(&literal->value.string);
+		} else if (literal->type == QC_Literal_compound) {
 			qc_destroy_array(QC_AST_Node_Ptr)(&literal->value.compound.subnodes);
 		}
 	} break;
@@ -696,51 +705,47 @@ QC_Bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr)
 	return success;
 }
 
-QC_Bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr)
+QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 {
-	QC_Bool success = QC_false;
-	memset(ret, 0, sizeof(*ret));
+	QC_AST_Literal *ret = NULL;
+	QC_AST_Literal *lhs = NULL, *rhs = NULL;
 
 	switch (expr->type) {
 	case QC_AST_literal: {
-		QC_CASTED_NODE(QC_AST_Literal, literal, expr);
-		ret->type = literal->type;
-		ret->value = literal->value;
-		success = QC_true;
+		ret = (QC_AST_Literal*)qc_copy_ast(expr);
 	} break;
 
 	case QC_AST_biop: {
 		QC_CASTED_NODE(QC_AST_Biop, biop, expr);
 		/* @todo Operation can yield different types than either of operands (2x1 * 1x2 matrices for example) */
 		if (biop->lhs && biop->rhs) {
-			QC_AST_Literal lhs, rhs;
-			success = qc_eval_const_expr(&lhs, biop->lhs);
-			if (!success)
+			lhs = qc_eval_const_expr(biop->lhs);
+			rhs = qc_eval_const_expr(biop->rhs);
+			if (!lhs || !rhs || lhs->type != rhs->type)
 				break;
-			success = qc_eval_const_expr(&rhs, biop->rhs);
-			if (!success)
-				break;
-			if (lhs.type != rhs.type) {
-				success = QC_false;
-				break;
-			}
 
-			switch (biop->type) {
-			case QC_Token_add:
-				switch (lhs.type) {
-				case QC_Literal_int: ret->value.integer = lhs.value.integer + rhs.value.integer; break;
-				case QC_Literal_float: ret->value.floating = lhs.value.floating + rhs.value.floating; break;
-				default: QC_FAIL(("Unhandled literal type %i", lhs.type));
+			switch (lhs->type) {
+			case QC_Literal_int: {
+				int result;
+				switch (biop->type) {
+				case QC_Token_add: result = lhs->value.integer + rhs->value.integer; break;
+				case QC_Token_sub: result = lhs->value.integer - rhs->value.integer; break;
+				default: QC_FAIL(("Unhandled biop type"));
 				}
-			break;
-			case QC_Token_sub:
-				switch (lhs.type) {
-				case QC_Literal_int: ret->value.integer = lhs.value.integer - rhs.value.integer; break;
-				case QC_Literal_float: ret->value.floating = lhs.value.floating - rhs.value.floating; break;
-				default: QC_FAIL(("Unhandled literal type %i", lhs.type));
+				ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(lhs));
+				ret->value.integer = result;
+			} break;
+			case QC_Literal_float: {
+				double result;
+				switch (biop->type) {
+				case QC_Token_add: result = lhs->value.floating + rhs->value.floating; break;
+				case QC_Token_sub: result = lhs->value.floating - rhs->value.floating; break;
+				default: QC_FAIL(("Unhandled biop type"));
 				}
-			break;
-			default: QC_FAIL(("Unhandled biop type %i", biop->type));
+				ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(lhs));
+				ret->value.floating = result;
+			} break;
+			default: QC_FAIL(("Unhandled expr type %i", lhs->type));
 			}
 		} else {
 			QC_FAIL(("@todo unary const expr eval"));
@@ -750,7 +755,9 @@ QC_Bool qc_eval_const_expr(QC_AST_Literal *ret, QC_AST_Node *expr)
 	default:;
 	}
 
-	return success;
+	qc_destroy_node(QC_AST_BASE(lhs));
+	qc_destroy_node(QC_AST_BASE(rhs));
+	return ret;
 }
 
 QC_Bool qc_is_decl(QC_AST_Node *node)
@@ -1535,7 +1542,7 @@ void qc_print_ast(QC_AST_Node *node, int indent)
 		switch (literal->type) {
 			case QC_Literal_int: printf("%i\n", literal->value.integer); break;
 			case QC_Literal_float: printf("%f\n", literal->value.floating); break;
-			case QC_Literal_string: printf("%.*s\n", literal->value.string.len, literal->value.string.buf); break;
+			case QC_Literal_string: printf("%s\n", literal->value.string.data); break;
 			case QC_Literal_null: printf("NULL\n"); break;
 			case QC_Literal_compound: printf("COMPOUND\n"); break;
 			default: QC_FAIL(("Unknown literal type: %i", literal->type));
@@ -1679,6 +1686,16 @@ QC_AST_Literal *qc_create_integer_literal(int value, QC_AST_Scope *root)
 	literal->value.integer = value;
 	if (root) /* @todo Don't accept NULL */
 		literal->base_type_decl = qc_find_builtin_type_decl(qc_int_builtin_type(), root);
+	return literal;
+}
+
+QC_AST_Literal *qc_create_floating_literal(double value, QC_AST_Scope *root)
+{
+	QC_AST_Literal *literal = qc_create_literal_node();
+	literal->type = QC_Literal_float;
+	literal->value.floating = value;
+	if (root) /* @todo Don't accept NULL */
+		literal->base_type_decl = qc_find_builtin_type_decl(qc_float_builtin_type(), root);
 	return literal;
 }
 

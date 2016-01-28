@@ -166,6 +166,7 @@ typedef struct Parse_Ctx {
 	QC_AST_Scope *root;
 	QC_Token *first_tok; /* @todo Consider having some QC_Token_sof, corresponding to QC_Token_eof*/
 	QC_Token *tok; /* Access with cur_tok */
+	QC_Bool dont_ref_tokens; /* AST will not point to any tokens */
 	int expr_depth;
 
 	/* Builtin type and funcs decls are generated while parsing */
@@ -239,33 +240,36 @@ QC_INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 
 	/* frame.node is used in end_node_parsing because node might not yet be created at the begin_node_parsing */
 	/* That ^ is QC_false now! Can be moved to begin. */
-	frame.node->begin_tok = frame.begin_tok;
+	if (!ctx->dont_ref_tokens)
+		frame.node->begin_tok = frame.begin_tok;
 
 	/*	Gather comments around node if this is the first time calling end_node_parsing with this node.
 		It's possible to have multiple begin...end_node_parsing with the same node because of nesting,
 		like when parsing statement: 'foo;', which yields parse_expr(parse_ident()). */
 	/* That ^ is QC_false now! Not possible to have multiple begin..end with the same node anymore. */
-	if (frame.node->pre_comments.size == 0) {
-		QC_Token *tok = frame.begin_tok - 1;
-		/* Rewind first */
-		while (tok >= ctx->first_tok && qc_is_comment_tok(tok->type))
-			--tok;
-		++tok;
-		while (qc_is_comment_tok(tok->type) && tok->comment_bound_to == 1) {
-			qc_push_array(QC_Token_Ptr)(&frame.node->pre_comments, tok);
+	if (!ctx->dont_ref_tokens) {
+		if (frame.node->pre_comments.size == 0) {
+			QC_Token *tok = frame.begin_tok - 1;
+			/* Rewind first */
+			while (tok >= ctx->first_tok && qc_is_comment_tok(tok->type))
+				--tok;
 			++tok;
+			while (qc_is_comment_tok(tok->type) && tok->comment_bound_to == 1) {
+				qc_push_array(QC_Token_Ptr)(&frame.node->pre_comments, tok);
+				++tok;
+			}
 		}
-	}
-	if (can_have_post_comments(frame.node) && frame.node->post_comments.size == 0) {
-		QC_Token *tok = cur_tok(ctx);
-		/* Cursor has been advanced past following comments, rewind */
-		--tok;
-		while (tok >= ctx->first_tok && qc_is_comment_tok(tok->type))
+		if (can_have_post_comments(frame.node) && frame.node->post_comments.size == 0) {
+			QC_Token *tok = cur_tok(ctx);
+			/* Cursor has been advanced past following comments, rewind */
 			--tok;
-		++tok;
-		while (qc_is_comment_tok(tok->type) && tok->comment_bound_to == -1) {
-			qc_push_array(QC_Token_Ptr)(&frame.node->post_comments, tok);
+			while (tok >= ctx->first_tok && qc_is_comment_tok(tok->type))
+				--tok;
 			++tok;
+			while (qc_is_comment_tok(tok->type) && tok->comment_bound_to == -1) {
+				qc_push_array(QC_Token_Ptr)(&frame.node->post_comments, tok);
+				++tok;
+			}
 		}
 	}
 }
@@ -615,21 +619,23 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 			} break;
 			case QC_Token_kw_field: {
 				QC_AST_Node *dim_expr = NULL;
-				QC_AST_Literal dim_value;
+				QC_AST_Literal *dim_value;
 				bt.is_field = QC_true;
 				advance_tok(ctx);
 
 				if (!parse_expr_inside_parens(ctx, &dim_expr))
 					goto mismatch;
-				if (!qc_eval_const_expr(&dim_value, dim_expr)) {
+				dim_value = qc_eval_const_expr(dim_expr);
+				if (!dim_value) {
 					report_error(ctx, "Field dimension must be a constant expression");
 					goto mismatch;
 				}
-				if (dim_value.type != QC_Literal_int) {
+				if (dim_value->type != QC_Literal_int) {
 					report_error(ctx, "Field dimension must be an integer");
 					goto mismatch;
 				}
-				bt.field_dim = dim_value.value.integer;
+				bt.field_dim = dim_value->value.integer;
+				qc_destroy_node(QC_AST_BASE(dim_value));
 				/* Constant expression is removed */
 				qc_destroy_node(dim_expr);
 			} break;
@@ -853,7 +859,8 @@ QC_INTERNAL QC_Bool parse_literal(Parse_Ctx *ctx, QC_AST_Node **ret)
 		break;
 		case QC_Token_string:
 			literal->type = QC_Literal_string;
-			literal->value.string = tok->text;
+			literal->value.string = qc_create_array(char)(tok->text.len + 1);
+			qc_append_str(&literal->value.string, "%.*s", QC_BUF_STR_ARGS(tok->text));
 			literal->base_type_decl = qc_create_builtin_decl(ctx, qc_char_builtin_type());
 			advance_tok(ctx);
 		break;
@@ -1514,7 +1521,7 @@ mismatch:
 	return QC_false;
 }
 
-QC_AST_Scope *qc_parse_tokens(QC_Token *toks)
+QC_AST_Scope *qc_parse_tokens(QC_Token *toks, QC_Bool dont_reference_tokens)
 {
 	QC_Bool failure = QC_false;
 	Parse_Ctx ctx = {0};
@@ -1524,6 +1531,7 @@ QC_AST_Scope *qc_parse_tokens(QC_Token *toks)
 	ctx.parse_stack = qc_create_array(Parse_Stack_Frame)(32);
 	ctx.tok = ctx.first_tok = toks;
 	ctx.parent_map = qc_create_parent_map(NULL);
+	ctx.dont_ref_tokens = dont_reference_tokens;
 	if (qc_is_comment_tok(ctx.tok->type))
 		advance_tok(&ctx);
 
@@ -1580,3 +1588,27 @@ QC_AST_Scope *qc_parse_tokens(QC_Token *toks)
 	return root;
 }
 
+QC_AST_Node *qc_parse_string(const char *string)
+{
+	QC_Array(QC_Token) tokens = {0};
+	QC_AST_Scope *root = NULL;
+	QC_AST_Node *ret = NULL;
+
+	tokens = qc_tokenize(string, strlen(string));
+	if (!tokens.data)
+		goto cleanup;
+
+	root = qc_parse_tokens(tokens.data, QC_true);
+
+cleanup:
+	qc_destroy_array(QC_Token)(&tokens);
+
+	if (root->nodes.size == 1) {
+		ret = root->nodes.data[0];		
+		qc_shallow_destroy_node(QC_AST_BASE(root));
+	} else {
+		ret = QC_AST_BASE(root);
+	}
+
+	return ret;
+}

@@ -142,6 +142,7 @@ QC_INTERNAL QC_AST_Access *qc_create_access_for_var(QC_AST_Var_Decl *var_decl)
 	QC_AST_Access *access = qc_create_access_node();
 	QC_AST_Ident *ident = qc_create_ident_with_text(QC_AST_BASE(var_decl), var_decl->ident->text.data);
 	access->base = QC_AST_BASE(ident);
+	access->is_var_access = QC_true;
 	return access;
 }
 
@@ -1115,7 +1116,7 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 										sub->type != QC_AST_scope &&
 										sub->type != QC_AST_cond &&
 										sub->type != QC_AST_loop)
-				qc_append_str(buf, ";");
+				qc_append_str(buf, "%s", ";");
 
 			if (!statement_omitted && !sub->begin_tok && scope->is_root)
 				qc_append_str(buf, "\n"); /* Line break after builtin type decls */
@@ -1281,7 +1282,9 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 
 	case QC_AST_access: {
 		QC_CASTED_NODE(QC_AST_Access, access, node);
-		if (access->is_member_access) {
+		if (access->is_var_access) {
+			qc_ast_to_c_str(buf, indent, access->base);
+		} else if (access->is_member_access) {
 			QC_Bool parens = (access->base->type != QC_AST_ident && access->base->type != QC_AST_access);
 			if (parens)
 				qc_append_str(buf, "(");
@@ -1303,7 +1306,7 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 		} else if (access->is_element_access) {
 			QC_FAIL(("C does not support builtin element access (bug: these should be converted)"));
 		} else {
-			qc_ast_to_c_str(buf, indent, access->base);
+			QC_FAIL(("Unhandled access type"));
 		}
 	} break;
 

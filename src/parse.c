@@ -214,7 +214,7 @@ QC_INTERNAL void begin_node_parsing(Parse_Ctx *ctx, QC_AST_Node *node)
 	Parse_Stack_Frame frame = {0};
 	QC_ASSERT(node);
 
-#define QC_PARSE_DEBUG 0
+#define QC_PARSE_DEBUG 1
 #if QC_PARSE_DEBUG
 	printf("begin_node_parsing %s\n", qc_node_type_str(node->type));
 #endif
@@ -298,7 +298,7 @@ QC_INTERNAL void cancel_node_parsing(Parse_Ctx *ctx)
 	QC_ASSERT(frame.node);
 
 #if QC_PARSE_DEBUG
-	printf("cancel_node_parsing\n");
+	printf("cancel_node_parsing (%s)\n", qc_node_type_str(frame.node->type));
 #endif
 
 	/* Backtrack */
@@ -340,7 +340,7 @@ QC_INTERNAL void report_error_expected(Parse_Ctx *ctx, const char *expected, QC_
 /* Parsing */
 
 /* @todo QC_AST_Node -> specific node type. <-- not so sure about that.. */
-QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *decl);
+QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *decl, QC_Bool allow_designated);
 QC_INTERNAL QC_Bool resolve_parsed_ident(Parse_Ctx *ctx, QC_AST_Ident *ident);
 QC_INTERNAL QC_Bool parse_type_decl(Parse_Ctx *ctx, QC_AST_Node **ret);
 QC_INTERNAL QC_Bool parse_typedef(Parse_Ctx *ctx, QC_AST_Node **ret);
@@ -362,15 +362,19 @@ QC_INTERNAL QC_Bool parse_statement(Parse_Ctx *ctx, QC_AST_Node **ret);
 
 /* If decl is NULL, then declaration is searched. */
 /* Parse example: foo */
-QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *decl)
+QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node *decl, QC_Bool allow_designated)
 {
 	QC_AST_Ident *ident = qc_create_ident_node();
 
 	begin_node_parsing(ctx, QC_AST_BASE(ident));
 
-	/* Consume dot before designated initializer identifier */
-	if (accept_tok(ctx, QC_Token_dot))
-		ident->designated = QC_true;
+	if (allow_designated) {
+		/* Consume dot before designated initializer identifier */
+		if (accept_tok(ctx, QC_Token_dot)) {
+			ident->designated = QC_true;
+		}
+	}
+
 	qc_append_str(&ident->text, "%.*s", QC_BUF_STR_ARGS(cur_tok(ctx)->text));
 
 	if (cur_tok(ctx)->type != QC_Token_name) {
@@ -414,7 +418,7 @@ QC_INTERNAL QC_Bool parse_type_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
 	if (!accept_tok(ctx, QC_Token_kw_struct))
 		goto mismatch;
 
-	if (!parse_ident(ctx, &decl->ident, QC_AST_BASE(decl))) {
+	if (!parse_ident(ctx, &decl->ident, QC_AST_BASE(decl), QC_false)) {
 		report_error_expected(ctx, "type name", cur_tok(ctx));
 		goto mismatch;
 	}
@@ -721,7 +725,7 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 			found_decl = QC_AST_BASE(builtin_type);
 		} else {
 			QC_AST_Ident *ident = NULL;
-			if (!parse_ident(ctx, &ident, NULL))
+			if (!parse_ident(ctx, &ident, NULL, QC_false))
 				goto mismatch;
 			if (!resolve_parsed_ident(ctx, ident)) {
 				qc_destroy_node(QC_AST_BASE(ident));
@@ -752,7 +756,7 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 
 	if (ret_ident && enclosing_decl) {
 		/* Variable name */
-		if (!parse_ident(ctx, ret_ident, enclosing_decl)) {
+		if (!parse_ident(ctx, ret_ident, enclosing_decl, QC_false)) {
 			report_error_expected(ctx, "identifier", cur_tok(ctx));
 			goto mismatch;
 		}
@@ -1047,6 +1051,7 @@ QC_INTERNAL QC_Bool parse_call_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_No
 	QC_Array(QC_AST_Type) types = {0};
 	begin_node_parsing(ctx, QC_AST_BASE(call));
 
+	/* @todo Maybe accesses should be permitted in general case (think about func_ptrs[0]();) */
 	if (expr->type != QC_AST_ident) {
 		goto mismatch;
 	}
@@ -1062,7 +1067,7 @@ QC_INTERNAL QC_Bool parse_call_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_No
 	if (!parse_arg_list(ctx, &call->args, QC_Token_close_paren))
 		goto mismatch;
 
-	if (!qc_resolve_call(&ctx->parent_map, call, hint)) {
+	if (!qc_resolve_call(&ctx->parent_map, call, hint) && !ctx->allow_undeclared) {
 		goto mismatch;
 	}
 
@@ -1082,6 +1087,7 @@ mismatch:
 QC_INTERNAL QC_Bool parse_var_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *expr)
 {
 	QC_AST_Access *access = qc_create_access_node();
+
 	begin_node_parsing(ctx, QC_AST_BASE(access));
 
 	if (expr->type != QC_AST_ident) {
@@ -1096,6 +1102,7 @@ QC_INTERNAL QC_Bool parse_var_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_
 
 		if (ctx->allow_undeclared || ident->decl->type == QC_AST_var_decl) {
 			access->base = QC_AST_BASE(ident);
+			access->is_var_access = QC_true;
 		} else {
 			ident->decl = NULL;
 			goto mismatch;
@@ -1168,7 +1175,7 @@ QC_INTERNAL QC_Bool parse_member_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, 
 	if (!accept_tok(ctx, QC_Token_dot) && !accept_tok(ctx, QC_Token_right_arrow))
 		goto mismatch;
 
-	if (!qc_expr_type(&base_type, base)) {
+	if (!qc_expr_type(&base_type, base) && !ctx->allow_undeclared) {
 		report_error(ctx, QC_PRIORITY_DEFAULT, "Expression does not have accessible members");
 		goto mismatch;
 	}
@@ -1178,15 +1185,16 @@ QC_INTERNAL QC_Bool parse_member_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, 
 		access->base = base;
 		access->is_member_access = QC_true;
 
-		{
+		if (!parse_ident(ctx, &sub, NULL, QC_false))
+			goto mismatch;
+
+		if (!ctx->allow_undeclared) {
 			QC_AST_Scope *base_type_scope = base_type.base_type_decl->body;
 			QC_ASSERT(base_type_scope);
-			if (!parse_ident(ctx, &sub, NULL))
-				goto mismatch;
 			if (!qc_resolve_ident_in_scope(sub, base_type_scope))
 				goto mismatch;
-			qc_push_array(QC_AST_Node_Ptr)(&access->args, QC_AST_BASE(sub));
 		}
+		qc_push_array(QC_AST_Node_Ptr)(&access->args, QC_AST_BASE(sub));
 	}
 
 	*ret = QC_AST_BASE(access);
@@ -1241,7 +1249,7 @@ QC_INTERNAL QC_Bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, 
 
 	++ctx->expr_depth;
 
-	if (	parse_ident(ctx, (QC_AST_Ident**)&expr, NULL) &&
+	if (	parse_ident(ctx, (QC_AST_Ident**)&expr, NULL, QC_true) &&
 			resolve_parsed_ident(ctx, (QC_AST_Ident*)expr)) {
 		/* If ident is var, wrap it in QC_AST_Access */
 		if (parse_var_access_expr(ctx, &expr, expr)) {

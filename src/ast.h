@@ -206,6 +206,7 @@ typedef struct QC_AST_Access {
 	 * 'base' is wrapped in an extra Access, because then '(base + 0)->sub' and '(base)->sub' and 'base.sub'
 	 * are handled uniformly (every expression has two Access nodes) */
 
+	QC_Bool is_var_access; /* Plain variable access */
 	QC_Bool is_member_access;
 	QC_Bool is_element_access; /* Matrix or field element access */
 	QC_Bool is_array_access;

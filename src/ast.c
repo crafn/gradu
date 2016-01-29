@@ -411,6 +411,7 @@ void qc_copy_access_node(QC_AST_Access *copy, QC_AST_Access *access, QC_AST_Node
 	qc_clear_array(QC_AST_Node_Ptr)(&copy->args);
 	for (i = 0; i < arg_count; ++i)
 		qc_push_array(QC_AST_Node_Ptr)(&copy->args, args[i]);
+	copy->is_var_access = access->is_var_access;
 	copy->is_member_access = access->is_member_access;
 	copy->is_element_access = access->is_element_access;
 	copy->is_array_access = access->is_array_access;
@@ -665,7 +666,11 @@ QC_Bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr)
 
 	case QC_AST_access: {
 		QC_CASTED_NODE(QC_AST_Access, access, expr);
-		if (access->is_member_access) {
+		if (access->is_var_access) {
+			/* Plain variable access */
+			QC_ASSERT(access->args.size == 0);
+			success = qc_expr_type(ret, access->base);
+		} else if (access->is_member_access) {
 			QC_ASSERT(access->args.size == 1);
 			success = qc_expr_type(ret, access->args.data[0]);
 		} else if (access->is_element_access) {
@@ -676,9 +681,7 @@ QC_Bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr)
 			success = qc_expr_type(ret, access->base);
 			--ret->ptr_depth;
 		} else {
-			/* Plain variable access */
-			QC_ASSERT(access->args.size == 0);
-			success = qc_expr_type(ret, access->base);
+			QC_FAIL(("Unknown access type"));
 		}
 	} break;
 
@@ -1565,9 +1568,9 @@ void qc_print_ast(QC_AST_Node *node, int indent)
 		QC_CASTED_NODE(QC_AST_Literal, literal, node);
 		printf("literal: ");
 		switch (literal->type) {
-			case QC_Literal_int: printf("%i\n", literal->value.integer); break;
-			case QC_Literal_float: printf("%f\n", literal->value.floating); break;
-			case QC_Literal_string: printf("%s\n", literal->value.string.data); break;
+			case QC_Literal_int: printf("int: %i\n", literal->value.integer); break;
+			case QC_Literal_float: printf("float: %f\n", literal->value.floating); break;
+			case QC_Literal_string: printf("str: %s\n", literal->value.string.data); break;
 			case QC_Literal_null: printf("NULL\n"); break;
 			case QC_Literal_compound: printf("COMPOUND\n"); break;
 			default: QC_FAIL(("Unknown literal type: %i", literal->type));
@@ -1861,6 +1864,7 @@ QC_AST_Node *try_create_access(QC_AST_Node *node)
 	if (node->type == QC_AST_ident) {
 		QC_AST_Access *access = qc_create_access_node();
 		access->base = node;
+		access->is_var_access = QC_true;
 		return QC_AST_BASE(access);
 	}
 	return node;
@@ -1879,6 +1883,7 @@ QC_AST_Access *qc_create_simple_access(QC_AST_Var_Decl *var)
 {
 	QC_AST_Access *access = qc_create_access_node();
 	access->base = qc_shallow_copy_ast(QC_AST_BASE(var->ident));
+	access->is_var_access = QC_true;
 	return access;
 }
 
@@ -1889,6 +1894,8 @@ QC_AST_Access *qc_create_simple_member_access(QC_AST_Var_Decl *base, QC_AST_Var_
 	QC_AST_Ident *member_ident = (QC_AST_Ident*)qc_shallow_copy_ast(QC_AST_BASE(member->ident));
 
 	base_access->base = qc_shallow_copy_ast(QC_AST_BASE(base->ident));
+	base_access->is_var_access = QC_true;
+
 	access->base = QC_AST_BASE(base_access);
 	qc_push_array(QC_AST_Node_Ptr)(&access->args, QC_AST_BASE(member_ident));
 	access->is_member_access = QC_true;

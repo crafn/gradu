@@ -204,33 +204,37 @@ QC_INTERNAL void on_linebreak(QC_Tokenize_Ctx *t)
 
 QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 {
-	const char *cur = src;
-	const char *tok_begin = src;
+	const char *cur;
+	const char *tok_begin;
 	QC_Tokenize_Ctx t = {0};
+	
+	cur = src;
+	tok_begin = src;
 	t.end = src + src_size;
 	t.cur_line = 1;
 	t.tokens = qc_create_array(QC_Token)(src_size/4); /* Estimate token count */
 
-	while (cur < t.end && tok_begin < t.end) {
+	while (cur <= t.end && tok_begin < t.end) {
+		char ch = cur < t.end ? *cur : '\n';
 		switch (t.state) {
 			case Tok_State_none:
-				if (single_char_tokentype(*cur) != QC_Token_unknown) {
+				if (single_char_tokentype(ch) != QC_Token_unknown) {
 					t.state = Tok_State_maybe_single_char;
-				} else if (*cur >= '0' && *cur <= '9') {
+				} else if (ch >= '0' && ch <= '9') {
 					t.state = Tok_State_number;
-				} else if (	(*cur >= 'a' && *cur <= 'z') ||
-							(*cur >= 'A' && *cur <= 'Z') ||
-							(*cur == '_')) {
+				} else if (	(ch >= 'a' && ch <= 'z') ||
+							(ch >= 'A' && ch <= 'Z') ||
+							(ch == '_')) {
 					t.state = Tok_State_name;
-				} else if (*cur == '\"' || *cur == '@') { /* @todo Remove temp hack of @ */
+				} else if (ch == '\"' || ch == '@') { /* @todo Remove temp hack of @ */
 					t.state = Tok_State_str;
-				} else if (linebreak(*cur)) {
+				} else if (linebreak(ch)) {
 					on_linebreak(&t);
 				}
 				tok_begin = cur;
 			break;
 			case Tok_State_maybe_single_char: {
-				QC_Token_Type type = double_char_tokentype(*tok_begin, *cur);
+				QC_Token_Type type = double_char_tokentype(*tok_begin, ch);
 				if (type == QC_Token_unknown) {
 					commit_token(&t, tok_begin, cur, single_char_tokentype(*tok_begin));
 					--cur;
@@ -250,7 +254,7 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 			break;
 			case Tok_State_number_after_dot:
 			case Tok_State_number:
-				if ((*cur < '0' || *cur > '9') && *cur != '.') {
+				if ((ch < '0' || ch > '9') && ch != '.') {
 					QC_Token_Type type = QC_Token_int;
 					if (t.state == Tok_State_number_after_dot)
 						type = QC_Token_float;
@@ -260,24 +264,24 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 					break;
 				}
 
-				if (*cur == '.')
+				if (ch == '.')
 					t.state = Tok_State_number_after_dot;
 				else if (t.state != Tok_State_number_after_dot)
 					t.state = Tok_State_number;
 			break;
 			case Tok_State_name:
-				if (	whitespace(*cur) ||
-						single_char_tokentype(*cur) != QC_Token_unknown) {
+				if (	whitespace(ch) ||
+						single_char_tokentype(ch) != QC_Token_unknown) {
 					commit_token(&t, tok_begin, cur, QC_Token_name);
 					--cur;
 				}
 			break;
 			case Tok_State_str:
-				if (*cur == '\"' || *cur == '@') /* @todo Remove temp hack of @ */
+				if (ch == '\"' || ch == '@') /* @todo Remove temp hack of @ */
 					commit_token(&t, tok_begin + 1, cur, QC_Token_string);
 			break;
 			case Tok_State_line_comment:
-				if (linebreak(*cur)) {
+				if (linebreak(ch)) {
 					commit_token(&t, tok_begin, cur, QC_Token_line_comment);
 					on_linebreak(&t);
 				}
@@ -315,6 +319,7 @@ const char* qc_tokentype_str(QC_Token_Type type)
 		case QC_Token_name: return "name";
 		case QC_Token_int: return "int";
 		case QC_Token_float: return "float";
+		case QC_Token_string: return "string";
 		case QC_Token_assign: return "assign";
 		case QC_Token_semi: return "semi";
 		case QC_Token_comma: return "comma";
@@ -387,6 +392,7 @@ const char* qc_tokentype_codestr(QC_Token_Type type)
 		case QC_Token_name: return "";
 		case QC_Token_int: return "";
 		case QC_Token_float: return "";
+		case QC_Token_string: return "";
 		case QC_Token_assign: return "=";
 		case QC_Token_semi: return ";";
 		case QC_Token_comma: return ",";

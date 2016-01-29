@@ -391,12 +391,11 @@ void qc_copy_control_node(QC_AST_Control *copy, QC_AST_Control *control, QC_AST_
 	copy->value = value;
 }
 
-void qc_copy_call_node(QC_AST_Call *copy, QC_AST_Call *call, QC_AST_Node *ident, QC_AST_Node **args, int arg_count)
+void qc_copy_call_node(QC_AST_Call *copy, QC_AST_Call *call, QC_AST_Node *base, QC_AST_Node **args, int arg_count)
 {
 	int i;
-	QC_ASSERT(ident->type == QC_AST_ident);
 	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(call));
-	copy->ident = (QC_AST_Ident*)ident;
+	copy->base = base;
 	qc_clear_array(QC_AST_Node_Ptr)(&copy->args);
 	for (i = 0; i < arg_count; ++i) {
 		qc_push_array(QC_AST_Node_Ptr)(&copy->args, args[i]);
@@ -529,7 +528,7 @@ void qc_destroy_node(QC_AST_Node *node)
 
 	case QC_AST_call: {
 		QC_CASTED_NODE(QC_AST_Call, call, node);
-		qc_destroy_node(QC_AST_BASE(call->ident));
+		qc_destroy_node(call->base);
 		for (i = 0; i < call->args.size; ++i)
 			qc_destroy_node(call->args.data[i]);
 	} break;
@@ -800,6 +799,23 @@ QC_AST_Ident *qc_access_ident(QC_AST_Access *access)
 
 	QC_ASSERT(access->base->type == QC_AST_access);
 	return qc_access_ident((QC_AST_Access*)access->base);
+}
+
+QC_AST_Ident *qc_unwrap_ident(QC_AST_Node *node)
+{
+	if (node->type == QC_AST_ident)
+		return (QC_AST_Ident*)node;
+
+	if (node->type == QC_AST_access) {
+		QC_CASTED_NODE(QC_AST_Access, access, node);
+		if (!access->is_var_access)
+			return NULL;
+
+		QC_ASSERT(access->base->type == QC_AST_ident);
+		return (QC_AST_Ident*)access->base;
+	}
+
+	return NULL;
 }
 
 const char *qc_node_type_str(QC_AST_Node_Type type)
@@ -1084,7 +1100,7 @@ QC_INTERNAL QC_Bool qc_resolve_ident_in_scope(QC_AST_Ident *ident, QC_AST_Scope 
 	return QC_false;
 }
 
-/*Â @todo Split to multiple functions */
+/* @todo Split to multiple functions */
 /* Use 'arg_count = -1' for non-function identifier resolution */
 QC_INTERNAL QC_Bool resolve_node(QC_AST_Parent_Map *map, QC_AST_Ident *ident, QC_AST_Type *hint, QC_AST_Type *arg_types, int arg_count)
 {
@@ -1168,11 +1184,20 @@ QC_AST_Ident *qc_resolve_ident(QC_AST_Parent_Map *map, QC_AST_Ident *ident)
 QC_DECLARE_ARRAY(QC_AST_Type)
 QC_DEFINE_ARRAY(QC_AST_Type)
 
-QC_AST_Call *qc_resolve_call(QC_AST_Parent_Map *map, QC_AST_Call *call, QC_AST_Type *return_type_hint)
+QC_AST_Ident *qc_call_ident(QC_AST_Call *call)
+{
+	QC_ASSERT(call->base->type == QC_AST_access);
+
+	return qc_unwrap_ident(call->base);
+}
+
+/* Resolves overloaded calls like in `x = foo(5)`. Doesn't resolve `foo_arr[0](5)` */
+QC_AST_Call *qc_resolve_overloaded_call(QC_AST_Parent_Map *map, QC_AST_Call *call, QC_AST_Type *return_type_hint)
 {
 	int i;
 	QC_Bool success = QC_true;
 	QC_Array(QC_AST_Type) types = qc_create_array(QC_AST_Type)(call->args.size);
+	QC_AST_Ident *ident;
 	for (i = 0; i < call->args.size; ++i) {
 		QC_AST_Type type;
 		if (!qc_expr_type(&type, call->args.data[i])) {
@@ -1181,8 +1206,18 @@ QC_AST_Call *qc_resolve_call(QC_AST_Parent_Map *map, QC_AST_Call *call, QC_AST_T
 		}
 		qc_push_array(QC_AST_Type)(&types, type);
 	}
-	if (!resolve_node(map, call->ident, return_type_hint, types.data, types.size))
+
+	ident = qc_call_ident(call);
+	if (ident) {
+		/* Return value overloading supported for plain function calls */
+		QC_CASTED_NODE(QC_AST_Access, access, call->base);
+		QC_AST_Node *ident = access->base;
+		QC_ASSERT(ident->type == QC_AST_ident);
+		if (!resolve_node(map, (QC_AST_Ident*)ident, return_type_hint, types.data, types.size))
+			success = QC_false;
+	} else {
 		success = QC_false;
+	}
 
 	qc_destroy_array(QC_AST_Type)(&types);
 
@@ -1215,7 +1250,7 @@ void qc_resolve_ast(QC_AST_Scope *root)
 				case QC_AST_call: {
 					QC_CASTED_NODE(QC_AST_Call, call, parent);
 					/* @todo Return type hint (bake into parent map?) */
-					qc_resolve_call(&parent_map, call, NULL);
+					qc_resolve_overloaded_call(&parent_map, call, NULL);
 				} break;
 				default:;
 					qc_resolve_ident(&parent_map, ident);
@@ -1314,7 +1349,7 @@ void qc_push_immediate_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *nod
 
 	case QC_AST_call: {
 		QC_CASTED_NODE(QC_AST_Call, call, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(call->ident));
+		qc_push_array(QC_AST_Node_Ptr)(ret, call->base);
 		for (i = 0; i < call->args.size; ++i)
 			qc_push_array(QC_AST_Node_Ptr)(ret, call->args.data[i]);
 	} break;
@@ -1598,7 +1633,7 @@ void qc_print_ast(QC_AST_Node *node, int indent)
 	case QC_AST_call: {
 		QC_CASTED_NODE(QC_AST_Call, call, node);
 		printf("call\n");
-		qc_print_ast(QC_AST_BASE(call->ident), indent + 2);
+		qc_print_ast(call->base, indent + 2);
 		for (i = 0; i < call->args.size; ++i)
 			qc_print_ast(call->args.data[i], indent + 2);
 	} break;
@@ -1730,7 +1765,7 @@ QC_AST_Literal *qc_create_floating_literal(double value, QC_AST_Scope *root)
 QC_AST_Call *qc_create_call_1(QC_AST_Ident *ident, QC_AST_Node *arg)
 {
 	QC_AST_Call *call = qc_create_call_node();
-	call->ident = ident;
+	call->base = qc_try_create_access(QC_AST_BASE(ident));
 	qc_push_array(QC_AST_Node_Ptr)(&call->args, arg);
 	return call;
 }
@@ -1859,7 +1894,7 @@ QC_AST_Loop *qc_create_for_loop(QC_AST_Var_Decl *index, QC_AST_Node *max_expr, Q
 	return loop;
 }
 
-QC_AST_Node *try_create_access(QC_AST_Node *node)
+QC_AST_Node *qc_try_create_access(QC_AST_Node *node)
 {
 	if (node->type == QC_AST_ident) {
 		QC_AST_Access *access = qc_create_access_node();
@@ -2013,7 +2048,7 @@ void qc_add_parallel_id_init(QC_AST_Scope *root, QC_AST_Parallel *parallel, int 
 		QC_AST_Biop *assign =
 			qc_create_assign(
 				QC_AST_BASE(qc_create_element_access_1(
-					try_create_access(qc_copy_ast(QC_AST_BASE(id_decl->ident))),
+					qc_try_create_access(qc_copy_ast(QC_AST_BASE(id_decl->ident))),
 					QC_AST_BASE(qc_create_integer_literal(ix, root))
 				)),
 				value

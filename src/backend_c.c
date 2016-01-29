@@ -336,7 +336,7 @@ void qc_parallel_loops_to_ordinary(QC_AST_Scope *root)
 		{ /* Add innermost loop content */
 			for (k = 0; k < parallel->dim; ++k) {
 				qc_add_parallel_id_init(root, parallel, k,
-						try_create_access(
+						qc_try_create_access(
 							QC_AST_BASE(qc_create_ident_with_text(NULL, "id_%i", k))));
 			}
 
@@ -393,7 +393,7 @@ void qc_lift_var_decls(QC_AST_Scope *root)
 				/* Do variable initialization (not decl) in the for loop. */
 				loop->init =
 					QC_AST_BASE(qc_create_assign(
-						try_create_access(qc_copy_ast(QC_AST_BASE(decl->ident))),
+						qc_try_create_access(qc_copy_ast(QC_AST_BASE(decl->ident))),
 						decl->value /* Note: no copy */
 					));
 				decl->value = NULL; /* Moved to assign */
@@ -422,7 +422,7 @@ void qc_lift_var_decls(QC_AST_Scope *root)
 				/* Change former decl to be the initialization. */
 				scope->nodes.data[ix] =
 					QC_AST_BASE(qc_create_assign(
-						try_create_access(qc_copy_ast(QC_AST_BASE(decl->ident))),
+						qc_try_create_access(qc_copy_ast(QC_AST_BASE(decl->ident))),
 						decl->value /* Note: no copy */
 					));
 				decl->value = NULL; /* Moved to assign node */
@@ -939,18 +939,13 @@ void qc_apply_c_operator_overloading(QC_AST_Scope *root, QC_Bool convert_mat_exp
 				continue;
 
 			{
-				QC_AST_Call *call = qc_create_call_node();
-
-				/* @todo Link ident to matrix type */
-				call->ident = qc_create_ident_node();
-				qc_append_builtin_type_c_str(&call->ident->text, bt);
+				QC_AST_Call *call;
+				QC_AST_Ident *ident = qc_create_ident_node();
+				qc_append_builtin_type_c_str(&ident->text, bt);
 				/* @todo Handle all operations */
-				qc_append_str(&call->ident->text, "_mul");
-
-				{ /* Args */
-					qc_push_array(QC_AST_Node_Ptr)(&call->args, biop->lhs);
-					qc_push_array(QC_AST_Node_Ptr)(&call->args, biop->rhs);
-				}
+				qc_append_str(&ident->text, "_mul");
+				
+				call = qc_create_call_2(ident, biop->lhs, biop->rhs);
 
 				/* Mark biop to be replaced with the function call */
 				qc_push_array(QC_AST_Node_Ptr)(&replace_list_old, QC_AST_BASE(biop));
@@ -1264,12 +1259,18 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 
 	case QC_AST_call: {
 		QC_CASTED_NODE(QC_AST_Call, call, node);
-		QC_CASTED_NODE(QC_AST_Func_Decl, decl, call->ident->decl);
-		if (decl && decl->is_builtin) {
-			/* e.g. alloc_field -> alloc_field_floatfield2 */
-			qc_ast_to_c_str(buf, indent, QC_AST_BASE(decl->builtin_concrete_decl->ident));
+		QC_AST_Ident *ident = qc_call_ident(call);
+		if (ident && ident->decl) {
+			QC_CASTED_NODE(QC_AST_Func_Decl, decl, ident->decl);
+			QC_ASSERT(ident->decl->type == QC_AST_func_decl);
+			if (decl && decl->is_builtin) {
+				/* e.g. alloc_field -> alloc_field_floatfield2 */
+				qc_ast_to_c_str(buf, indent, QC_AST_BASE(decl->builtin_concrete_decl->ident));
+			} else {
+				qc_ast_to_c_str(buf, indent, call->base);
+			}
 		} else {
-			qc_ast_to_c_str(buf, indent, QC_AST_BASE(call->ident));
+			qc_ast_to_c_str(buf, indent, call->base);
 		}
 		qc_append_str(buf, "(");
 		for (i = 0; i < call->args.size; ++i) {

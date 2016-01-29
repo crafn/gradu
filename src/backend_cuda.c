@@ -283,11 +283,12 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 			QC_Array(QC_AST_Node_Ptr) memcpy_from_device_calls = qc_create_array(QC_AST_Node_Ptr)(0);
 			QC_Array(QC_AST_Node_Ptr) free_calls = qc_create_array(QC_AST_Node_Ptr)(0);
 			QC_AST_Call *cuda_call = qc_create_call_node();
+			QC_AST_Ident *cuda_call_ident = qc_create_ident_with_text(NULL, "TODO_proper_kernel_name");
 
 			/* @todo Link ident to the kernel decl */
-			cuda_call->ident = qc_create_ident_with_text(NULL, "TODO_proper_kernel_name");
+			cuda_call->base = qc_try_create_access(QC_AST_BASE(cuda_call_ident));
 			/*qc_append_expr_c_func_name(&cuda_call->ident->text, biop->rhs);*/
-			qc_append_str(&cuda_call->ident->text, "<<<dim_grid, dim_block>>>");
+			qc_append_str(&cuda_call_ident->text, "<<<dim_grid, dim_block>>>");
 
 			/* Copy comments */
 			qc_copy_ast_node_base(QC_AST_BASE(scope), QC_AST_BASE(parallel));
@@ -478,7 +479,7 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					const char *comp_name[3] = { "x", "y", "z" };
 					QC_ASSERT(k < 3);
 					qc_add_parallel_id_init(root, parallel, k,
-							try_create_access(
+							qc_try_create_access(
 								QC_AST_BASE(qc_create_ident_with_text(NULL, "threadIdx.%s", comp_name[k]))));
 				}
 

@@ -191,9 +191,12 @@ typedef struct QC_AST_Control {
 /* Function call */
 typedef struct QC_AST_Call {
 	QC_AST_Node b;
-	QC_AST_Ident *ident;
+	QC_AST_Node *base; /* Access or expr yielding function */
 	QC_Array(QC_AST_Node_Ptr) args;
 } QC_AST_Call;
+
+/* Returns NULL if call is not simple (e.g. foo[0](5) or (foo + 0)(5)) */
+QC_AST_Ident *qc_call_ident(QC_AST_Call *call);
 
 /* Variable/array/member access */
 typedef struct QC_AST_Access {
@@ -322,7 +325,7 @@ void qc_copy_func_decl_node(QC_AST_Func_Decl *copy, QC_AST_Func_Decl *decl, QC_A
 void qc_copy_literal_node(QC_AST_Literal *copy, QC_AST_Literal *literal, QC_AST_Node *comp_type, QC_AST_Node **comp_subs, int comp_sub_count, QC_AST_Node *type_decl_ref);
 void qc_copy_biop_node(QC_AST_Biop *copy, QC_AST_Biop *biop, QC_AST_Node *lhs, QC_AST_Node *rhs);
 void qc_copy_control_node(QC_AST_Control *copy, QC_AST_Control *control, QC_AST_Node *value);
-void qc_copy_call_node(QC_AST_Call *copy, QC_AST_Call *call, QC_AST_Node *ident, QC_AST_Node **args, int arg_count);
+void qc_copy_call_node(QC_AST_Call *copy, QC_AST_Call *call, QC_AST_Node *base, QC_AST_Node **args, int arg_count);
 void qc_copy_access_node(QC_AST_Access *copy, QC_AST_Access *access, QC_AST_Node *base, QC_AST_Node **args, int arg_count);
 void qc_copy_cond_node(QC_AST_Cond *copy, QC_AST_Cond *cond, QC_AST_Node *expr, QC_AST_Node *body, QC_AST_Node *after_else);
 void qc_copy_loop_node(QC_AST_Loop *copy, QC_AST_Loop *loop, QC_AST_Node *init, QC_AST_Node *cond, QC_AST_Node *incr, QC_AST_Node *body);
@@ -346,6 +349,7 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr);
 QC_Bool qc_is_decl(QC_AST_Node *node);
 QC_AST_Ident *qc_decl_ident(QC_AST_Node *node);
 QC_AST_Ident *qc_access_ident(QC_AST_Access *access);
+QC_AST_Ident *qc_unwrap_ident(QC_AST_Node *node);
 
 
 /* QC_AST traversing utils */
@@ -366,7 +370,7 @@ QC_Bool qc_is_subnode(QC_AST_Parent_Map *map, QC_AST_Node *parent, QC_AST_Node *
 
 QC_AST_Ident *qc_resolve_ident(QC_AST_Parent_Map *map, QC_AST_Ident *ident);
 /* Resolves call to specific overload */
-QC_AST_Call *qc_resolve_call(QC_AST_Parent_Map *map, QC_AST_Call *call, QC_AST_Type *return_type_hint);
+QC_AST_Call *qc_resolve_overloaded_call(QC_AST_Parent_Map *map, QC_AST_Call *call, QC_AST_Type *return_type_hint);
 /* Resove all unresolved things in QC_AST. Call this after inserting unresolved nodes into QC_AST. */
 void qc_resolve_ast(QC_AST_Scope *root);
 /* Break all resolved things. Call this when e.g. moving blocks of code around. */
@@ -418,7 +422,7 @@ QC_AST_Type *qc_create_builtin_type(QC_Builtin_Type bt, int ptr_depth, QC_AST_Sc
 QC_AST_Type *qc_copy_and_modify_type(QC_AST_Type *type, int delta_ptr_depth);
 QC_AST_Type *qc_create_simple_type(QC_AST_Type_Decl *type_decl);
 QC_AST_Loop *qc_create_for_loop(QC_AST_Var_Decl *index, QC_AST_Node *max_expr, QC_AST_Scope *body);
-QC_AST_Node *try_create_access(QC_AST_Node *node);
+QC_AST_Node *qc_try_create_access(QC_AST_Node *node);
 QC_AST_Access *qc_create_element_access_1(QC_AST_Node *base, QC_AST_Node *arg);
 QC_AST_Access *qc_create_simple_access(QC_AST_Var_Decl *var);
 QC_AST_Access *qc_create_simple_member_access(QC_AST_Var_Decl *base, QC_AST_Var_Decl *member);

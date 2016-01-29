@@ -1048,16 +1048,16 @@ mismatch:
 QC_INTERNAL QC_Bool parse_call_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *expr, QC_AST_Type *hint)
 {
 	QC_AST_Call *call = qc_create_call_node();
+	QC_AST_Ident *ident = qc_unwrap_ident(expr);
 	QC_Array(QC_AST_Type) types = {0};
 	begin_node_parsing(ctx, QC_AST_BASE(call));
 
-	/* @todo Maybe accesses should be permitted in general case (think about func_ptrs[0]();) */
-	if (expr->type != QC_AST_ident) {
+	if (ident && ident->decl && ident->decl->type != QC_AST_func_decl) {
+		/* e.g. Discard e.g. field accessing with () */
 		goto mismatch;
 	}
 
-	if (expr->type == QC_AST_ident)
-		call->ident = (QC_AST_Ident*)expr;
+	call->base = qc_try_create_access(expr);
 
 	if (!accept_tok(ctx, QC_Token_open_paren)) {
 		report_error_expected(ctx, "'('", cur_tok(ctx));
@@ -1067,9 +1067,8 @@ QC_INTERNAL QC_Bool parse_call_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_No
 	if (!parse_arg_list(ctx, &call->args, QC_Token_close_paren))
 		goto mismatch;
 
-	if (!qc_resolve_call(&ctx->parent_map, call, hint) && !ctx->allow_undeclared) {
+	if (!qc_resolve_overloaded_call(&ctx->parent_map, call, hint) && !ctx->allow_undeclared)
 		goto mismatch;
-	}
 
 	end_node_parsing(ctx);
 	qc_destroy_array(QC_AST_Type)(&types);
@@ -1079,7 +1078,7 @@ QC_INTERNAL QC_Bool parse_call_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_No
 
 mismatch:
 	qc_destroy_array(QC_AST_Type)(&types);
-	call->ident = NULL;
+	call->base = NULL;
 	cancel_node_parsing(ctx);
 	return QC_false;
 }

@@ -31,6 +31,12 @@ def styled(str, color):
 	else:
 		return colors[color] + str + colors["end"]
 
+def canonical_path(str):
+	if os.name == "nt":
+		return str.replace("/", "\\")
+	else:
+		return str
+		
 if __name__ == "__main__":
 	backends = []
 
@@ -57,7 +63,7 @@ if __name__ == "__main__":
 			phase = "codegen"
 			gen_file = os.path.splitext(test)[0] + "." + backend.src_ext
 			bin_file = os.path.splitext(test)[0] + "_" + backend.src_ext
-			ret = os.system(os.path.relpath("./gen") + " -backend=" + backend.name + " -output=" + gen_file + " "  + test)
+			ret = os.system(canonical_path("./gen") + " -backend=" + backend.name + " -output=" + gen_file + " "  + test)
 
 			# Compile C to binary
 			if ret == 0:
@@ -67,7 +73,7 @@ if __name__ == "__main__":
 			# Run binary
 			if ret == 0:
 				phase = "running binary"
-				ret = os.system(os.path.relpath(bin_file));
+				ret = os.system(canonical_path(bin_file));
 
 			if ret == 0:
 				log.append(styled("  " + test_name, "green"))

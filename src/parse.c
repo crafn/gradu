@@ -214,7 +214,7 @@ QC_INTERNAL void begin_node_parsing(Parse_Ctx *ctx, QC_AST_Node *node)
 	Parse_Stack_Frame frame = {0};
 	QC_ASSERT(node);
 
-#define QC_PARSE_DEBUG 1
+#define QC_PARSE_DEBUG 0
 #if QC_PARSE_DEBUG
 	printf("begin_node_parsing %s\n", qc_node_type_str(node->type));
 #endif

@@ -26,7 +26,7 @@ double str_to_float(QC_Buf_Str text)
 	const char *end = c + text.len;
 	double value = 0.0;
 	int sign = 1;
-	int decimal_div = 1;
+	int decimal_div = 10;
 
 	if (*c == '+' || *c == '-') {
 		if (*c == '-')

@@ -721,12 +721,14 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 		QC_CASTED_NODE(QC_AST_Biop, biop, expr);
 		/* @todo Operation can yield different types than either of operands (2x1 * 1x2 matrices for example) */
 		if (biop->lhs && biop->rhs) {
+			/* Binary expr */
 			lhs = qc_eval_const_expr(biop->lhs);
 			rhs = qc_eval_const_expr(biop->rhs);
 			if (!lhs || !rhs || lhs->type != rhs->type)
 				break;
+			ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(rhs));
 
-			switch (lhs->type) {
+			switch (rhs->type) {
 			case QC_Literal_int: {
 				int result;
 				switch (biop->type) {
@@ -734,7 +736,6 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 				case QC_Token_sub: result = lhs->value.integer - rhs->value.integer; break;
 				default: QC_FAIL(("Unhandled biop type"));
 				}
-				ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(lhs));
 				ret->value.integer = result;
 			} break;
 			case QC_Literal_float: {
@@ -744,13 +745,40 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 				case QC_Token_sub: result = lhs->value.floating - rhs->value.floating; break;
 				default: QC_FAIL(("Unhandled biop type"));
 				}
-				ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(lhs));
 				ret->value.floating = result;
 			} break;
-			default: QC_FAIL(("Unhandled expr type %i", lhs->type));
+			default: QC_FAIL(("Unhandled expr type %i", rhs->type));
+			}
+		} else if (biop->rhs) {
+			/* Unary expr */
+			rhs = qc_eval_const_expr(biop->rhs);
+			if (!rhs)
+				break;
+			ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(rhs));
+
+			switch (rhs->type) {
+			case QC_Literal_int: {
+				int result;
+				switch (biop->type) {
+				case QC_Token_add: result = rhs->value.integer; break;
+				case QC_Token_sub: result = -rhs->value.integer; break;
+				default: QC_FAIL(("Unhandled biop type"));
+				}
+				ret->value.integer = result;
+			} break;
+			case QC_Literal_float: {
+				double result;
+				switch (biop->type) {
+				case QC_Token_add: result = rhs->value.floating; break;
+				case QC_Token_sub: result = -rhs->value.floating; break;
+				default: QC_FAIL(("Unhandled biop type"));
+				}
+				ret->value.floating = result;
+			} break;
+			default: QC_FAIL(("Unhandled expr type %i", rhs->type));
 			}
 		} else {
-			QC_FAIL(("@todo unary const expr eval"));
+			QC_FAIL(("Invalid biop"));
 		}
 	} break;
 

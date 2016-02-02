@@ -371,7 +371,7 @@ QC_INTERNAL QC_Bool parse_ident(Parse_Ctx *ctx, QC_AST_Ident **ret, QC_AST_Node 
 	if (allow_designated) {
 		/* Consume dot before designated initializer identifier */
 		if (accept_tok(ctx, QC_Token_dot)) {
-			ident->designated = QC_true;
+			ident->is_designated = QC_true;
 		}
 	}
 

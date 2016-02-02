@@ -104,9 +104,9 @@ int main(int argc, char **argv)
             int x;
             for (x = 0; x < size_x; ++x) {
                 char *ch = " ";
-                if (host_field.m[1 * x + host_field.size[0] * y] > 5.000000) {
+                if (host_field.m[1 * x + host_field.size[0] * y] > 0.500000) {
                     ch = "#";
-                } else if (host_field.m[1 * x + host_field.size[0] * y] > 1.000000) {
+                } else if (host_field.m[1 * x + host_field.size[0] * y] > 0.100000) {
                     ch = ".";
                 }
                 printf("%s", ch);

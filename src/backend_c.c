@@ -499,6 +499,8 @@ QC_INTERNAL QC_AST_Node * qc_copy_excluding_types_and_funcs(Trav_Ctx *ctx, QC_AS
 		/* Remap referenced nodes */
 		for (i = 0; i < refnodes.size; ++i) {
 			QC_AST_Node *remapped = mapped_node(ctx, refnodes.data[i]);
+			if (!remapped)
+				remapped = refnodes.data[i]; /* This must be outside AST */
 			qc_push_array(QC_AST_Node_Ptr)(&remapped_refnodes, remapped);
 		}
 
@@ -1130,7 +1132,7 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 
 	case QC_AST_ident: {
 		QC_CASTED_NODE(QC_AST_Ident, ident, node);
-		if (ident->designated)
+		if (ident->is_designated)
 			qc_append_str(buf, ".");
 		qc_append_str(buf, "%s", ident->text.data);
 	} break;

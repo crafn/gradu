@@ -61,7 +61,7 @@ typedef struct QC_AST_Scope {
 typedef struct QC_AST_Ident {
 	QC_AST_Node b;
 	QC_Array(char) text; /* NULL-terminated */
-	QC_Bool designated; /* Dot before identifier */
+	QC_Bool is_designated; /* Dot before identifier */
 
 	struct QC_AST_Node *decl; /* Not owned */
 } QC_AST_Ident;
@@ -114,7 +114,7 @@ typedef struct QC_AST_Type_Decl {
 	/* 'body' and 'ident' are NULL for builtin types */
 	QC_Bool is_builtin; /* void, int, char etc. */
 	QC_Builtin_Type builtin_type;
-	struct QC_AST_Type_Decl *builtin_sub_type_decl; /* Not owner. Matrix/scalar for a field. Scalar for a matrix. */
+	struct QC_AST_Type_Decl *builtin_sub_type_decl; /* Not owned. Matrix/scalar for a field. Scalar for a matrix. */
 	struct QC_AST_Type_Decl *builtin_concrete_decl; /* Not owned. Backend can use this to point generated types. */
 } QC_AST_Type_Decl;
 
@@ -154,7 +154,7 @@ typedef enum {
 
 typedef struct QC_AST_Literal {
 	QC_AST_Node b;
-	QC_Literal_Type type;
+	QC_Literal_Type type; /* @todo Could be removed by changing base_type_decl -> type */
 	union {
 		/* @todo Different integer sizes etc */
 		int integer;
@@ -209,6 +209,7 @@ typedef struct QC_AST_Access {
 	 * 'base' is wrapped in an extra Access, because then '(base + 0)->sub' and '(base)->sub' and 'base.sub'
 	 * are handled uniformly (every expression has two Access nodes) */
 
+	/* @todo Reconsider if wrapping plain idents in Accesses is worth it. */
 	QC_Bool is_var_access; /* Plain variable access */
 	QC_Bool is_member_access;
 	QC_Bool is_element_access; /* Matrix or field element access */
@@ -402,6 +403,7 @@ QC_AST_Var_Decl *qc_create_var_decl(QC_AST_Type_Decl *type_decl, QC_AST_Ident *i
 QC_AST_Type_Decl *qc_find_builtin_type_decl(QC_Builtin_Type bt, QC_AST_Scope *root);
 QC_AST_Literal *qc_create_integer_literal(int value, QC_AST_Scope *root);
 QC_AST_Literal *qc_create_floating_literal(double value, QC_AST_Scope *root);
+QC_AST_Literal *qc_create_string_literal(const char *value, QC_AST_Scope *root);
 QC_AST_Call *qc_create_call_1(QC_AST_Ident *ident, QC_AST_Node *arg);
 QC_AST_Call *qc_create_call_2(QC_AST_Ident *ident, QC_AST_Node *arg1, QC_AST_Node *arg2);
 QC_AST_Call *qc_create_call_3(QC_AST_Ident *ident, QC_AST_Node *arg1, QC_AST_Node *arg2, QC_AST_Node *arg3);
@@ -442,5 +444,35 @@ QC_AST_Node *qc_create_chained_expr(QC_AST_Node **elems, int elem_count, QC_Toke
 QC_AST_Node *qc_create_chained_expr_2(QC_AST_Node **lhs_elems, QC_AST_Node **rhs_elems, int elem_count, QC_Token_Type biop, QC_Token_Type chainop);
 
 void qc_add_parallel_id_init(QC_AST_Scope *root, QC_AST_Parallel *parallel, int ix, QC_AST_Node *value);
+
+
+/* Immediate-mode AST generation */
+/* Functions beginning with qc_add, qc_begin, or qc_end are dedicated to the immediate mode api */
+
+typedef struct QC_Write_Context {
+	QC_AST_Scope *root;
+	QC_Array(QC_AST_Node_Ptr) stack;
+	/* Nodes not included in output, but required for complete AST. Like type declarations. */
+	QC_Array(QC_AST_Node_Ptr) loose_nodes;
+} QC_Write_Context;
+
+QC_Write_Context *qc_create_write_context();
+void qc_destroy_write_context(QC_Write_Context *ctx);
+
+/* { ... } */
+void qc_begin_initializer(QC_Write_Context *ctx);
+void qc_end_initializer(QC_Write_Context *ctx);
+
+/* (type_name) { ... } */
+void qc_begin_compound(QC_Write_Context *ctx, const char *type_name);
+void qc_end_compound(QC_Write_Context *ctx);
+
+/* .var_name = ... */
+void qc_add_designated(QC_Write_Context *ctx, const char *var_name);
+
+void qc_add_string(QC_Write_Context *ctx, const char *str);
+void qc_add_integer(QC_Write_Context *ctx, int value);
+void qc_add_floating(QC_Write_Context *ctx, double value);
+
 
 #endif

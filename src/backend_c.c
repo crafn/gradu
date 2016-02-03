@@ -1199,6 +1199,8 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 		case QC_Literal_string: qc_append_str(buf, "\"%s\"", literal->value.string.data); break;
 		case QC_Literal_null: qc_append_str(buf, "NULL"); break;
 		case QC_Literal_compound: {
+			QC_Bool oneliner = (literal->value.compound.subnodes.size < 2);
+
 			if (literal->value.compound.type) {
 				/* Compound literal */
 				qc_append_str(buf, "(");
@@ -1206,13 +1208,19 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 				qc_append_str(buf, ") ");
 			}
 
-			qc_append_str(buf, "{ ");
+			qc_append_str(buf, "{");
+			qc_append_str(buf, "%s", oneliner ? " " : "\n");
 			for (i = 0; i < literal->value.compound.subnodes.size; ++i) {
+				if (!oneliner)
+					qc_append_str(buf, "%*s", indent + indent_add, "");
 				qc_ast_to_c_str(buf, indent, literal->value.compound.subnodes.data[i]);
 				if (i + 1 < literal->value.compound.subnodes.size)
-					qc_append_str(buf, ", ");
+					qc_append_str(buf, ",");
+				qc_append_str(buf, "%s", oneliner ? " " : "\n");
 			}
-			qc_append_str(buf, " }");
+			if (!oneliner)
+				qc_append_str(buf, "%*s", indent, "");
+			qc_append_str(buf, "}");
 		} break;
 		default: QC_FAIL(("Unknown literal type: %i", literal->type));
 		}
@@ -1225,7 +1233,7 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 			QC_Bool rhs_parens = nested_expr_needs_parens(node, biop->rhs);
 			if (lhs_parens)
 				qc_append_str(buf, "(");
-			qc_ast_to_c_str(buf, indent, biop->lhs);
+			qc_ast_to_c_str(buf, indent + indent_add, biop->lhs);
 			if (lhs_parens)
 				qc_append_str(buf, ")");
 
@@ -1233,7 +1241,7 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 
 			if (rhs_parens)
 				qc_append_str(buf, "(");
-			qc_ast_to_c_str(buf, indent, biop->rhs);
+			qc_ast_to_c_str(buf, indent + indent_add, biop->rhs);
 			if (rhs_parens)
 				qc_append_str(buf, ")");
 		} else {
@@ -1244,7 +1252,7 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 			
 			if (parens_inside)
 				qc_append_str(buf, "(");
-			qc_ast_to_c_str(buf, indent, biop->rhs);
+			qc_ast_to_c_str(buf, indent + indent_add, biop->rhs);
 			if (parens_inside)
 				qc_append_str(buf, ")");
 		}

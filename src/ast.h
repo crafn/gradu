@@ -144,9 +144,8 @@ typedef struct QC_AST_Func_Decl {
 } QC_AST_Func_Decl;
 
 typedef enum {
-	/* @todo int -> integer, float -> floating as in QC_AST_Literal members */
-	QC_Literal_int,
-	QC_Literal_float,
+	QC_Literal_integer,
+	QC_Literal_floating,
 	QC_Literal_string,
 	QC_Literal_null,
 	QC_Literal_compound /* (Type) {1, 2} or just {1, 2} */
@@ -168,6 +167,8 @@ typedef struct QC_AST_Literal {
 
 	struct QC_AST_Type_Decl *base_type_decl; /* Not owned. 'qc_expr_type' needs this. */
 } QC_AST_Literal;
+
+QC_Bool qc_is_literal_node(QC_AST_Node *node, QC_Literal_Type literal_type);
 
 /* Binary operation */
 /* @todo Rename to QC_AST_Expr */

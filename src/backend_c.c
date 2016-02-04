@@ -1194,8 +1194,8 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 	case QC_AST_literal: {
 		QC_CASTED_NODE(QC_AST_Literal, literal, node);
 		switch (literal->type) {
-		case QC_Literal_int: qc_append_str(buf, "%i", literal->value.integer); break;
-		case QC_Literal_float: qc_append_str(buf, "%f", literal->value.floating); break;
+		case QC_Literal_integer: qc_append_str(buf, "%i", literal->value.integer); break;
+		case QC_Literal_floating: qc_append_str(buf, "%f", literal->value.floating); break;
 		case QC_Literal_string: qc_append_str(buf, "\"%s\"", literal->value.string.data); break;
 		case QC_Literal_null: qc_append_str(buf, "NULL"); break;
 		case QC_Literal_compound: {

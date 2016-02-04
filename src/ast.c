@@ -733,7 +733,7 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 			ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(rhs));
 
 			switch (rhs->type) {
-			case QC_Literal_int: {
+			case QC_Literal_integer: {
 				int result;
 				switch (biop->type) {
 				case QC_Token_add: result = lhs->value.integer + rhs->value.integer; break;
@@ -742,7 +742,7 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 				}
 				ret->value.integer = result;
 			} break;
-			case QC_Literal_float: {
+			case QC_Literal_floating: {
 				double result;
 				switch (biop->type) {
 				case QC_Token_add: result = lhs->value.floating + rhs->value.floating; break;
@@ -761,7 +761,7 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 			ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(rhs));
 
 			switch (rhs->type) {
-			case QC_Literal_int: {
+			case QC_Literal_integer: {
 				int result;
 				switch (biop->type) {
 				case QC_Token_add: result = rhs->value.integer; break;
@@ -770,7 +770,7 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 				}
 				ret->value.integer = result;
 			} break;
-			case QC_Literal_float: {
+			case QC_Literal_floating: {
 				double result;
 				switch (biop->type) {
 				case QC_Token_add: result = rhs->value.floating; break;
@@ -1216,6 +1216,17 @@ QC_AST_Ident *qc_resolve_ident(QC_AST_Parent_Map *map, QC_AST_Ident *ident)
 QC_DECLARE_ARRAY(QC_AST_Type)
 QC_DEFINE_ARRAY(QC_AST_Type)
 
+QC_Bool qc_is_literal_node(QC_AST_Node *node, QC_Literal_Type literal_type)
+{
+	if (node->type != QC_AST_literal)
+		return QC_false;
+	
+	{
+		QC_CASTED_NODE(QC_AST_Literal, literal, node);
+		return literal->type == literal_type;
+	}
+}
+
 QC_AST_Ident *qc_call_ident(QC_AST_Call *call)
 {
 	QC_ASSERT(call->base->type == QC_AST_access);
@@ -1635,8 +1646,8 @@ void qc_print_ast(QC_AST_Node *node, int indent)
 		QC_CASTED_NODE(QC_AST_Literal, literal, node);
 		printf("literal: ");
 		switch (literal->type) {
-			case QC_Literal_int: printf("int: %i\n", literal->value.integer); break;
-			case QC_Literal_float: printf("float: %f\n", literal->value.floating); break;
+			case QC_Literal_integer: printf("int: %i\n", literal->value.integer); break;
+			case QC_Literal_floating: printf("float: %f\n", literal->value.floating); break;
 			case QC_Literal_string: printf("str: %s\n", literal->value.string.data); break;
 			case QC_Literal_null: printf("NULL\n"); break;
 			case QC_Literal_compound:
@@ -1783,7 +1794,7 @@ QC_AST_Type_Decl *qc_find_builtin_type_decl(QC_Builtin_Type bt, QC_AST_Scope *ro
 QC_AST_Literal *qc_create_integer_literal(int value, QC_AST_Scope *root)
 {
 	QC_AST_Literal *literal = qc_create_literal_node();
-	literal->type = QC_Literal_int;
+	literal->type = QC_Literal_integer;
 	literal->value.integer = value;
 	if (root) /* @todo Don't accept NULL */
 		literal->base_type_decl = qc_find_builtin_type_decl(qc_int_builtin_type(), root);
@@ -1804,7 +1815,7 @@ QC_AST_Literal *qc_create_string_literal(const char *value, QC_AST_Scope *root)
 QC_AST_Literal *qc_create_floating_literal(double value, QC_AST_Scope *root)
 {
 	QC_AST_Literal *literal = qc_create_literal_node();
-	literal->type = QC_Literal_float;
+	literal->type = QC_Literal_floating;
 	literal->value.floating = value;
 	if (root)
 		literal->base_type_decl = qc_find_builtin_type_decl(qc_float_builtin_type(), root);

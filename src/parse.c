@@ -675,7 +675,7 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 					report_error(ctx, QC_PRIORITY_DEFAULT, "Field dimension must be a constant expression");
 					goto mismatch;
 				}
-				if (dim_value->type != QC_Literal_int) {
+				if (dim_value->type != QC_Literal_integer) {
 					report_error(ctx, QC_PRIORITY_DEFAULT, "Field dimension must be an integer");
 					goto mismatch;
 				}
@@ -894,13 +894,13 @@ QC_INTERNAL QC_Bool parse_literal(Parse_Ctx *ctx, QC_AST_Node **ret)
 
 	switch (tok->type) {
 		case QC_Token_int:
-			literal->type = QC_Literal_int;
+			literal->type = QC_Literal_integer;
 			literal->value.integer = str_to_int(tok->text);
 			literal->base_type_decl = qc_create_builtin_decl(ctx, qc_int_builtin_type());
 			advance_tok(ctx);
 		break;
 		case QC_Token_float:
-			literal->type = QC_Literal_float;
+			literal->type = QC_Literal_floating;
 			literal->value.floating = str_to_float(tok->text);
 			literal->base_type_decl = qc_create_builtin_decl(ctx, qc_float_builtin_type());
 			advance_tok(ctx);

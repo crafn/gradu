@@ -44,6 +44,8 @@ void qc_append_builtin_type_c_str(QC_Array(char) *buf, QC_Builtin_Type bt)
 		qc_append_str(buf, "char");
 	} else if (bt.is_float) {
 		qc_append_str(buf, "%s", bt.bitness == 64 ? "double" : "float");
+	} else if (bt.is_boolean) {
+		qc_append_str(buf, "bool");
 	}
 
 	if (bt.is_matrix) {
@@ -1196,6 +1198,8 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 		switch (literal->type) {
 		case QC_Literal_integer: qc_append_str(buf, "%i", literal->value.integer); break;
 		case QC_Literal_floating: qc_append_str(buf, "%f", literal->value.floating); break;
+		case QC_Literal_boolean: qc_append_str(buf, "%s", 	literal->value.boolean ?
+															"true" : "false"); break;
 		case QC_Literal_string: qc_append_str(buf, "\"%s\"", literal->value.string.data); break;
 		case QC_Literal_null: qc_append_str(buf, "NULL"); break;
 		case QC_Literal_compound: {

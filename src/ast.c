@@ -27,6 +27,7 @@ QC_Bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b)
 	return	a.is_void == b.is_void &&
 			a.is_integer == b.is_integer &&
 			a.is_float == b.is_float &&
+			a.is_boolean == b.is_boolean &&
 			a.bitness == b.bitness &&
 			a.is_unsigned == b.is_unsigned &&
 			is_same_matrix &&
@@ -1648,6 +1649,7 @@ void qc_print_ast(QC_AST_Node *node, int indent)
 		switch (literal->type) {
 			case QC_Literal_integer: printf("int: %i\n", literal->value.integer); break;
 			case QC_Literal_floating: printf("float: %f\n", literal->value.floating); break;
+			case QC_Literal_boolean: printf("bool: %i\n", literal->value.boolean); break;
 			case QC_Literal_string: printf("str: %s\n", literal->value.string.data); break;
 			case QC_Literal_null: printf("NULL\n"); break;
 			case QC_Literal_compound:
@@ -2045,6 +2047,13 @@ QC_Builtin_Type qc_float_builtin_type()
 	QC_Builtin_Type bt = {0};
 	bt.is_float = QC_true;
 	bt.bitness = 32;
+	return bt;
+}
+
+QC_Builtin_Type qc_boolean_builtin_type()
+{
+	QC_Builtin_Type bt = {0};
+	bt.is_boolean = QC_true;
 	return bt;
 }
 

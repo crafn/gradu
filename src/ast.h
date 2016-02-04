@@ -88,6 +88,7 @@ QC_Bool type_node_equals(QC_AST_Type a, QC_AST_Type b);
 typedef struct QC_Builtin_Type {
 	QC_Bool is_void;
 	QC_Bool is_integer;
+	QC_Bool is_boolean;
 	QC_Bool is_char; /* int8_t != char */
 	QC_Bool is_float;
 	int bitness; /* Zero for "not explicitly specified" */
@@ -146,6 +147,7 @@ typedef struct QC_AST_Func_Decl {
 typedef enum {
 	QC_Literal_integer,
 	QC_Literal_floating,
+	QC_Literal_boolean,
 	QC_Literal_string,
 	QC_Literal_null,
 	QC_Literal_compound /* (Type) {1, 2} or just {1, 2} */
@@ -158,6 +160,7 @@ typedef struct QC_AST_Literal {
 		/* @todo Different integer sizes etc */
 		int integer;
 		double floating;
+		QC_Bool boolean;
 		QC_Array(char) string;
 		struct {
 			QC_AST_Type *type; /* NULL for initializer list */
@@ -434,8 +437,11 @@ QC_AST_Cond *qc_create_if_1(QC_AST_Node *expr, QC_AST_Node *body_expr_1);
 QC_AST_Node *qc_create_full_deref(QC_AST_Node *expr);
 
 QC_Builtin_Type qc_void_builtin_type();
+/* @todo int -> integer + bitness and signedness flags */
 QC_Builtin_Type qc_int_builtin_type();
+/* @todo float -> floating + bitness flag */
 QC_Builtin_Type qc_float_builtin_type();
+QC_Builtin_Type qc_boolean_builtin_type();
 QC_Builtin_Type qc_char_builtin_type();
 
 /* elem[0] chainop elem[1] */

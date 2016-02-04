@@ -32,12 +32,16 @@ int main()
 
 	car.year = 5;
 
+	bool b;
+	b = true;
+	b = false;
+
 	/* @todo Rest of C99 */
 
 	/* @todo Make work */
 	//(void)car;
 	//(void)test_integer;
 	//(void)another_test_integer;
-	int x = car.year + test_integer + another_test_integer;
+	int x = car.year + test_integer + another_test_integer + b;
 	return x;
 }

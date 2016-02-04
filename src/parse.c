@@ -615,6 +615,10 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 				bt.bitness = 0; /* Not specified */
 				advance_tok(ctx);
 			break;
+			case QC_Token_kw_bool:
+				bt.is_boolean = QC_true;
+				advance_tok(ctx);
+			break;
 			case QC_Token_kw_size_t:
 				bt.is_integer = QC_true;
 				bt.bitness = sizeof(size_t)*8; /* @todo Assuming target is same architecture than host */
@@ -903,6 +907,18 @@ QC_INTERNAL QC_Bool parse_literal(Parse_Ctx *ctx, QC_AST_Node **ret)
 			literal->type = QC_Literal_floating;
 			literal->value.floating = str_to_float(tok->text);
 			literal->base_type_decl = qc_create_builtin_decl(ctx, qc_float_builtin_type());
+			advance_tok(ctx);
+		break;
+		case QC_Token_kw_true:
+			literal->type = QC_Literal_boolean;
+			literal->value.boolean = QC_true;
+			literal->base_type_decl = qc_create_builtin_decl(ctx, qc_boolean_builtin_type());
+			advance_tok(ctx);
+		break;
+		case QC_Token_kw_false:
+			literal->type = QC_Literal_boolean;
+			literal->value.boolean = QC_false;
+			literal->base_type_decl = qc_create_builtin_decl(ctx, qc_boolean_builtin_type());
 			advance_tok(ctx);
 		break;
 		case QC_Token_string:
@@ -1590,6 +1606,7 @@ QC_AST_Scope *qc_parse_tokens(QC_Token *toks, QC_Bool dont_reference_tokens, QC_
 		qc_create_builtin_decl(&ctx, qc_void_builtin_type());
 		qc_create_builtin_decl(&ctx, qc_int_builtin_type());
 		qc_create_builtin_decl(&ctx, qc_char_builtin_type());
+		qc_create_builtin_decl(&ctx, qc_boolean_builtin_type());
 		/* @todo Rest */
 	}
 

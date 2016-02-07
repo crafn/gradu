@@ -590,7 +590,7 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 	QC_AST_Type *type = qc_create_type_node();
 	begin_node_parsing(ctx, QC_AST_BASE(type));
 
-	/* @todo ptr-to-funcs, const (?), types with multiple identifiers... */
+	/* @todo ptr-to-funcs, types with multiple identifiers... */
 
 	{ /* Type */
 		QC_AST_Node *found_decl = NULL;
@@ -735,8 +735,9 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 				qc_destroy_node(QC_AST_BASE(ident));
 				goto mismatch;
 			}
+
 			found_decl = ident->decl;
-			qc_destroy_node(QC_AST_BASE(ident));
+			type->ident = ident;
 		}
 
 		if (found_decl || !ctx->allow_undeclared) {

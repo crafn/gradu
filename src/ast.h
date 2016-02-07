@@ -71,10 +71,16 @@ struct QC_AST_Typedef;
 
 typedef struct QC_AST_Type {
 	QC_AST_Node b;
+
+	/* 'Foo' of 'Foo **'. NULL for builtin types. */
+	/* This is needed for storing the identifier when the type can't be resolved. */
+	/* When this is not NULL, 'ident->decl == base_type_decl' */
+	QC_AST_Ident *ident;
+
 	/* Pointer to 'struct Foo { ... }' in type 'Foo **' */
 	/* Decided to use type decl directly instead of identifiers, because
 	 * type names can be multiple keywords long in source code (long int etc.)*/
-	struct QC_AST_Type_Decl *base_type_decl; /* Not owned */
+	struct QC_AST_Type_Decl *base_type_decl; /* Not owned. */
 	struct QC_AST_Typedef *base_typedef; /* Not owned. Records the chain of typedefs for backend. */
 	int ptr_depth;
 	/* @todo 2-dimensional arrays, pointers to arrays, ... (?) */
@@ -323,7 +329,7 @@ void qc_shallow_copy_ast_node(QC_AST_Node *copy, QC_AST_Node* node);
  * Refnode params: new refnodes for destination */
 void qc_copy_scope_node(QC_AST_Scope *copy, QC_AST_Scope *scope, QC_AST_Node **subnodes, int subnode_count);
 void qc_copy_ident_node(QC_AST_Ident *copy, QC_AST_Ident *ident, QC_AST_Node *ref_to_decl);
-void qc_copy_type_node(QC_AST_Type *copy, QC_AST_Type *type, QC_AST_Node *ref_to_base_type_decl, QC_AST_Node *ref_to_base_typedef);
+void qc_copy_type_node(QC_AST_Type *copy, QC_AST_Type *type, QC_AST_Node *ident, QC_AST_Node *ref_to_base_type_decl, QC_AST_Node *ref_to_base_typedef);
 void qc_copy_type_decl_node(QC_AST_Type_Decl *copy, QC_AST_Type_Decl *decl, QC_AST_Node *ident, QC_AST_Node *body, QC_AST_Node *builtin_sub_decl_ref, QC_AST_Node *backend_decl_ref);
 void qc_copy_var_decl_node(QC_AST_Var_Decl *copy, QC_AST_Var_Decl *decl, QC_AST_Node *type, QC_AST_Node *ident, QC_AST_Node *value);
 void qc_copy_func_decl_node(QC_AST_Func_Decl *copy, QC_AST_Func_Decl *decl, QC_AST_Node *type, QC_AST_Node *ident, QC_AST_Node *body, QC_AST_Node **params, int param_count, QC_AST_Node *backend_decl_ref);

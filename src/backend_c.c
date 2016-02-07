@@ -114,10 +114,15 @@ QC_INTERNAL void append_type_and_ident_str(QC_Array(char) *buf, QC_AST_Type *typ
 	if (type->base_typedef) {
 		qc_append_str(buf, "%s ", type->base_typedef->ident->text.data);
 	} else {
-		if (type->base_type_decl->is_builtin) {
-			qc_append_builtin_type_c_str(buf, type->base_type_decl->builtin_type);
+		if (type->ident) {
+			qc_append_str(buf, "%s", type->ident->text.data);
 		} else {
-			qc_append_str(buf, "%s", type->base_type_decl->ident->text.data);
+			QC_ASSERT(type->base_type_decl);
+			if (type->base_type_decl->is_builtin) {
+				qc_append_builtin_type_c_str(buf, type->base_type_decl->builtin_type);
+			} else {
+				qc_append_str(buf, "%s", type->base_type_decl->ident->text.data);
+			}
 		}
 
 		if (ident)

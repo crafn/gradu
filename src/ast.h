@@ -357,6 +357,7 @@ QC_Bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr);
 /* Return value needs to be qc_destroy_node'd */
 QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr);
 
+/* @todo Move these near corresponding types */
 QC_Bool qc_is_decl(QC_AST_Node *node);
 QC_AST_Ident *qc_decl_ident(QC_AST_Node *node);
 QC_AST_Ident *qc_access_ident(QC_AST_Access *access);

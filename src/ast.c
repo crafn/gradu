@@ -719,6 +719,8 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 {
 	QC_AST_Literal *ret = NULL;
 	QC_AST_Literal *lhs = NULL, *rhs = NULL;
+	if (!expr)
+		return NULL;
 
 	switch (expr->type) {
 	case QC_AST_literal: {

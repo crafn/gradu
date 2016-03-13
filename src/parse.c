@@ -87,6 +87,8 @@ int qc_biop_prec(QC_Token_Type type)
 	case QC_Token_mul_assign:
 	case QC_Token_div_assign: ++prec;
 
+	case QC_Token_comma: ++prec;
+
 	break;
 	default: return -1;
 	}

@@ -6,10 +6,23 @@
 int aaaaa; /* Comment explaining 'aaaaa' */ // See how comments are preserved in the output
 char bbbbbb;
 
+struct Aggregate2 {
+	int c;
+}
+
+struct Aggregate {
+	int a;
+	int b;
+	Aggregate2 c;
+}
+
+
 int main(int argc, const char **argv)
 {
 	int temp_var;
 	int i;
+
+	Aggregate foo1 = {0, 1, {2},};
 
 	// Testing expression parsing
 	temp_var = 1 + 2 * 3;

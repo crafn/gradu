@@ -1019,8 +1019,12 @@ QC_INTERNAL QC_Bool parse_arg_list(Parse_Ctx *ctx, QC_Array(QC_AST_Node_Ptr) *re
 		if (cur_tok(ctx)->type == QC_Token_comma)
 			advance_tok(ctx);
 
+		/* Allow (foo, bar,) */
+		if (cur_tok(ctx)->type == ending)
+			break;
+
 		/* Normal expression */
-		if (!parse_expr(ctx, (QC_AST_Node**)&arg, 0, NULL, QC_false))
+		if (!parse_expr(ctx, (QC_AST_Node**)&arg, qc_biop_prec(QC_Token_comma) + 1, NULL, QC_false))
 			goto mismatch;
 
 		qc_push_array(QC_AST_Node_Ptr)(ret, arg);

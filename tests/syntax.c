@@ -10,6 +10,18 @@
 int aaaaa; /* Comment explaining 'aaaaa' */ /* See how comments are preserved in the output */
 char bbbbbb;
 
+typedef struct Aggregate2
+{
+    int c;
+} Aggregate2;
+
+typedef struct Aggregate
+{
+    int a;
+    int b;
+    Aggregate2 c;
+} Aggregate;
+
 /* These will be in global scope in the output code */
 typedef struct LocalType
 {
@@ -25,6 +37,12 @@ int main(int argc, const char **argv)
 {
     int temp_var;
     int i;
+
+    Aggregate foo1 = {
+        0,
+        1,
+        { 2 }
+    };
     temp_var = 1 + 2 * 3;
     local_func(10);
 
@@ -52,6 +70,6 @@ int main(int argc, const char **argv)
         }
     }
 
-    return 0;
+    return foo1.a;
 }
 

@@ -2,12 +2,12 @@
 #include <stdlib.h>
 #include <string.h> /* memcpy */
 
-/* Extended C syntax test */
+/* Extended C syntax test */
 
 /**********************/
 /* BLOCK COMMENT TEST */
 /**********************/
-int aaaaa; /* Comment explaining 'aaaaa' */ /* See how comments are preserved in the output */
+int aaaaa; /* Comment explaining 'aaaaa' */ /* See how comments are preserved in the output */
 char bbbbbb;
 
 typedef struct Aggregate2
@@ -22,14 +22,14 @@ typedef struct Aggregate
     Aggregate2 c;
 } Aggregate;
 
-/* These will be in global scope in the output code */
+/* These will be in global scope in the output code */
 typedef struct LocalType
 {
     int foo;
 } LocalType;
 void local_func(int p)
 {
-    LocalType bug_test; /* Just to test that identifier lookup works */
+    LocalType bug_test; /* Just to test that identifier lookup works */
     bug_test.foo = 123;
     aaaaa = bug_test.foo + p;
 }

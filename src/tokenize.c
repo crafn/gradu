@@ -154,6 +154,7 @@ typedef enum {
 
 typedef struct QC_Tokenize_Ctx {
 	Tok_State state;
+	char string_begin_char;
 	int block_comment_depth;
 	const char *end;
 	int cur_line;
@@ -227,6 +228,7 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 							(ch == '_')) {
 					t.state = Tok_State_name;
 				} else if (ch == '\"' || ch == '@') { /* @todo Remove temp hack of @ */
+					t.string_begin_char = ch;
 					t.state = Tok_State_str;
 				} else if (linebreak(ch)) {
 					on_linebreak(&t);
@@ -277,7 +279,7 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 				}
 			break;
 			case Tok_State_str:
-				if (ch == '\"' || ch == '@') /* @todo Remove temp hack of @ */
+				if (ch == t.string_begin_char)
 					commit_token(&t, tok_begin + 1, cur, QC_Token_string);
 			break;
 			case Tok_State_line_comment:

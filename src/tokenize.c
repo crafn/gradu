@@ -165,7 +165,7 @@ typedef struct QC_Tokenize_Ctx {
 
 QC_INTERNAL void commit_token(QC_Tokenize_Ctx *t, const char *b, const char *e, QC_Token_Type type)
 {
-	if (e > b) {
+	if (e >= b) {
 		QC_Token tok = {0};
 		QC_Bool last_on_line = e + 1 < t->end && linebreak(*e);
 		if (type == QC_Token_name) {

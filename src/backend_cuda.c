@@ -304,21 +304,6 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 				if (!qc_expr_type(&type, QC_AST_BASE(access)))
 					QC_FAIL(("qc_expr_type failed"));
 
-
-#if 0
-				if (type.base_type_decl->is_builtin && type.base_type_decl->builtin_type.is_field)
-					is_field = QC_true;
-				if (!is_field) {
-					/* Kernel argument */
-					qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args,
-							QC_AST_BASE(qc_create_ident_with_text(NULL, host_var_name)));
-				}
-
-				if (!is_field)
-					continue;
-#endif
-
-
 				{ /* Cuda var declaration */
 					cuda_var_decl = qc_create_simple_var_decl(type.base_type_decl, host_var_name);
 					/*qc_append_str(&cuda_var_decl->ident->text, "_cuda");*/
@@ -331,95 +316,35 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					QC_AST_Node *deref_cuda_var = qc_create_full_deref(qc_copy_ast(QC_AST_BASE(access)));
 					qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args, deref_cuda_var);
 				}
-
-
-#if 0
-				{ /* Device malloc */
-					QC_AST_Call *call = qc_create_call_node();
-					call->ident = qc_create_ident_with_text(NULL, "cudaMalloc");
-
-					{ /* Args */
-						/* @todo Proper QC_AST */
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "(void**)&%s", cuda_var_name)));
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "sizeof(*%s)", cuda_var_name)));
-					}
-					qc_push_array(QC_AST_Node_Ptr)(&malloc_calls, QC_AST_BASE(call));
-				}
-
-				/* Memcpy from host to device */
-				if (k > 0) {
-					QC_AST_Call *call = qc_create_call_node();
-					call->ident = qc_create_ident_with_text(NULL, "cudaMemcpy");
-
-					{ /* Args */
-						/* @todo Proper QC_AST */
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", cuda_var_name)));
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", host_var_name)));
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "sizeof(*%s)", cuda_var_name)));
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "cudaMemcpyHostToDevice")));
-					}
-					qc_push_array(QC_AST_Node_Ptr)(&memcpy_to_device_calls, QC_AST_BASE(call));
-				}
-
-				/* Memcpy from device to host */
-				if (k == 0) {
-					QC_AST_Call *call = qc_create_call_node();
-					call->ident = qc_create_ident_with_text(NULL, "cudaMemcpy");
-
-					{ /* Args */
-						/* @todo Proper QC_AST */
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", host_var_name)));
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", cuda_var_name)));
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "sizeof(*%s)", cuda_var_name)));
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "cudaMemcpyDeviceToHost")));
-					}
-					qc_push_array(QC_AST_Node_Ptr)(&memcpy_from_device_calls, QC_AST_BASE(call));
-				}
-
-				{ /* Free device memory */
-					QC_AST_Call *call = qc_create_call_node();
-					call->ident = qc_create_ident_with_text(NULL, "cudaFree");
-
-					{ /* Args */
-						/* @todo Proper QC_AST */
-						qc_push_array(QC_AST_Node_Ptr)(&call->args,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "%s", cuda_var_name)));
-					}
-					qc_push_array(QC_AST_Node_Ptr)(&free_calls, QC_AST_BASE(call));
-				}
-#endif
 			}
 
 			{ /* Write generated nodes to scope in correct order */
-				/*for (k = 0; k < cuda_var_decls.size; ++k)
-					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, cuda_var_decls.data[k]);*/
+				QC_AST_Node *size_accesses[3] = {0};
+
 				for (k = 0; k < malloc_calls.size; ++k)
 					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, malloc_calls.data[k]);
 				for (k = 0; k < memcpy_to_device_calls.size; ++k)
 					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, memcpy_to_device_calls.data[k]);
 
-				/* @todo Proper QC_AST */
+				/* @todo Proper AST */
 				/* @todo Support non-two-dimensional fields! */
 				qc_push_array(QC_AST_Node_Ptr)(
 							&scope->nodes,
 							QC_AST_BASE(qc_create_ident_with_text(NULL, "dim3 dim_grid(1, 1, 1)")));
+
+
+				for (k = 0; k < 3; ++k) {
+					if (k < parallel->dim)
+						size_accesses[k] = QC_AST_BASE(c_create_field_dim_size((QC_AST_Access*)qc_copy_ast(var_accesses.data[0]), k));
+					else
+						size_accesses[k] = QC_AST_BASE(qc_create_integer_literal(1, root));
+				}
+
 				qc_push_array(QC_AST_Node_Ptr)(
 							&scope->nodes,
 							QC_AST_BASE(qc_create_call_3(
 								qc_create_ident_with_text(NULL, "dim3 dim_block"),
-								QC_AST_BASE(c_create_field_dim_size((QC_AST_Access*)qc_copy_ast(var_accesses.data[0]), 0)),
-								QC_AST_BASE(c_create_field_dim_size((QC_AST_Access*)qc_copy_ast(var_accesses.data[0]), 1)),
-								QC_AST_BASE(qc_create_integer_literal(1, root))
+								size_accesses[0], size_accesses[1], size_accesses[2]
 							)));
 
 				qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_AST_BASE(cuda_call));

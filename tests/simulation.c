@@ -66,7 +66,7 @@ int main(int argc, char **argv)
         Field *input = &device_field_1;
         Field *output = &device_field_2;
 
-        /* Swap */
+        /* Swap */
         if (i % 2 == 1) {
             Field *tmp = output;
             output = input;
@@ -99,7 +99,7 @@ int main(int argc, char **argv)
         }
         memcpy_field_floatfield2(host_field, *output);
 
-        /* Print current state */
+        /* Print current state */
         for (y = 0; y < size_y; ++y) {
             int x;
             for (x = 0; x < size_x; ++x) {

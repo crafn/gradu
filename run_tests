@@ -6,6 +6,7 @@ test_files = [
 	#"./tests/c_syntax.qft", # This is quite broken for C89 compilation
 	"./tests/builtin_types.qft",
 	"./tests/syntax.qft",
+	"./tests/simple_example.qft",
 	"./tests/simulation.qft",
 ]
 

@@ -71,6 +71,7 @@ typedef enum {
 	QC_Token_kw_size_t,
 	QC_Token_kw_char,
 	QC_Token_kw_float,
+	QC_Token_kw_double,
 	QC_Token_kw_matrix,
 	QC_Token_kw_field,
 	QC_Token_kw_const,

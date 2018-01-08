@@ -132,6 +132,8 @@ int main(int argc, const char **argv)
 			FILE *out = fopen(output_path, "wb");
 			fwrite(gen_code.data, strlen(gen_code.data), 1, out);
 			fclose(out);
+		} else {
+			printf("%.*s", gen_code.size, gen_code.data);
 		}
 	}
 

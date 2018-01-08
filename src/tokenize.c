@@ -132,6 +132,8 @@ QC_INTERNAL QC_Token_Type kw_tokentype(const char *buf, int size)
 		return QC_Token_kw_char;
 	if (str_equals_buf("float", buf, size))
 		return QC_Token_kw_float;
+	if (str_equals_buf("double", buf, size))
+		return QC_Token_kw_double;
 	if (str_equals_buf("matrix", buf, size))
 		return QC_Token_kw_matrix;
 	if (str_equals_buf("field", buf, size))
@@ -290,7 +292,9 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 			case Tok_State_block_comment: {
 				char a = *(cur - 1);
 				char b = *(cur);
-				if (double_char_tokentype(a, b) == QC_Token_block_comment) {
+				if (linebreak(ch)) {
+					on_linebreak(&t);
+				} else if (double_char_tokentype(a, b) == QC_Token_block_comment) {
 					++t.block_comment_depth;
 				} else if (a == '*' && b == '/') {
 					--t.block_comment_depth;

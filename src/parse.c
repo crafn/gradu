@@ -218,7 +218,8 @@ QC_INTERNAL void begin_node_parsing(Parse_Ctx *ctx, QC_AST_Node *node)
 
 #define QC_PARSE_DEBUG 0
 #if QC_PARSE_DEBUG
-	printf("begin_node_parsing %s\n", qc_node_type_str(node->type));
+	{ int i; for (i = 0; i < ctx->parse_stack.size - 1; ++i) printf(" "); }
+	printf("begin_node_parsing %s %i %.*s\n", qc_node_type_str(node->type), cur_tok(ctx)->line, cur_tok(ctx)->text.len, cur_tok(ctx)->text.buf);
 #endif
 
 	if (ctx->parse_stack.size > 0) {
@@ -255,6 +256,7 @@ QC_INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 	ctx->error_tok = NULL;
 
 #if QC_PARSE_DEBUG
+	{ int i; for (i = 0; i < ctx->parse_stack.size - 1; ++i) printf(" "); }
 	printf("end_node_parsing (%s)\n", qc_node_type_str(frame.node->type));
 #endif
 
@@ -296,10 +298,13 @@ QC_INTERNAL void end_node_parsing(Parse_Ctx *ctx)
 
 QC_INTERNAL void cancel_node_parsing(Parse_Ctx *ctx)
 {
-	Parse_Stack_Frame frame = qc_pop_array(Parse_Stack_Frame)(&ctx->parse_stack);
+	Parse_Stack_Frame frame;
+	QC_ASSERT(ctx->parse_stack.size > 0);
+	frame = qc_pop_array(Parse_Stack_Frame)(&ctx->parse_stack);
 	QC_ASSERT(frame.node);
 
 #if QC_PARSE_DEBUG
+	{ int i; for (i = 0; i < ctx->parse_stack.size - 1; ++i) printf(" "); }
 	printf("cancel_node_parsing (%s)\n", qc_node_type_str(frame.node->type));
 #endif
 
@@ -330,7 +335,10 @@ QC_INTERNAL void report_error(Parse_Ctx *ctx, int priority, const char *fmt, ...
 		qc_destroy_array(char)(&ctx->error_msg);
 		ctx->error_priority = priority;
 		ctx->error_msg = msg;
-		ctx->error_tok = cur_tok(ctx);
+		if (ctx->parse_stack.size > 0)
+			ctx->error_tok = ctx->parse_stack.data[ctx->parse_stack.size - 1].begin_tok;
+		else
+			ctx->error_tok = cur_tok(ctx);
 	}
 }
 
@@ -637,6 +645,11 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 				bt.bitness = 32;
 				advance_tok(ctx);
 			break;
+			case QC_Token_kw_double:
+				bt.is_float = QC_true;
+				bt.bitness = 64;
+				advance_tok(ctx);
+			break;
 			case QC_Token_kw_matrix: {
 				bt.is_matrix = QC_true;
 				advance_tok(ctx);
@@ -749,6 +762,7 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 			} else if (found_decl->type == QC_AST_typedef) {
 				QC_CASTED_NODE(QC_AST_Typedef, def, found_decl);
 				type->base_typedef = def;
+				QC_ASSERT(type->base_typedef->b.type == QC_AST_typedef);
 				type->base_type_decl = def->type->base_type_decl;
 			} else {
 				report_error_expected(ctx, "type name", cur_tok(ctx));
@@ -1075,6 +1089,9 @@ QC_INTERNAL QC_Bool parse_call_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_No
 	QC_Array(QC_AST_Type) types = {0};
 	begin_node_parsing(ctx, QC_AST_BASE(call));
 
+	if (!ident)
+		goto mismatch; /* @todo Failsafe to prevent infinite recursion. To allow fptr stuff, replace this check with 'evaluated_type != funcptr' */
+
 	if (ident && ident->decl && ident->decl->type != QC_AST_func_decl) {
 		/* e.g. Discard e.g. field accessing with () */
 		goto mismatch;
@@ -1231,8 +1248,12 @@ QC_INTERNAL QC_Bool parse_element_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret,
 {
 	QC_AST_Access *access = qc_create_access_node();
 	QC_AST_Type base_type;
+	QC_AST_Ident *ident = qc_unwrap_ident(base);
 
 	begin_node_parsing(ctx, QC_AST_BASE(access));
+
+	if (!ident)
+		goto mismatch; /* @todo Failsafe to prevent infinite recursion. To allow ptr stuff, replace this check with 'evaluated_type != field/matrix' */
 
 	if (!accept_tok(ctx, QC_Token_open_paren))
 		goto mismatch;
@@ -1256,6 +1277,7 @@ QC_INTERNAL QC_Bool parse_element_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret,
 		goto mismatch;
 
 	*ret = QC_AST_BASE(access);
+	end_node_parsing(ctx);
 	return QC_true;
 
 mismatch:
@@ -1299,7 +1321,8 @@ QC_INTERNAL QC_Bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, 
 		} else if (parse_element_access_expr(ctx, &expr, expr)) {
 			;
 		} else {
-			QC_FAIL(("Expression parsing logic failed"));
+			report_error(ctx, QC_PRIORITY_DEFAULT, "Invalid binary expression");
+			goto mismatch;
 		}
 	}
 
@@ -1407,14 +1430,17 @@ QC_INTERNAL QC_Bool parse_cond(Parse_Ctx *ctx, QC_AST_Node **ret)
 
 	if (accept_tok(ctx, QC_Token_kw_else)) {
 		if (!accept_tok(ctx, QC_Token_semi)) {
-			if (!parse_statement(ctx, &cond->after_else))
+			if (!parse_statement(ctx, &cond->after_else)) {
+				report_error(ctx, QC_PRIORITY_DEFAULT, "todo error message");
 				goto mismatch;
+			}
 		}
 
 		if (cond->after_else) {
-			if (	cond->after_else->type != QC_AST_scope ||
+			if (	cond->after_else->type != QC_AST_scope &&
 					cond->after_else->type != QC_AST_cond) {
-				report_error_expected(ctx, "'if', '{' or ';'", cur_tok(ctx));
+				report_error_expected(ctx, "'if' or '{'", cur_tok(ctx));
+				goto mismatch;
 			}
 		}
 	}

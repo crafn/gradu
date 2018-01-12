@@ -37,6 +37,7 @@ floatmat3x3 floatmat3x3_mul(floatmat3x3 lhs, floatmat3x3 rhs)
     return ret;
 }
 
+
 int main(int argc, char **argv)
 {
     intmat2x2 mat1;
@@ -65,4 +66,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-

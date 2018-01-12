@@ -335,6 +335,7 @@ void qc_copy_func_decl_node(QC_AST_Func_Decl *copy, QC_AST_Func_Decl *decl, QC_A
 	copy->ellipsis = decl->ellipsis;
 	copy->is_builtin = decl->is_builtin;
 	copy->builtin_concrete_decl = (QC_AST_Func_Decl*)backend_decl_ref;
+	copy->is_extern = decl->is_extern;
 
 	qc_clear_array(QC_AST_Var_Decl_Ptr)(&copy->params);
 	for (i = 0; i < param_count; ++i) {
@@ -1566,8 +1567,8 @@ QC_AST_Node *qc_replace_nodes_in_ast(QC_AST_Node *node, QC_AST_Node **old_nodes,
 
 		/* Update replaced pointers to node */
 		qc_copy_ast_node(	node, node,
-						subnodes.data, subnodes.size,
-						refnodes.data, refnodes.size);
+							subnodes.data, subnodes.size,
+							refnodes.data, refnodes.size);
 
 		qc_destroy_array(QC_AST_Node_Ptr)(&subnodes);
 		qc_destroy_array(QC_AST_Node_Ptr)(&refnodes);

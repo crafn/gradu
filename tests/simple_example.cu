@@ -73,11 +73,13 @@ __global__ void TODO_proper_kernel_name(intfield1 a, intfield1 b)
     a.m[1 * id.m[1 * 0]] += b.m[1 * id.m[1 * 0]];
 }
 
+
 int main()
 {
     int N = 5;
 
     /* TODO: alloc_field -> alloc_host_field */
+
     Field a_data = alloc_field_intfield1(N);
     Field b_data = alloc_field_intfield1(N);
     a_data.m[1 * 0] = 1;
@@ -95,6 +97,7 @@ int main()
     Field b = alloc_device_field_intfield1(N);
     memcpy_field_intfield1(a, a_data);
     memcpy_field_intfield1(b, b_data);
+
     {
         dim3 dim_grid(1, 1, 1);
         dim3 dim_block(a.size[0], 1, 1);
@@ -112,4 +115,3 @@ int main()
 
     return 0;
 }
-

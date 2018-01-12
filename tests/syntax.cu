@@ -8,6 +8,7 @@
 /* BLOCK COMMENT TEST */
 /**********************/
 int aaaaa; /* Comment explaining 'aaaaa' */ /* See how comments are preserved in the output */
+
 char bbbbbb;
 
 typedef struct Aggregate2
@@ -23,6 +24,7 @@ typedef struct Aggregate
 } Aggregate;
 
 /* These will be in global scope in the output code */
+
 typedef struct LocalType
 {
     int foo;

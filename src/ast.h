@@ -146,6 +146,7 @@ typedef struct QC_AST_Func_Decl {
 	QC_Array(QC_AST_Var_Decl_Ptr) params;
 	QC_Bool ellipsis;
 	QC_AST_Scope *body;
+	QC_Bool is_extern; /* Not present in output */
 
 	QC_Bool is_builtin; /* Field allocation and deallocation functions */
 	struct QC_AST_Func_Decl *builtin_concrete_decl; /* Not owned. Backend can use this to point generated types. */

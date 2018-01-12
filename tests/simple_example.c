@@ -41,12 +41,14 @@ typedef struct intmat1
 int printf(const char *fmt, ...); /* TODO: Remove */
 
 typedef intfield1 Field; /* One-dimensional integer field type */
+
 int main()
 {
     int i;
     int N = 5;
 
     /* TODO: alloc_field -> alloc_host_field */
+
     Field a_data = alloc_field_intfield1(N);
     Field b_data = alloc_field_intfield1(N);
 
@@ -66,6 +68,7 @@ int main()
     b = alloc_field_intfield1(N);
     memcpy_field_intfield1(a, a_data);
     memcpy_field_intfield1(b, b_data);
+
     {
         int id_0;
         for (id_0 = 0; id_0 < size_intfield1(a, 0); ++id_0) {
@@ -86,4 +89,3 @@ int main()
 
     return 0;
 }
-

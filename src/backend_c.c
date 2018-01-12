@@ -34,12 +34,15 @@ void qc_append_builtin_type_c_str(QC_Array(char) *buf, QC_Builtin_Type bt)
 	if (bt.is_void) {
 		qc_append_str(buf, "void", bt.bitness);
 	} else if (bt.is_integer) {
-		if (bt.is_unsigned)
-			qc_append_str(buf, "u");
-		if (bt.bitness > 0)
+		if (bt.bitness > 0) {
+			if (bt.is_unsigned)
+				qc_append_str(buf, "u");
 			qc_append_str(buf, "int%i_t", bt.bitness);
-		else
+		} else {
+			if (bt.is_unsigned)
+				qc_append_str(buf, "unsigned ");
 			qc_append_str(buf, "int");
+		}
 	} else if (bt.is_char) {
 		qc_append_str(buf, "char");
 	} else if (bt.is_float) {
@@ -425,7 +428,7 @@ void qc_lift_var_decls(QC_AST_Scope *root)
 			if (target_ix == ix)
 				break;
 
-			if (decl->value) {
+			if (decl->value && !decl->type->is_const) {
 				/* Change former decl to be the initialization. */
 				scope->nodes.data[ix] =
 					QC_AST_BASE(qc_create_assign(
@@ -947,13 +950,14 @@ void qc_apply_c_operator_overloading(QC_AST_Scope *root, QC_Bool convert_mat_exp
 			if (!bt.is_matrix)
 				continue;
 
-			{
+			/* @todo Handle all operations */
+			if (biop->type == QC_Token_mul) {
 				QC_AST_Call *call;
 				QC_AST_Ident *ident = qc_create_ident_node();
 				qc_append_builtin_type_c_str(&ident->text, bt);
-				/* @todo Handle all operations */
 				qc_append_str(&ident->text, "_mul");
 				
+				QC_ASSERT(biop->lhs && biop->rhs);
 				call = qc_create_call_2(ident, biop->lhs, biop->rhs);
 
 				/* Mark biop to be replaced with the function call */
@@ -1075,6 +1079,7 @@ void qc_append_c_stdlib_includes(QC_Array(char) *buf)
 	qc_append_str(buf, "#include <stdio.h>\n");
 	qc_append_str(buf, "#include <stdlib.h>\n");
 	qc_append_str(buf, "#include <string.h> /* memcpy */\n");
+	qc_append_str(buf, "#include <math.h>\n");
 	qc_append_str(buf, "\n");
 }
 
@@ -1173,7 +1178,7 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 
 	case QC_AST_func_decl: {
 		QC_CASTED_NODE(QC_AST_Func_Decl, decl, node);
-		if (decl->is_builtin) {
+		if (decl->is_builtin || decl->is_extern) {
 			omitted = QC_true;
 			break;
 		}
@@ -1240,13 +1245,18 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 		if (biop->lhs && biop->rhs) {
 			QC_Bool lhs_parens = nested_expr_needs_parens(node, biop->lhs);
 			QC_Bool rhs_parens = nested_expr_needs_parens(node, biop->rhs);
+			QC_Bool spacing = (biop->type != QC_Token_mul && biop->type != QC_Token_div);
 			if (lhs_parens)
 				qc_append_str(buf, "(");
 			qc_ast_to_c_str(buf, indent, biop->lhs);
 			if (lhs_parens)
 				qc_append_str(buf, ")");
 
-			qc_append_str(buf, " %s ", qc_tokentype_codestr(biop->type));
+			if (spacing)
+				qc_append_str(buf, " ");
+			qc_append_str(buf, "%s", qc_tokentype_codestr(biop->type));
+			if (spacing)
+				qc_append_str(buf, " ");
 
 			if (rhs_parens)
 				qc_append_str(buf, "(");

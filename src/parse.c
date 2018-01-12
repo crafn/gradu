@@ -77,6 +77,7 @@ int qc_biop_prec(QC_Token_Type type)
 	case QC_Token_greater: ++prec;
 
 	case QC_Token_equals: ++prec;
+	case QC_Token_nequals: ++prec;
 
 	case QC_Token_and: ++prec;
 	case QC_Token_or: ++prec;
@@ -120,6 +121,7 @@ QC_Bool is_binary_op(QC_Token_Type type)
 	case QC_Token_greater:
 
 	case QC_Token_equals:
+	case QC_Token_nequals:
 
 	case QC_Token_and:
 	case QC_Token_or:
@@ -620,6 +622,10 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 				bt.is_void = QC_true;
 				advance_tok(ctx);
 			break;
+			case QC_Token_kw_unsigned:
+				bt.is_unsigned = QC_true;
+				advance_tok(ctx);
+			break;
 			case QC_Token_kw_int:
 				bt.is_integer = QC_true;
 				bt.bitness = 0; /* Not specified */
@@ -825,6 +831,9 @@ QC_INTERNAL QC_Bool parse_func_decl(Parse_Ctx *ctx, QC_AST_Node **ret)
 {
 	QC_AST_Func_Decl *decl = qc_create_func_decl_node();
 	begin_node_parsing(ctx, QC_AST_BASE(decl));
+
+	if (accept_tok(ctx, QC_Token_kw_extern))
+		decl->is_extern = QC_true;
 
 	if (!parse_type_and_ident(ctx, &decl->return_type, &decl->ident, QC_AST_BASE(decl)))
 		goto mismatch;

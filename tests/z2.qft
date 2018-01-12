@@ -1,0 +1,114 @@
+/* Adapted from: */
+/* Z_2 lattice gauge simulation */
+/* Michael Creutz <creutz@bnl.gov>     */
+/* http://thy.phy.bnl.gov/~creutz/z2.c */
+
+extern int rand();
+extern int srand(unsigned int seed);
+extern int printf(const char* fmt, ..);
+extern double exp(double e);
+
+/* the lattice is of dimensions SIZE**4  */
+const int SIZE = 10;
+typedef int field(5) Links; // Last index is link direction
+int field(5) link;
+
+void moveup(int matrix(5) *x, int d)
+{
+	x(d) += 1;
+	if (x(d) >= SIZE) x(d) -= SIZE; 
+}
+
+void movedown(int matrix(5) *x, int d)
+{
+	x(d) -= 1;
+	if (x(d) < 0) x(d) += SIZE;
+}
+
+void coldstart()
+{
+	for_field(link; link) {
+		link(id(0), id(1), id(2), id(3), id(4)) = 1;
+	}
+}
+
+double drand()
+{ return 1.0*(rand()%100)/100.0; }
+
+double update(double beta)
+{
+	int d;
+	int dperp;
+	int staple;
+	int staplesum;
+	double bplus;
+	double bminus;
+	double action = 0.0; 
+
+	for_field(link; link) {
+		staplesum = 0;
+
+		int d = id(4);
+		for (dperp = 0; dperp < 4; dperp += 1) {
+			if (dperp != d) {
+				movedown(&id, dperp);
+				int v1 = link(id(0), id(1), id(2), id(3), dperp);
+				int v2 = link(id(0), id(1), id(2), id(3), d);
+				staple = v1*v2;
+				moveup(&id, d);
+				staple *= link(id(0), id(1), id(2), id(3), dperp);
+				moveup(&id, dperp);
+				staplesum += staple;
+
+				staple = link(id(0), id(1), id(2), id(3), dperp);
+				moveup(&id, dperp);
+				movedown(&id, d);
+				staple *= link(id(0), id(1), id(2), id(3), d);
+				movedown(&id, dperp);
+				staple *= link(id(0), id(1), id(2), id(3), dperp);
+				staplesum += staple;
+			}
+		}
+
+		bplus = exp(beta*staplesum);
+		bminus = 1/bplus;
+		bplus = bplus/(bplus+bminus);
+
+		if (drand() < bplus) {
+			link(id(0), id(1), id(2), id(3), d) = 1;
+			action += staplesum;
+		} else {
+			link(id(0), id(1), id(2), id(3), d) = -1;
+			action -= staplesum;
+		}
+	}
+	action /= SIZE*SIZE*SIZE*SIZE*4*6;
+	return 1.0 - action;
+}
+
+int main()
+{
+	link = alloc_field(SIZE, SIZE, SIZE, SIZE, 4);
+
+	double beta;
+	double action;
+	double dbeta = 0.01;
+	srand(1234);
+
+	coldstart();
+
+	for (beta = 1; beta > 0.0; beta -= dbeta) {
+		action = update(beta);
+		printf("%g\t%g\n", beta, action); 
+	}
+	printf("\n\n");
+	for (beta = 0; beta < 1.0; beta += dbeta) {
+		action = update(beta);
+		printf("%g\t%g\n", beta, action); 
+	}
+
+	free_field(link);
+
+	return 0;
+}
+

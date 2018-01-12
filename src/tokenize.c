@@ -120,8 +120,12 @@ QC_INTERNAL QC_Token_Type kw_tokentype(const char *buf, int size)
 		return QC_Token_kw_typedef;
 	if (str_equals_buf("for_field", buf, size))
 		return QC_Token_kw_parallel;
+	if (str_equals_buf("extern", buf, size))
+		return QC_Token_kw_extern;
 	if (str_equals_buf("void", buf, size))
 		return QC_Token_kw_void;
+	if (str_equals_buf("unsigned", buf, size))
+		return QC_Token_kw_unsigned;
 	if (str_equals_buf("int", buf, size))
 		return QC_Token_kw_int;
 	if (str_equals_buf("bool", buf, size))
@@ -234,6 +238,10 @@ QC_Array(QC_Token) qc_tokenize(const char* src, int src_size)
 					t.state = Tok_State_str;
 				} else if (linebreak(ch)) {
 					on_linebreak(&t);
+				} else if (whitespace(ch)) {
+					/* Nop */
+				} else {
+					t.state = Tok_State_maybe_single_char; /* Only to trigger double char check next round for e.g. '!=' */
 				}
 				tok_begin = cur;
 			break;

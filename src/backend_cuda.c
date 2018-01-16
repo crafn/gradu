@@ -227,6 +227,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 
 void parallel_loops_to_cuda(QC_AST_Scope *root)
 {
+	int kernel_count = 0;
 	int i, k, m;
 	QC_Array(QC_AST_Node_Ptr) replace_list_old = qc_create_array(QC_AST_Node_Ptr)(0);
 	QC_Array(QC_AST_Node_Ptr) replace_list_new = qc_create_array(QC_AST_Node_Ptr)(0);
@@ -244,9 +245,8 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 		cuda_var_decls = qc_create_array(QC_AST_Var_Decl_Ptr)(0);
 
 		{ /* Find vars used in loop */
-			qc_find_subnodes_of_type(&var_accesses, QC_AST_access, parallel->output);
-			qc_find_subnodes_of_type(&var_accesses, QC_AST_access, parallel->input);
-			qc_find_subnodes_of_type(&var_accesses, QC_AST_access, QC_AST_BASE(parallel->body));
+			/* @note We're relying on that input and output fields are first in the resulting array */
+			qc_find_subnodes_of_type(&var_accesses, QC_AST_access, QC_AST_BASE(parallel));
 
 			/* Erase locals */
 			for (k = 0; k < var_accesses.size; ++k) {
@@ -259,6 +259,19 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 			for (k = 0; k < var_accesses.size; ++k) {
 				QC_AST_Ident *ident = qc_access_ident((QC_AST_Access*)var_accesses.data[k]);
 				if (!strcmp(ident->text.data, "id")) {
+					qc_erase_array(QC_AST_Node_Ptr)(&var_accesses, k--, 1);
+				}
+			}
+
+			/* Add __host__ __device__ to definitions of functions that are used in kernel */
+			/* Erase function names */
+			for (k = 0; k < var_accesses.size; ++k) {
+				QC_AST_Ident *ident = qc_access_ident((QC_AST_Access*)var_accesses.data[k]);
+				if (ident->decl->type == QC_AST_func_decl) {
+					QC_AST_Func_Decl *decl = (QC_AST_Func_Decl*)ident->decl;
+					if (!decl->is_extern)
+						QC_AST_BASE(decl)->attribute = "__host__ __device__";
+
 					qc_erase_array(QC_AST_Node_Ptr)(&var_accesses, k--, 1);
 				}
 			}
@@ -283,7 +296,7 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 			QC_Array(QC_AST_Node_Ptr) memcpy_from_device_calls = qc_create_array(QC_AST_Node_Ptr)(0);
 			QC_Array(QC_AST_Node_Ptr) free_calls = qc_create_array(QC_AST_Node_Ptr)(0);
 			QC_AST_Call *cuda_call = qc_create_call_node();
-			QC_AST_Ident *cuda_call_ident = qc_create_ident_with_text(NULL, "TODO_proper_kernel_name");
+			QC_AST_Ident *cuda_call_ident = qc_create_ident_with_text(NULL, "kernel_%i", kernel_count);
 
 			/* @todo Link ident to the kernel decl */
 			cuda_call->base = qc_try_create_access(QC_AST_BASE(cuda_call_ident));
@@ -319,7 +332,7 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 			}
 
 			{ /* Write generated nodes to scope in correct order */
-				QC_AST_Node *size_accesses[3] = {0};
+				QC_Array(QC_AST_Node_Ptr) size_accesses = qc_create_array(QC_AST_Node_Ptr)(0);
 
 				for (k = 0; k < malloc_calls.size; ++k)
 					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, malloc_calls.data[k]);
@@ -333,18 +346,17 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 							QC_AST_BASE(qc_create_ident_with_text(NULL, "dim3 dim_grid(1, 1, 1)")));
 
 
-				for (k = 0; k < 3; ++k) {
-					if (k < parallel->dim)
-						size_accesses[k] = QC_AST_BASE(c_create_field_dim_size((QC_AST_Access*)qc_copy_ast(var_accesses.data[0]), k));
-					else
-						size_accesses[k] = QC_AST_BASE(qc_create_integer_literal(1, root));
+				for (k = 0; k < parallel->dim; ++k) {
+					qc_push_array(QC_AST_Node_Ptr)(&size_accesses, QC_AST_BASE(c_create_field_dim_size((QC_AST_Access*)qc_copy_ast(var_accesses.data[0]), k)));
 				}
 
 				qc_push_array(QC_AST_Node_Ptr)(
 							&scope->nodes,
 							QC_AST_BASE(qc_create_call_3(
 								qc_create_ident_with_text(NULL, "dim3 dim_block"),
-								size_accesses[0], size_accesses[1], size_accesses[2]
+								qc_create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul),
+								QC_AST_BASE(qc_create_integer_literal(1, root)),
+								QC_AST_BASE(qc_create_integer_literal(1, root))
 							)));
 
 				qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_AST_BASE(cuda_call));
@@ -353,6 +365,8 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, memcpy_from_device_calls.data[k]);
 				for (k = 0; k < free_calls.size; ++k)
 					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, free_calls.data[k]);
+
+				qc_destroy_array(QC_AST_Node_Ptr)(&size_accesses);
 			}
 
 			qc_destroy_array(QC_AST_Node_Ptr)(&malloc_calls);
@@ -366,10 +380,9 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 		}
 
 		{ /* Create cuda kernel */
-			/* @todo __global__ attribute to function decl */
 			QC_AST_Func_Decl *kernel_decl = qc_create_func_decl_node();
 			kernel_decl->b.attribute = "__global__";
-			kernel_decl->ident = qc_create_ident_with_text(QC_AST_BASE(kernel_decl), "TODO_proper_kernel_name");
+			kernel_decl->ident = qc_create_ident_with_text(QC_AST_BASE(kernel_decl), "kernel_%i", kernel_count++);
 
 			kernel_decl->return_type = qc_create_type_node();
 			kernel_decl->return_type->base_type_decl = qc_find_builtin_type_decl(qc_void_builtin_type(), root);
@@ -381,31 +394,55 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 			}
 
 			{ /* Body */
-				/* Fields are passed by value */
-				QC_Array(QC_AST_Node_Ptr) accesses = qc_create_array(QC_AST_Node_Ptr)(0);
-				qc_find_subnodes_of_type(&accesses, QC_AST_access, QC_AST_BASE(parallel->body));
-				for (k = 0; k < accesses.size; ++k) {
-					QC_CASTED_NODE(QC_AST_Access, access, accesses.data[k]);
-					QC_AST_Type type;
-					if (!access->is_element_access)
-						continue;
-					if (!qc_expr_type(&type, access->base))
-						continue;
-					if (!type.base_type_decl->is_builtin)
-						continue;
-					if (!type.base_type_decl->builtin_type.is_field)
-						continue;
-					access->implicit_deref = QC_false;
+				{ /* Fields are passed by value */
+					QC_Array(QC_AST_Node_Ptr) accesses = qc_create_array(QC_AST_Node_Ptr)(0);
+					qc_find_subnodes_of_type(&accesses, QC_AST_access, QC_AST_BASE(parallel->body));
+					for (k = 0; k < accesses.size; ++k) {
+						QC_CASTED_NODE(QC_AST_Access, access, accesses.data[k]);
+						QC_AST_Type type;
+						if (!access->is_element_access)
+							continue;
+						if (!qc_expr_type(&type, access->base))
+							continue;
+						if (!type.base_type_decl->is_builtin)
+							continue;
+						if (!type.base_type_decl->builtin_type.is_field)
+							continue;
+						access->implicit_deref = QC_false;
+					}
+					qc_destroy_array(QC_AST_Node_Ptr)(&accesses);
 				}
-				qc_destroy_array(QC_AST_Node_Ptr)(&accesses);
 
 				/* Add initialization for 'id' */
-				for (k = 0; k < parallel->dim; ++k) {
-					const char *comp_name[3] = { "x", "y", "z" };
-					QC_ASSERT(k < 3);
-					qc_add_parallel_id_init(root, parallel, k,
-							qc_try_create_access(
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "threadIdx.%s", comp_name[k]))));
+				for (k = parallel->dim - 1; k >= 0; --k) {
+					QC_AST_Node *ix = QC_AST_BASE(qc_create_ident_with_text(NULL, "threadIdx.x"));
+					QC_AST_Node *mul_expr;
+					QC_AST_Node *mul_expr2;
+					QC_AST_Node *expr;
+					int n;
+
+					{ /* .. % size1*size2 .. */
+						QC_Array(QC_AST_Node_Ptr) sizes = qc_create_array(QC_AST_Node_Ptr)(0);
+						for (n = 0; n <= k; n++)
+							qc_push_array(QC_AST_Node_Ptr)(&sizes, QC_AST_BASE(c_create_field_dim_size(qc_create_simple_access(cuda_var_decls.data[0]), n)));
+						mul_expr = qc_create_chained_expr(sizes.data, sizes.size, QC_Token_mul);
+						qc_destroy_array(QC_AST_Node_Ptr)(&sizes);
+					}
+
+					{ /* .. / size1*size2 */
+						QC_Array(QC_AST_Node_Ptr) sizes = qc_create_array(QC_AST_Node_Ptr)(0);
+						for (n = 0; n < k; n++)
+							qc_push_array(QC_AST_Node_Ptr)(&sizes, QC_AST_BASE(c_create_field_dim_size(qc_create_simple_access(cuda_var_decls.data[0]), n)));
+						if (sizes.size > 0)
+							mul_expr2 = qc_create_chained_expr(sizes.data, sizes.size, QC_Token_mul);
+						else
+							mul_expr2 = QC_AST_BASE(qc_create_integer_literal(1, root));
+						qc_destroy_array(QC_AST_Node_Ptr)(&sizes);
+					}
+
+					expr = QC_AST_BASE(qc_create_biop(QC_Token_div, QC_AST_BASE(qc_create_biop(QC_Token_mod, ix, mul_expr)), mul_expr2));
+
+					qc_add_parallel_id_init(root, parallel, k, expr);
 				}
 
 				/* Move the whole block from parallel loop -- re-resolve afterwards */

@@ -65,10 +65,12 @@ typedef enum {
 	QC_Token_kw_typedef, /* typedef */
 	QC_Token_kw_parallel, /* for_field */
 	QC_Token_kw_extern,
+	QC_Token_kw_static,
 	/* Type-related */
 	QC_Token_kw_void,
 	QC_Token_kw_unsigned,
 	QC_Token_kw_int,
+	QC_Token_kw_uint64_t,
 	QC_Token_kw_bool,
 	QC_Token_kw_size_t,
 	QC_Token_kw_char,

@@ -57,7 +57,7 @@ int main(int argc, char **argv)
 		// Print current state
 		for (int y = 0; y < size_y; ++y) {
 			for (int x = 0; x < size_x; ++x) {	
-				char *ch = " ";
+				const char *ch = " ";
 				if (host_field(x, y) > 0.5)
 					ch = "#";
 				else if (host_field(x, y) > 0.1)

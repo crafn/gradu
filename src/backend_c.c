@@ -223,8 +223,7 @@ QC_AST_Var_Decl *qc_is_device_field_member_decl(QC_AST_Type_Decl *field_decl)
 	}
 }
 
-/* field.size[dim_i] */
-QC_INTERNAL QC_AST_Access *c_create_field_dim_size(QC_AST_Access *field_access, int dim_i)
+QC_AST_Access *c_create_field_dim_size(QC_AST_Access *field_access, int dim_i)
 {
 	QC_AST_Type type;
 	if (!qc_expr_type(&type, QC_AST_BASE(field_access)))
@@ -1080,6 +1079,7 @@ void qc_append_c_stdlib_includes(QC_Array(char) *buf)
 	qc_append_str(buf, "#include <stdlib.h>\n");
 	qc_append_str(buf, "#include <string.h> /* memcpy */\n");
 	qc_append_str(buf, "#include <math.h>\n");
+	qc_append_str(buf, "#include <stdint.h>\n");
 	qc_append_str(buf, "\n");
 }
 
@@ -1169,6 +1169,8 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 
 	case QC_AST_var_decl: {
 		QC_CASTED_NODE(QC_AST_Var_Decl, decl, node);
+		if (decl->is_static)
+			qc_append_str(buf, "static ");
 		append_type_and_ident_str(buf, decl->type, decl->ident->text.data);
 		if (decl->value) {
 			qc_append_str(buf, " = ");

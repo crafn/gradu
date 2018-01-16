@@ -48,7 +48,7 @@ typedef struct QC_AST_Node {
 	QC_Array(QC_Token_Ptr) pre_comments;
 	QC_Array(QC_Token_Ptr) post_comments; /* On the same line (like this comment) */
 
-	const char *attribute; /* Just a quick test for __global__ */
+	const char *attribute; /* e.g. __global__ */
 } QC_AST_Node;
 
 /* { ... } */
@@ -133,6 +133,8 @@ typedef struct QC_AST_Var_Decl {
 	QC_AST_Type *type;
 	QC_AST_Ident *ident;
 	QC_AST_Node *value;
+
+	QC_Bool is_static;
 } QC_AST_Var_Decl;
 
 typedef QC_AST_Var_Decl *QC_AST_Var_Decl_Ptr;

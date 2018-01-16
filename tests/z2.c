@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h> /* memcpy */
 #include <math.h>
+#include <stdint.h>
 
 typedef struct intfield5
 {
@@ -15,6 +16,7 @@ typedef struct intfield5
 const int SIZE = 10;
 
 intfield5 link;
+intfield5 dev_link;
 intfield5 alloc_field_intfield5(int size_0, int size_1, int size_2, int size_3, int size_4)
 {
     intfield5 field;
@@ -101,7 +103,8 @@ void coldstart()
 
 double drand()
 {
-    return 1.000000*(rand() % 100)/100.000000;
+    static unsigned int lcg_state;
+    return 1.000000*((lcg_state = 1103515245*lcg_state + 12345) % 100)/100.000000; /* This is slightly biased */
 }
 
 double update(double beta)
@@ -113,18 +116,19 @@ double update(double beta)
     double bplus;
     double bminus;
     double action = 0.000000;
+    memcpy_field_intfield5(dev_link, link);
 
     {
         int id_0;
-        for (id_0 = 0; id_0 < size_intfield5(link, 0); ++id_0) {
+        for (id_0 = 0; id_0 < size_intfield5(dev_link, 0); ++id_0) {
             int id_1;
-            for (id_1 = 0; id_1 < size_intfield5(link, 1); ++id_1) {
+            for (id_1 = 0; id_1 < size_intfield5(dev_link, 1); ++id_1) {
                 int id_2;
-                for (id_2 = 0; id_2 < size_intfield5(link, 2); ++id_2) {
+                for (id_2 = 0; id_2 < size_intfield5(dev_link, 2); ++id_2) {
                     int id_3;
-                    for (id_3 = 0; id_3 < size_intfield5(link, 3); ++id_3) {
+                    for (id_3 = 0; id_3 < size_intfield5(dev_link, 3); ++id_3) {
                         int id_4;
-                        for (id_4 = 0; id_4 < size_intfield5(link, 4); ++id_4) {
+                        for (id_4 = 0; id_4 < size_intfield5(dev_link, 4); ++id_4) {
                             intmat5 id;
 
                             int d;
@@ -140,19 +144,19 @@ double update(double beta)
                                     int v1;
                                     int v2;
                                     movedown(&id, dperp);
-                                    v1 = link.m[1*id.m[1*0] + link.size[0]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*link.size[1]*link.size[2]*id.m[1*3] + link.size[0]*link.size[1]*link.size[2]*link.size[3]*dperp];
-                                    v2 = link.m[1*id.m[1*0] + link.size[0]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*link.size[1]*link.size[2]*id.m[1*3] + link.size[0]*link.size[1]*link.size[2]*link.size[3]*d];
+                                    v1 = dev_link.m[1*id.m[1*0] + dev_link.size[0]*id.m[1*1] + dev_link.size[0]*dev_link.size[1]*id.m[1*2] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*id.m[1*3] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*dev_link.size[3]*dperp];
+                                    v2 = dev_link.m[1*id.m[1*0] + dev_link.size[0]*id.m[1*1] + dev_link.size[0]*dev_link.size[1]*id.m[1*2] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*id.m[1*3] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*dev_link.size[3]*d];
                                     staple = v1*v2;
                                     moveup(&id, d);
-                                    staple *= link.m[1*id.m[1*0] + link.size[0]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*link.size[1]*link.size[2]*id.m[1*3] + link.size[0]*link.size[1]*link.size[2]*link.size[3]*dperp];
+                                    staple *= dev_link.m[1*id.m[1*0] + dev_link.size[0]*id.m[1*1] + dev_link.size[0]*dev_link.size[1]*id.m[1*2] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*id.m[1*3] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*dev_link.size[3]*dperp];
                                     moveup(&id, dperp);
                                     staplesum += staple;
-                                    staple = link.m[1*id.m[1*0] + link.size[0]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*link.size[1]*link.size[2]*id.m[1*3] + link.size[0]*link.size[1]*link.size[2]*link.size[3]*dperp];
+                                    staple = dev_link.m[1*id.m[1*0] + dev_link.size[0]*id.m[1*1] + dev_link.size[0]*dev_link.size[1]*id.m[1*2] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*id.m[1*3] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*dev_link.size[3]*dperp];
                                     moveup(&id, dperp);
                                     movedown(&id, d);
-                                    staple *= link.m[1*id.m[1*0] + link.size[0]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*link.size[1]*link.size[2]*id.m[1*3] + link.size[0]*link.size[1]*link.size[2]*link.size[3]*d];
+                                    staple *= dev_link.m[1*id.m[1*0] + dev_link.size[0]*id.m[1*1] + dev_link.size[0]*dev_link.size[1]*id.m[1*2] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*id.m[1*3] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*dev_link.size[3]*d];
                                     movedown(&id, dperp);
-                                    staple *= link.m[1*id.m[1*0] + link.size[0]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*link.size[1]*link.size[2]*id.m[1*3] + link.size[0]*link.size[1]*link.size[2]*link.size[3]*dperp];
+                                    staple *= dev_link.m[1*id.m[1*0] + dev_link.size[0]*id.m[1*1] + dev_link.size[0]*dev_link.size[1]*id.m[1*2] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*id.m[1*3] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*dev_link.size[3]*dperp];
                                     staplesum += staple;
                                 }
                             }
@@ -161,10 +165,10 @@ double update(double beta)
                             bplus = bplus/(bplus + bminus);
 
                             if (drand() < bplus) {
-                                link.m[1*id.m[1*0] + link.size[0]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*link.size[1]*link.size[2]*id.m[1*3] + link.size[0]*link.size[1]*link.size[2]*link.size[3]*d] = 1;
+                                dev_link.m[1*id.m[1*0] + dev_link.size[0]*id.m[1*1] + dev_link.size[0]*dev_link.size[1]*id.m[1*2] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*id.m[1*3] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*dev_link.size[3]*d] = 1;
                                 action += staplesum;
                             } else {
-                                link.m[1*id.m[1*0] + link.size[0]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*link.size[1]*link.size[2]*id.m[1*3] + link.size[0]*link.size[1]*link.size[2]*link.size[3]*d] = -1;
+                                dev_link.m[1*id.m[1*0] + dev_link.size[0]*id.m[1*1] + dev_link.size[0]*dev_link.size[1]*id.m[1*2] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*id.m[1*3] + dev_link.size[0]*dev_link.size[1]*dev_link.size[2]*dev_link.size[3]*d] = -1;
                                 action -= staplesum;
                             }
                         }
@@ -173,6 +177,7 @@ double update(double beta)
             }
         }
     }
+    memcpy_field_intfield5(link, dev_link);
     action /= SIZE*SIZE*SIZE*SIZE*4*6;
     return 1.000000 - action;
 }
@@ -184,8 +189,8 @@ int main()
     double action;
     double dbeta;
     link = alloc_field_intfield5(SIZE, SIZE, SIZE, SIZE, 4);
+    dev_link = alloc_field_intfield5(SIZE, SIZE, SIZE, SIZE, 4);
     dbeta = 0.010000;
-    srand(1234);
     coldstart();
 
     for (beta = 1; beta > 0.000000; beta -= dbeta) {

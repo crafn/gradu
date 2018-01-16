@@ -319,6 +319,7 @@ void qc_copy_var_decl_node(QC_AST_Var_Decl *copy, QC_AST_Var_Decl *decl, QC_AST_
 	copy->type = (QC_AST_Type*)type;
 	copy->ident = (QC_AST_Ident*)ident;
 	copy->value = value;
+	copy->is_static = decl->is_static;
 }
 
 void qc_copy_func_decl_node(QC_AST_Func_Decl *copy, QC_AST_Func_Decl *decl, QC_AST_Node *return_type, QC_AST_Node *ident, QC_AST_Node *body, QC_AST_Node **params, int param_count, QC_AST_Node *backend_decl_ref)
@@ -655,6 +656,8 @@ QC_Bool qc_expr_type(QC_AST_Type *ret, QC_AST_Node *expr)
 		QC_CASTED_NODE(QC_AST_Ident, ident, expr);
 		if (!ident->decl)
 			break;
+		if (ident->decl->type == QC_AST_func_decl)
+			break; /* Not sure what to do with this */
 		QC_ASSERT(ident->decl->type == QC_AST_var_decl);
 		{
 			QC_CASTED_NODE(QC_AST_Var_Decl, decl, ident->decl);

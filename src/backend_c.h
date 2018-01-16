@@ -6,6 +6,7 @@
 #include "parse.h"
 
 QC_API QC_AST_Var_Decl *qc_is_device_field_member_decl(QC_AST_Type_Decl *field_decl);
+QC_API QC_AST_Access *c_create_field_dim_size(QC_AST_Access *field_access, int dim_i); /* field.size[dim_i] */
 
 /* Utils for other c-like backends */
 QC_API void qc_lift_var_decls(QC_AST_Scope *root);

@@ -631,6 +631,12 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 				bt.bitness = 0; /* Not specified */
 				advance_tok(ctx);
 			break;
+			case QC_Token_kw_uint64_t:
+				bt.is_unsigned = QC_true;
+				bt.is_integer = QC_true;
+				bt.bitness = 64;
+				advance_tok(ctx);
+			break;
 			case QC_Token_kw_bool:
 				bt.is_boolean = QC_true;
 				advance_tok(ctx);
@@ -803,6 +809,9 @@ QC_INTERNAL QC_Bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, QC_Bool is
 {
 	QC_AST_Var_Decl *decl = qc_create_var_decl_node();
 	begin_node_parsing(ctx, QC_AST_BASE(decl));
+
+	if (accept_tok(ctx, QC_Token_kw_static))
+		decl->is_static = QC_true;
 
 	if (!parse_type_and_ident(ctx, &decl->type, &decl->ident, QC_AST_BASE(decl)))
 		goto mismatch;

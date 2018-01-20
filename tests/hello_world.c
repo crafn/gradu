@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h> /* memcpy */
 #include <math.h>
+#include <stdint.h>
 
 int printf(const char *fmt, ...);
 

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h> /* memcpy */
 #include <math.h>
+#include <stdint.h>
 
 typedef struct intmat2x2
 {

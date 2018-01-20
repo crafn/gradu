@@ -66,8 +66,8 @@ int qc_biop_prec(QC_Token_Type type)
 	case QC_Token_right_arrow: ++prec;
 
 	case QC_Token_mul: 
-	case QC_Token_div: ++prec;
-	case QC_Token_mod: ++prec;
+	case QC_Token_div:
+	case QC_Token_mod: ++prec; 
 	case QC_Token_add: 
 	case QC_Token_sub: ++prec;
 
@@ -1211,6 +1211,15 @@ QC_INTERNAL QC_Bool parse_biop_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_No
 	biop->lhs = lhs;
 	biop->rhs = rhs;
 	biop->is_top_level = (ctx->expr_depth == 1);
+
+	/* @todo Complete check */
+	if (	biop->type == QC_Token_add_assign || biop->type == QC_Token_sub_assign ||
+			biop->type == QC_Token_mul_assign || biop->type == QC_Token_div_assign) {
+		if (lhs->type == QC_AST_access) {
+			QC_CASTED_NODE(QC_AST_Access, access, lhs);
+			access->can_modify = QC_true;
+		}
+	}
 
 	end_node_parsing(ctx);
 

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h> /* memcpy */
 #include <math.h>
+#include <stdint.h>
 
 typedef struct floatfield2
 {
@@ -70,7 +71,7 @@ int main(int argc, char **argv)
                 host_field.m[1*x + host_field.size[0]*y] = 0;
             }
         }
-        host_field.m[1*size_x/2 + host_field.size[0]*size_y/2] = 1000;
+        host_field.m[1*(size_x/2) + host_field.size[0]*(size_y/2)] = 1000;
     }
     memcpy_field_floatfield2(device_field_1, host_field);
 

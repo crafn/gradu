@@ -230,6 +230,7 @@ typedef struct QC_AST_Access {
 	QC_Bool is_array_access;
 
 	QC_Bool implicit_deref; /* 'a->b' or 'field_ptr(1, 2)' */
+	QC_Bool can_modify; /* false in 'a + 1' but true in 'a += 1' */
 
 	/* @todo Field access etc. */
 } QC_AST_Access;
@@ -415,6 +416,7 @@ QC_API void qc_print_ast(QC_AST_Node *node, int indent);
 QC_API QC_AST_Ident *qc_create_ident_with_text(QC_AST_Node *decl, const char *fmt, ...);
 QC_API QC_AST_Var_Decl *qc_create_simple_var_decl(QC_AST_Type_Decl *type_decl, const char *ident);
 QC_API QC_AST_Var_Decl *qc_create_var_decl(QC_AST_Type_Decl *type_decl, QC_AST_Ident *ident, QC_AST_Node *value);
+QC_API QC_AST_Var_Decl *qc_create_ptr_decl(QC_AST_Type_Decl *base_decl, QC_AST_Ident *ident, QC_AST_Node *value);
 QC_API QC_AST_Type_Decl *qc_find_builtin_type_decl(QC_Builtin_Type bt, QC_AST_Scope *root);
 QC_API QC_AST_Literal *qc_create_integer_literal(int value, QC_AST_Scope *root);
 QC_API QC_AST_Literal *qc_create_floating_literal(double value, QC_AST_Scope *root);

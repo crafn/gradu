@@ -1,6 +1,6 @@
 #include "backend_c.h"
 
-QC_INTERNAL QC_Bool nested_expr_needs_parens(QC_AST_Node *expr, QC_AST_Node *nested)
+QC_INTERNAL QC_Bool nested_expr_needs_parens(QC_AST_Node *expr, QC_AST_Node *nested, int nested_side)
 {
 	if (expr->type != QC_AST_biop || nested->type != QC_AST_biop)
 		return QC_false;
@@ -8,7 +8,10 @@ QC_INTERNAL QC_Bool nested_expr_needs_parens(QC_AST_Node *expr, QC_AST_Node *nes
 		QC_CASTED_NODE(QC_AST_Biop, op, expr);
 		QC_CASTED_NODE(QC_AST_Biop, subop, nested);
 
-		return qc_biop_prec(op->type) > qc_biop_prec(subop->type);
+		if (nested_side < 0)
+			return qc_biop_prec(op->type) > qc_biop_prec(subop->type);
+		else
+			return qc_biop_prec(op->type) >= qc_biop_prec(subop->type);
 	}
 }
 
@@ -1245,8 +1248,8 @@ QC_Bool qc_ast_to_c_str(QC_Array(char) *buf, int indent, QC_AST_Node *node)
 	case QC_AST_biop: {
 		QC_CASTED_NODE(QC_AST_Biop, biop, node);
 		if (biop->lhs && biop->rhs) {
-			QC_Bool lhs_parens = nested_expr_needs_parens(node, biop->lhs);
-			QC_Bool rhs_parens = nested_expr_needs_parens(node, biop->rhs);
+			QC_Bool lhs_parens = nested_expr_needs_parens(node, biop->lhs, -1);
+			QC_Bool rhs_parens = nested_expr_needs_parens(node, biop->rhs, 1);
 			QC_Bool spacing = (biop->type != QC_Token_mul && biop->type != QC_Token_div);
 			if (lhs_parens)
 				qc_append_str(buf, "(");

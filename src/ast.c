@@ -423,6 +423,7 @@ void qc_copy_access_node(QC_AST_Access *copy, QC_AST_Access *access, QC_AST_Node
 	copy->is_element_access = access->is_element_access;
 	copy->is_array_access = access->is_array_access;
 	copy->implicit_deref = access->implicit_deref;
+	copy->can_modify = access->can_modify;
 }
 
 void qc_copy_cond_node(QC_AST_Cond *copy, QC_AST_Cond *cond, QC_AST_Node *expr, QC_AST_Node *body, QC_AST_Node *after_else)
@@ -1785,6 +1786,13 @@ QC_AST_Var_Decl *qc_create_var_decl(QC_AST_Type_Decl *type_decl, QC_AST_Ident *i
 	decl->ident = ident;
 	decl->ident->decl = QC_AST_BASE(decl);
 	decl->value = value;
+	return decl;
+}
+
+QC_API QC_AST_Var_Decl *qc_create_ptr_decl(QC_AST_Type_Decl *base_decl, QC_AST_Ident *ident, QC_AST_Node *value)
+{
+	QC_AST_Var_Decl *decl = qc_create_var_decl(base_decl, ident, value);
+	++decl->type->ptr_depth;
 	return decl;
 }
 

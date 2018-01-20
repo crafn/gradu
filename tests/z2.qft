@@ -13,7 +13,6 @@ extern double exp(double e);
 const int SIZE = 10;
 typedef int field(5) Links; // Last index is link direction
 int field(5) link;
-int field(5) dev_link;
 
 void moveup(int matrix(5) *x, int d)
 {
@@ -42,37 +41,33 @@ double drand()
 
 double update(double beta)
 {
-	int d;
-	int dperp;
-	int staple;
-	int staplesum;
-	double bplus;
-	double bminus;
-	double action = 0.0; 
+	float action = 0.0; 
 
-	memcpy_field(dev_link, link);
-
-	for_field(dev_link; dev_link) {
-		staplesum = 0;
+	for_field(link; link) {
+		int dperp;
+		float staplesum = 0;
+		int staple;
+		float bplus;
+		float bminus;
 
 		int d = id(4);
 		for (dperp = 0; dperp < 4; dperp += 1) {
 			if (dperp != d) {
 				movedown(&id, dperp);
-				int v1 = dev_link(id(0), id(1), id(2), id(3), dperp);
-				int v2 = dev_link(id(0), id(1), id(2), id(3), d);
+				int v1 = link(id(0), id(1), id(2), id(3), dperp);
+				int v2 = link(id(0), id(1), id(2), id(3), d);
 				staple = v1*v2;
 				moveup(&id, d);
-				staple *= dev_link(id(0), id(1), id(2), id(3), dperp);
+				staple *= link(id(0), id(1), id(2), id(3), dperp);
 				moveup(&id, dperp);
 				staplesum += staple;
 
-				staple = dev_link(id(0), id(1), id(2), id(3), dperp);
+				staple = link(id(0), id(1), id(2), id(3), dperp);
 				moveup(&id, dperp);
 				movedown(&id, d);
-				staple *= dev_link(id(0), id(1), id(2), id(3), d);
+				staple *= link(id(0), id(1), id(2), id(3), d);
 				movedown(&id, dperp);
-				staple *= dev_link(id(0), id(1), id(2), id(3), dperp);
+				staple *= link(id(0), id(1), id(2), id(3), dperp);
 				staplesum += staple;
 			}
 		}
@@ -82,14 +77,13 @@ double update(double beta)
 		bplus = bplus/(bplus+bminus);
 
 		if (drand() < bplus) {
-			dev_link(id(0), id(1), id(2), id(3), d) = 1;
+			link(id(0), id(1), id(2), id(3), d) = 1;
 			action += staplesum;
 		} else {
-			dev_link(id(0), id(1), id(2), id(3), d) = -1;
+			link(id(0), id(1), id(2), id(3), d) = -1;
 			action -= staplesum;
 		}
 	}
-	memcpy_field(link, dev_link);
 
 	action /= SIZE*SIZE*SIZE*SIZE*4*6;
 	return 1.0 - action;
@@ -97,8 +91,7 @@ double update(double beta)
 
 int main()
 {
-	link = alloc_field(SIZE, SIZE, SIZE, SIZE, 4);
-	dev_link = alloc_device_field(SIZE, SIZE, SIZE, SIZE, 4);
+	link = alloc_device_field(SIZE, SIZE, SIZE, SIZE, 4);
 
 	double beta;
 	double action;
@@ -116,7 +109,7 @@ int main()
 		printf("%g\t%g\n", beta, action); 
 	}
 
-	free_field(link);
+	free_device_field(link);
 
 	return 0;
 }

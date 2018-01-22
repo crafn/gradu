@@ -363,7 +363,7 @@ void qc_parallel_loops_to_ordinary(QC_AST_Scope *root)
 
 	{ /* Replace old nodes with new nodes */
 		QC_ASSERT(replace_list_new.size == replace_list_old.size);
-		qc_replace_nodes_in_ast(QC_AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
+		qc_replace_nodes_in_ast(QC_AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size, 0);
 
 		/* Subnodes should be deep-copied */
 		for (i = 0; i < replace_list_old.size; ++i)
@@ -1056,7 +1056,7 @@ void qc_apply_c_operator_overloading(QC_AST_Scope *root, QC_Bool convert_mat_exp
 
 	{ /* Replace old nodes with new nodes */
 		QC_ASSERT(replace_list_new.size == replace_list_old.size);
-		qc_replace_nodes_in_ast(QC_AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
+		qc_replace_nodes_in_ast(QC_AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size, 0);
 
 		/* No deep copies of branches */
 		for (i = 0; i < replace_list_old.size; ++i)

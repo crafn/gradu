@@ -1531,19 +1531,21 @@ void qc_push_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *node, QC_Bool
 	qc_destroy_array(QC_AST_Node_Ptr)(&subnodes);
 }
 
-QC_AST_Node *qc_replace_nodes_in_ast(QC_AST_Node *node, QC_AST_Node **old_nodes, QC_AST_Node **new_nodes, int node_count)
+QC_AST_Node *qc_replace_nodes_in_ast(QC_AST_Node *node, QC_AST_Node **old_nodes, QC_AST_Node **new_nodes, int node_count, int post_replace)
 {
 	int i, k;
 
 	if (!node || node_count == 0)
 		return node;
 
-	/* @todo Use QC_Hash_Table to eliminate O(n^2) */
 	/* Replacing happens before recursing, so that old_nodes contained in new_nodes are also replaced */
-	for (i = 0; i < node_count; ++i) {
-		if (node == old_nodes[i]) {
-			node = new_nodes[i];
-			break;
+	if (!post_replace) {
+		/* @todo Use QC_Hash_Table to eliminate O(n^2) */
+		for (i = 0; i < node_count; ++i) {
+			if (node == old_nodes[i]) {
+				node = new_nodes[i];
+				break;
+			}
 		}
 	}
 
@@ -1557,7 +1559,7 @@ QC_AST_Node *qc_replace_nodes_in_ast(QC_AST_Node *node, QC_AST_Node **old_nodes,
 
 		/* Replace subnodes */
 		for (i = 0; i < subnodes.size; ++i) {
-			subnodes.data[i] = qc_replace_nodes_in_ast(subnodes.data[i], old_nodes, new_nodes, node_count);
+			subnodes.data[i] = qc_replace_nodes_in_ast(subnodes.data[i], old_nodes, new_nodes, node_count, post_replace);
 		}
 		/* Replace referenced nodes */
 		for (i = 0; i < refnodes.size; ++i) {
@@ -1578,6 +1580,15 @@ QC_AST_Node *qc_replace_nodes_in_ast(QC_AST_Node *node, QC_AST_Node **old_nodes,
 		qc_destroy_array(QC_AST_Node_Ptr)(&refnodes);
 	}
 
+	if (post_replace) {
+		/* @todo Use QC_Hash_Table to eliminate O(n^2) */
+		for (i = 0; i < node_count; ++i) {
+			if (node == old_nodes[i]) {
+				node = new_nodes[i];
+				break;
+			}
+		}
+	}
 	return node;
 }
 
@@ -1932,6 +1943,9 @@ QC_AST_Biop *qc_create_assign(QC_AST_Node *lhs, QC_AST_Node *rhs)
 
 QC_AST_Biop *qc_create_mul(QC_AST_Node *lhs, QC_AST_Node *rhs)
 { return qc_create_biop(QC_Token_mul, lhs, rhs); }
+
+QC_AST_Biop *qc_create_negation(QC_AST_Node *node)
+{ return qc_create_biop(QC_Token_sub, NULL, node); }
 
 QC_AST_Biop *qc_create_less_than(QC_AST_Node *lhs, QC_AST_Node *rhs)
 {

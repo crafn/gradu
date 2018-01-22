@@ -228,7 +228,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 void parallel_loops_to_cuda(QC_AST_Scope *root)
 {
 	int kernel_count = 0;
-	int i, k, m;
+	int i, k, m, n;
 	QC_Array(QC_AST_Node_Ptr) replace_list_old = qc_create_array(QC_AST_Node_Ptr)(0);
 	QC_Array(QC_AST_Node_Ptr) replace_list_new = qc_create_array(QC_AST_Node_Ptr)(0);
 	QC_Array(QC_AST_Node_Ptr) subnodes = qc_create_array(QC_AST_Node_Ptr)(0);
@@ -240,10 +240,12 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 		QC_CASTED_NODE(QC_AST_Parallel, parallel, subnodes.data[i]);
 		QC_Array(QC_AST_Node_Ptr) unique_var_accesses;
 		QC_Array(QC_AST_Node_Ptr) var_accesses;
-		QC_Array(QC_AST_Var_Decl_Ptr) kernel_param_decls;
+		QC_Array(QC_AST_Var_Decl_Ptr) kernel_param_decls; /* Corresponds to unique_var_accesses */
+		QC_Array(int) kernel_param_flags; /* Corresponds to kernel_param_decls */
 
 		unique_var_accesses = qc_create_array(QC_AST_Node_Ptr)(0);
 		kernel_param_decls = qc_create_array(QC_AST_Var_Decl_Ptr)(0);
+		kernel_param_flags = qc_create_array(int)(0);
 
 		{ /* Find vars used in loop */
 			/* @note We're relying on that input and output fields are first in the resulting array */
@@ -336,7 +338,6 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 						}
 					}
 
-
 					if (!is_modified_in_kernel) {
 						/* Arg in the call */
 						cuda_arg = qc_create_full_deref(qc_copy_ast(QC_AST_BASE(access))); /* Read-only variables are passed by value */
@@ -345,6 +346,7 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 						/* Param in the kernel */
 						cuda_var_decl = qc_create_simple_var_decl(type.base_type_decl, host_var_name);
 						qc_push_array(QC_AST_Var_Decl_Ptr)(&kernel_param_decls, cuda_var_decl);
+						qc_push_array(int)(&kernel_param_flags, 0);
 					} else {
 						/* Modified variables require uploading copy to device memory, passing by pointer, and downloading afterwards */
 						/* @todo cuda var decl, upload and download calls */
@@ -383,6 +385,7 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 						qc_destroy_node(cuda_var_decl->value);
 						cuda_var_decl->value = NULL;
 						qc_push_array(QC_AST_Var_Decl_Ptr)(&kernel_param_decls, cuda_var_decl);
+						qc_push_array(int)(&kernel_param_flags, 1);
 					}
 				}
 			}
@@ -475,7 +478,6 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					QC_AST_Node *mul_expr;
 					QC_AST_Node *mul_expr2;
 					QC_AST_Node *expr;
-					int n;
 
 					{ /* .. % size1*size2 .. */
 						QC_Array(QC_AST_Node_Ptr) sizes = qc_create_array(QC_AST_Node_Ptr)(0);
@@ -501,12 +503,60 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					qc_add_parallel_id_init(root, parallel, k, expr);
 				}
 
+				/* Substitute host vars names in parallel loop with new kernel param names */
+				QC_ASSERT(unique_var_accesses.size == kernel_param_decls.size);
+				for (k = 0; k < var_accesses.size; ++k) {
+					QC_CASTED_NODE(QC_AST_Access, var_access, var_accesses.data[k]);
+					for (n = 0; n < unique_var_accesses.size; ++n) {
+						QC_CASTED_NODE(QC_AST_Access, unique_access, unique_var_accesses.data[n]);
+						QC_CASTED_NODE(QC_AST_Ident, var_ident, var_access->base);
+						QC_CASTED_NODE(QC_AST_Ident, unique_ident, unique_access->base);
+						if (!unique_access->is_var_access || !var_access->is_var_access)
+							continue;
+
+						if (var_ident->decl == unique_ident->decl) {
+							QC_AST_Var_Decl *kernel_param_decl = kernel_param_decls.data[n];
+							QC_ASSERT(var_ident->b.type == QC_AST_ident);
+							/*var_ident->decl = QC_AST_BASE(kernel_param_decl);*/ /* Identifiers in parallel loop are re-resolved so this is unnecessary */
+							var_ident->text.size = 0;
+							qc_append_str(&var_ident->text, "%s", kernel_param_decl->ident->text.data);
+
+							if (kernel_param_flags.data[n] == 1) { /* Variable is not read-only! */
+								QC_AST_Node *parent = qc_find_parent_node(&map, QC_AST_BASE(var_access));
+
+								QC_Bool handled = QC_false;
+								if (parent->type == QC_AST_biop) {
+									QC_CASTED_NODE(QC_AST_Biop, biop, parent);
+									QC_AST_Call *call = NULL;
+
+									/* Make modify atomic */
+									if (biop->type == QC_Token_add_assign) {
+										call = qc_create_call_2(qc_create_ident_with_text(NULL, "atomicAdd"), QC_AST_BASE(var_access), biop->rhs);
+									} else if (biop->type == QC_Token_sub_assign) {
+										call = qc_create_call_2(qc_create_ident_with_text(NULL, "atomicAdd"), QC_AST_BASE(var_access), QC_AST_BASE(qc_create_negation(biop->rhs)));
+									}
+
+									if (call) {
+										QC_AST_Node *parent_of_biop = qc_find_parent_node(&map, parent);
+										qc_replace_nodes_in_ast(parent_of_biop, (QC_AST_Node**)&biop, (QC_AST_Node**)&call, 1, 1);
+										qc_shallow_destroy_node(QC_AST_BASE(biop));
+										handled = QC_true;
+									}
+								}
+								if (!handled) {
+									/* Just add a dereference to make code compile */
+									QC_AST_Biop *deref = qc_create_deref(QC_AST_BASE(var_access));
+									qc_replace_nodes_in_ast(parent, (QC_AST_Node**)&var_access, (QC_AST_Node**)&deref, 1, 1);
+								}
+							}
+						}
+					}
+				}
+
 				/* Move the whole block from parallel loop -- re-resolve afterwards */
 				qc_unresolve_ast(QC_AST_BASE(parallel->body));
 				kernel_decl->body = parallel->body;
 				parallel->body = NULL;
-
-				/* @todo Substitute ('action' -> '*cuda_action' */
 			}
 
 			/* Insert kernel before current function call */
@@ -527,11 +577,12 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 		qc_destroy_array(QC_AST_Node_Ptr)(&unique_var_accesses);
 		qc_destroy_array(QC_AST_Node_Ptr)(&var_accesses);
 		qc_destroy_array(QC_AST_Var_Decl_Ptr)(&kernel_param_decls);
+		qc_destroy_array(int)(&kernel_param_flags);
 	}
 
 	{ /* Replace old nodes with new nodes */
 		QC_ASSERT(replace_list_new.size == replace_list_old.size);
-		qc_replace_nodes_in_ast(QC_AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size);
+		qc_replace_nodes_in_ast(QC_AST_BASE(root), replace_list_old.data, replace_list_new.data, replace_list_new.size, 0);
 
 		/* Subnodes should be deep-copied */
 		for (i = 0; i < replace_list_old.size; ++i)

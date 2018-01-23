@@ -60,6 +60,7 @@ int qc_biop_prec(QC_Token_Type type)
 	int prec = 1;
 	switch (type) {
 
+	case QC_Token_open_square: /* Array access */
 	case QC_Token_open_paren: ++prec; /* Function call */
 
 	case QC_Token_dot:
@@ -600,6 +601,7 @@ QC_INTERNAL QC_Bool parse_type(Parse_Ctx *ctx, QC_AST_Type **ret_type)
 QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type, QC_AST_Ident **ret_ident, QC_AST_Node *enclosing_decl)
 {
 	QC_AST_Type *type = qc_create_type_node();
+	QC_AST_Ident *ident = NULL;
 	begin_node_parsing(ctx, QC_AST_BASE(type));
 
 	/* @todo ptr-to-funcs, types with multiple identifiers... */
@@ -789,8 +791,39 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 
 	if (ret_ident && enclosing_decl) {
 		/* Variable name */
-		if (!parse_ident(ctx, ret_ident, enclosing_decl, QC_false)) {
+		if (!parse_ident(ctx, &ident, enclosing_decl, QC_false)) {
 			report_error_expected(ctx, "identifier", cur_tok(ctx));
+			goto mismatch;
+		}
+	}
+
+	/* Array */
+	if (accept_tok(ctx, QC_Token_open_square)) {
+		QC_AST_Node *expr = NULL;
+		QC_AST_Literal *evald = NULL;
+		if (!parse_expr(ctx, &expr, 0, NULL, QC_false))
+			goto mismatch;
+		QC_ASSERT(expr != NULL);
+
+		evald = qc_eval_const_expr(expr);
+		if (evald) {
+			type->array_size = evald->value.integer; /* @todo Put unevaluated constant expression to type in AST */
+			qc_destroy_node(QC_AST_BASE(evald));
+		}
+		qc_destroy_node(expr);
+
+		if (!evald) {
+			report_error_expected(ctx, "constant expression", cur_tok(ctx));
+			goto mismatch;
+		}
+
+		if (evald->type != QC_Literal_integer) {
+			report_error_expected(ctx, "integer constant expression", cur_tok(ctx));
+			goto mismatch;
+		}
+
+		if (!accept_tok(ctx, QC_Token_close_square)) {
+			report_error_expected(ctx, "closing brace ']'", cur_tok(ctx));
 			goto mismatch;
 		}
 	}
@@ -798,9 +831,12 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 	end_node_parsing(ctx);
 
 	*ret_type = type;
+	*ret_ident = ident;
 	return QC_true;
 
 mismatch:
+	if (ident)
+		qc_destroy_node(QC_AST_BASE(ident));
 	cancel_node_parsing(ctx);
 	return QC_false;
 }
@@ -809,6 +845,9 @@ QC_INTERNAL QC_Bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, QC_Bool is
 {
 	QC_AST_Var_Decl *decl = qc_create_var_decl_node();
 	begin_node_parsing(ctx, QC_AST_BASE(decl));
+
+	if (qc_find_parent_node(&ctx->parent_map, QC_AST_BASE(decl)) == QC_AST_BASE(ctx->root))
+		decl->is_global = QC_true;
 
 	if (accept_tok(ctx, QC_Token_kw_static))
 		decl->is_static = QC_true;
@@ -1312,6 +1351,43 @@ mismatch:
 	return QC_false;
 }
 
+QC_INTERNAL QC_Bool parse_array_access_expr(Parse_Ctx *ctx, QC_AST_Node **ret, QC_AST_Node *base)
+{
+	QC_AST_Access *access = qc_create_access_node();
+	QC_AST_Type base_type;
+	QC_AST_Node *index_expr = NULL;
+
+	begin_node_parsing(ctx, QC_AST_BASE(access));
+
+	if (!accept_tok(ctx, QC_Token_open_square))
+		goto mismatch;
+
+	access->is_array_access = QC_true;
+	access->base = base;
+
+	if (!qc_expr_type(&base_type, access->base)) {
+		report_error(ctx, QC_PRIORITY_DEFAULT, "Invalid type");
+		goto mismatch;
+	}
+
+	if (!parse_expr(ctx, &index_expr, 0, NULL, QC_false)) /* @todo Support multiple levels: [1][2][3] */
+		goto mismatch;
+	qc_push_array(QC_AST_Node_Ptr)(&access->args, index_expr);
+
+	if (!accept_tok(ctx, QC_Token_close_square)) {
+		report_error_expected(ctx, "closing brace ']'", cur_tok(ctx));
+		goto mismatch;
+	}
+
+	*ret = QC_AST_BASE(access);
+	end_node_parsing(ctx);
+	return QC_true;
+
+mismatch:
+	cancel_node_parsing(ctx);
+	return QC_false;
+}
+
 
 /* Parse example: var = 5 + 3 * 2; */
 QC_INTERNAL QC_Bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, QC_AST_Type *type_hint, QC_Bool semi)
@@ -1346,6 +1422,8 @@ QC_INTERNAL QC_Bool parse_expr(Parse_Ctx *ctx, QC_AST_Node **ret, int min_prec, 
 		} else if (parse_member_access_expr(ctx, &expr, expr)) {
 			;
 		} else if (parse_element_access_expr(ctx, &expr, expr)) {
+			;
+		} else if (parse_array_access_expr(ctx, &expr, expr)) {
 			;
 		} else {
 			report_error(ctx, QC_PRIORITY_DEFAULT, "Invalid binary expression");

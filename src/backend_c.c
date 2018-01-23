@@ -207,6 +207,9 @@ QC_INTERNAL QC_AST_Var_Decl *c_field_size_decl(QC_AST_Type_Decl *field_decl)
 	if (field_decl->builtin_concrete_decl) /* Work with builtin field and concrete struct */
 		field_decl = field_decl->builtin_concrete_decl;
 
+	QC_ASSERT(field_decl);
+	QC_ASSERT(field_decl->body);
+
 	{
 		QC_AST_Node *m = field_decl->body->nodes.data[1];
 		QC_ASSERT(m->type == QC_AST_var_decl);

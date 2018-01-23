@@ -320,6 +320,7 @@ void qc_copy_var_decl_node(QC_AST_Var_Decl *copy, QC_AST_Var_Decl *decl, QC_AST_
 	copy->ident = (QC_AST_Ident*)ident;
 	copy->value = value;
 	copy->is_static = decl->is_static;
+	copy->is_global = decl->is_global;
 }
 
 void qc_copy_func_decl_node(QC_AST_Func_Decl *copy, QC_AST_Func_Decl *decl, QC_AST_Node *return_type, QC_AST_Node *ident, QC_AST_Node *body, QC_AST_Node **params, int param_count, QC_AST_Node *backend_decl_ref)
@@ -795,6 +796,21 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 			}
 		} else {
 			QC_FAIL(("Invalid biop"));
+		}
+	} break;
+
+	case QC_AST_access: {
+		QC_AST_Ident *ident = qc_unwrap_ident(expr);
+		if (ident)
+			return qc_eval_const_expr(QC_AST_BASE(ident));
+	} break;
+
+	case QC_AST_ident: {
+		QC_CASTED_NODE(QC_AST_Ident, ident, expr);
+		if (ident->decl && ident->decl->type == QC_AST_var_decl) {
+			QC_CASTED_NODE(QC_AST_Var_Decl, decl, ident->decl);
+			if (decl->type->is_const && decl->value)
+				return qc_eval_const_expr(decl->value);
 		}
 	} break;
 

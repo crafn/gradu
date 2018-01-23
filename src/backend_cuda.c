@@ -279,7 +279,7 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 			for (k = 0; k < unique_var_accesses.size; ++k) {
 				QC_AST_Ident *ident = qc_access_ident((QC_AST_Access*)unique_var_accesses.data[k]);
 				if (ident->decl->type == QC_AST_func_decl) {
-					QC_AST_Func_Decl *decl = (QC_AST_Func_Decl*)ident->decl;
+					QC_CASTED_NODE(QC_AST_Func_Decl, decl, ident->decl);
 					if (!decl->is_extern)
 						QC_AST_BASE(decl)->attribute = "__host__ __device__";
 
@@ -287,7 +287,21 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 				}
 			}
 
+			/* Erase const globals (and add __constant__ to make them accessible in kernels)*/
+			for (k = 0; k < unique_var_accesses.size; ++k) {
+				QC_AST_Ident *ident = qc_access_ident((QC_AST_Access*)unique_var_accesses.data[k]);
+				if (ident->decl->type == QC_AST_var_decl) {
+					QC_CASTED_NODE(QC_AST_Var_Decl, decl, ident->decl);
+					QC_ASSERT(decl->type);
+					if (decl->type->is_const && decl->is_global) {
+						QC_AST_BASE(decl)->attribute = "__constant__";
+						qc_erase_array(QC_AST_Node_Ptr)(&unique_var_accesses, k--, 1);
+					}
+				}
+			}
+
 			var_accesses = qc_copy_array(QC_AST_Node_Ptr)(&unique_var_accesses);
+			QC_ASSERT(var_accesses.size > 0);
 
 			/* Erase duplicates */
 			/* @todo Remove O(n^2) */

@@ -135,6 +135,7 @@ typedef struct QC_AST_Var_Decl {
 	QC_AST_Node *value;
 
 	QC_Bool is_static;
+	QC_Bool is_global;
 } QC_AST_Var_Decl;
 
 typedef QC_AST_Var_Decl *QC_AST_Var_Decl_Ptr;

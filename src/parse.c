@@ -1572,6 +1572,9 @@ QC_INTERNAL QC_Bool parse_parallel(Parse_Ctx *ctx, QC_AST_Node **ret)
 	if (!parse_expr(ctx, &parallel->input, 0, NULL, QC_false))
 		goto mismatch;
 
+	if (accept_tok(ctx, QC_Token_semi))
+		parallel->is_oddeven = accept_tok(ctx, QC_Token_kw_oddeven);
+
 	if (!accept_tok(ctx, QC_Token_close_paren)) {
 		report_error_expected(ctx, "')'", cur_tok(ctx));
 		goto mismatch;

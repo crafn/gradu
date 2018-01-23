@@ -241,11 +241,19 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 		QC_Array(QC_AST_Node_Ptr) unique_var_accesses;
 		QC_Array(QC_AST_Node_Ptr) var_accesses;
 		QC_Array(QC_AST_Var_Decl_Ptr) kernel_param_decls; /* Corresponds to unique_var_accesses */
+		QC_AST_Var_Decl *oddeven_param_decl = NULL;
 		QC_Array(int) kernel_param_flags; /* Corresponds to kernel_param_decls */
 
 		unique_var_accesses = qc_create_array(QC_AST_Node_Ptr)(0);
 		kernel_param_decls = qc_create_array(QC_AST_Var_Decl_Ptr)(0);
 		kernel_param_flags = qc_create_array(int)(0);
+
+		if (parallel->is_oddeven) { /* Extra param for indicating are we executing odd or even */
+			oddeven_param_decl = qc_create_simple_var_decl(
+				qc_find_builtin_type_decl(qc_int_builtin_type(), root),
+				"is_odd"
+			);
+		}
 
 		{ /* Find vars used in loop */
 			/* @note We're relying on that input and output fields are first in the resulting array */
@@ -418,7 +426,16 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 								QC_AST_BASE(qc_create_integer_literal(1, root))
 							)));
 
-				qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_AST_BASE(cuda_call));
+				if (!parallel->is_oddeven) {
+					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_AST_BASE(cuda_call));
+				} else {
+					/* Two calls with extra oddeven argument */
+					QC_AST_Literal *is_odd = qc_create_integer_literal(1, root);
+					qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args, QC_AST_BASE(is_odd));
+					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_AST_BASE(cuda_call));
+					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, qc_copy_ast(QC_AST_BASE(cuda_call)));
+					is_odd->value.integer = 0; /* Now first call has param value 0 and latter 1 */
+				}
 
 				for (k = 0; k < memcpy_from_device_calls.size; ++k)
 					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, memcpy_from_device_calls.data[k]);
@@ -451,6 +468,8 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 			for (k = 0; k < kernel_param_decls.size; ++k) {
 				qc_push_array(QC_AST_Var_Decl_Ptr)(&kernel_decl->params, kernel_param_decls.data[k]);
 			}
+			if (oddeven_param_decl)
+				qc_push_array(QC_AST_Var_Decl_Ptr)(&kernel_decl->params, oddeven_param_decl);
 
 			{ /* Body */
 				{ /* Fields are passed by value */
@@ -503,7 +522,21 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					qc_add_parallel_id_init(root, parallel, k, expr);
 				}
 
-				/* Substitute host vars names in parallel loop with new kernel param names */
+				if (oddeven_param_decl) { /* Add an early return for those sites that should not be updated this turn */
+					QC_AST_Cond *cond = qc_create_if_1(
+						QC_AST_BASE(qc_create_biop(QC_Token_equals,
+							QC_AST_BASE(qc_create_biop(QC_Token_mod,
+								QC_AST_BASE(qc_create_ident_with_text(NULL, "(threadIdx.x + blockIdx.x*blockDim.x)")),
+								QC_AST_BASE(qc_create_integer_literal(2, root))
+							)),
+							qc_try_create_access(qc_copy_ast(QC_AST_BASE(oddeven_param_decl->ident)))
+						)),
+						QC_AST_BASE(qc_create_return(NULL))
+					);
+					qc_insert_array(QC_AST_Node_Ptr)(&parallel->body->nodes, 0, (QC_AST_Node**)&cond, 1);
+				}
+
+				/* Substitute host var usage in parallel loop with new kernel params */
 				QC_ASSERT(unique_var_accesses.size == kernel_param_decls.size);
 				for (k = 0; k < var_accesses.size; ++k) {
 					QC_CASTED_NODE(QC_AST_Access, var_access, var_accesses.data[k]);

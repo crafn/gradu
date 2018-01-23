@@ -64,6 +64,7 @@ typedef enum {
 	QC_Token_kw_sizeof, /* sizeof */
 	QC_Token_kw_typedef, /* typedef */
 	QC_Token_kw_parallel, /* for_field */
+	QC_Token_kw_oddeven, /* oddeven */
 	QC_Token_kw_extern,
 	QC_Token_kw_static,
 	/* Type-related */

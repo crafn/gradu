@@ -33,17 +33,16 @@ void coldstart()
 	}
 }
 
-double drand()
+double quasirand(uint64_t ix)
 {
-	static unsigned int lcg_state;
-	return 1.0*((lcg_state = (1103515245*lcg_state + 12345))%100)/100.0; /* This is slightly biased */
+	return (ix*2011 % 137)/137.0; // @todo Better generator
 }
 
-double update(double beta)
+double update(double beta, int iter)
 {
 	float action = 0.0; 
 
-	for_field(link; link) {
+	for_field(link; link; oddeven) {
 		int dperp;
 		float staplesum = 0;
 		int staple;
@@ -76,7 +75,7 @@ double update(double beta)
 		bminus = 1/bplus;
 		bplus = bplus/(bplus+bminus);
 
-		if (drand() < bplus) {
+		if (quasirand(id(0) + id(1)*SIZE + id(3)*SIZE*SIZE + id(4)*SIZE*SIZE*SIZE + iter*SIZE*SIZE*SIZE*SIZE) < bplus) {
 			link(id(0), id(1), id(2), id(3), d) = 1;
 			action += staplesum;
 		} else {
@@ -99,14 +98,17 @@ int main()
 
 	coldstart();
 
+	int iter = 0;
 	for (beta = 1; beta > 0.0; beta -= dbeta) {
-		action = update(beta);
+		action = update(beta, iter);
 		printf("%g\t%g\n", beta, action); 
+		++iter;
 	}
 	printf("\n\n");
 	for (beta = 0; beta < 1.0; beta += dbeta) {
-		action = update(beta);
+		action = update(beta, iter);
 		printf("%g\t%g\n", beta, action); 
+		++iter;
 	}
 
 	free_device_field(link);

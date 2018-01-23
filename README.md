@@ -4,11 +4,8 @@
 ## TODO
 
 - z2 cuda simulation
-	- limit dim_block and increase dim_grid
-	- modified cuda vars to pointers that are cudaMalloced and transferred <=> original
-	- accumulation
-	- even/odd
-	- random
+	- limit dim_block and increase dim_grid automatically
+	- better random
 - QC_AST_NODE -> QC_B
 - reverse field memory layout: should be same as multidim C arrays
 - .qft extension to .lc, .fc, .qc or something (lattice C, field C)
@@ -19,3 +16,4 @@
 - #define support
 - #include support
 - change containers to "non-templated" but still type-safe
+- optimize matrix & field access by reducing unnecessary index calculations

@@ -282,6 +282,7 @@ typedef struct QC_AST_Parallel {
 
 	QC_AST_Node *output;
 	QC_AST_Node *input;
+	QC_Bool is_oddeven; /* Iteration is done in two parts */
 
 	QC_AST_Scope *body;
 

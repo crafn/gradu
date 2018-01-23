@@ -470,6 +470,7 @@ void qc_copy_parallel_node(QC_AST_Parallel *copy, QC_AST_Parallel *parallel, QC_
 	QC_ASSERT(!body || body->type == QC_AST_scope);
 	copy->output = output;
 	copy->input = input;
+	copy->is_oddeven = parallel->is_oddeven;
 	copy->body = (QC_AST_Scope*)body;
 	copy->dim = parallel->dim;
 }

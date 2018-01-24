@@ -799,14 +799,16 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 
 	/* Array */
 	if (accept_tok(ctx, QC_Token_open_square)) {
-		QC_AST_Node *expr = NULL;
-		QC_AST_Literal *evald = NULL;
+		QC_AST_Node *expr;
+		QC_AST_Literal *evald;
+		QC_Literal_Type evald_type;
 		if (!parse_expr(ctx, &expr, 0, NULL, QC_false))
 			goto mismatch;
 		QC_ASSERT(expr != NULL);
 
 		evald = qc_eval_const_expr(expr);
 		if (evald) {
+			evald_type = evald->type;
 			type->array_size = evald->value.integer; /* @todo Put unevaluated constant expression to type in AST */
 			qc_destroy_node(QC_B(evald));
 		}
@@ -817,7 +819,7 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 			goto mismatch;
 		}
 
-		if (evald->type != QC_Literal_integer) {
+		if (evald_type != QC_Literal_integer) {
 			report_error_expected(ctx, "integer constant expression", cur_tok(ctx));
 			goto mismatch;
 		}

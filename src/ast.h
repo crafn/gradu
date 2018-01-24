@@ -465,7 +465,7 @@ QC_API QC_Builtin_Type qc_char_builtin_type();
 QC_API QC_AST_Node *qc_create_chained_expr(QC_AST_Node **elems, int elem_count, QC_Token_Type chainop);
 
 /* (lhs[0] biop rhs[0]) chainop (lhs[1] biop rhs[1]) */
-QC_API QC_AST_Node *qc_create_chained_expr_2(QC_AST_Node **lhs_elems, QC_AST_Node **rhs_elems, int elem_count, QC_Token_Type biop, QC_Token_Type chainop, QC_Bool reverse);
+QC_API QC_AST_Node *qc_create_chained_expr_2(QC_AST_Node **lhs_elems, QC_AST_Node **rhs_elems, int elem_count, QC_Token_Type biop, QC_Token_Type chainop);
 
 QC_API void qc_add_parallel_id_init(QC_AST_Scope *root, QC_AST_Parallel *parallel, int ix, QC_AST_Node *value);
 

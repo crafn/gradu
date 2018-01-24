@@ -255,7 +255,7 @@ __global__ void kernel_0(intfield5 link)
     id.m[1*2] = (threadIdx.x + blockIdx.x*blockDim.x) % (link.size[0]*link.size[1]*link.size[2])/(link.size[0]*link.size[1]);
     id.m[1*3] = (threadIdx.x + blockIdx.x*blockDim.x) % (link.size[0]*link.size[1]*link.size[2]*link.size[3])/(link.size[0]*link.size[1]*link.size[2]);
     id.m[1*4] = (threadIdx.x + blockIdx.x*blockDim.x) % (link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4])/(link.size[0]*link.size[1]*link.size[2]*link.size[3]);
-    link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*id.m[1*4]] = 1;
+    link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*id.m[1*4]] = 1;
 }
 
 
@@ -288,19 +288,19 @@ __global__ void kernel_1(intfield5 link, double beta, int iter, float *cuda_acti
     for (dperp = 0; dperp < 4; dperp += 1) {
         if (dperp != d) {
             movedown(&id, dperp);
-            int v1 = link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*dperp];
-            int v2 = link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*d];
+            int v1 = link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
+            int v2 = link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d];
             staple = v1*v2;
             moveup(&id, d);
-            staple *= link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*dperp];
+            staple *= link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
             moveup(&id, dperp);
             staplesum += staple;
-            staple = link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*dperp];
+            staple = link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
             moveup(&id, dperp);
             movedown(&id, d);
-            staple *= link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*d];
+            staple *= link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d];
             movedown(&id, dperp);
-            staple *= link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*dperp];
+            staple *= link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
             staplesum += staple;
         }
     }
@@ -310,10 +310,10 @@ __global__ void kernel_1(intfield5 link, double beta, int iter, float *cuda_acti
 
     int rand_ix = id.m[1*0] + id.m[1*1]*SIZE + id.m[1*3]*SIZE*SIZE + id.m[1*4]*SIZE*SIZE*SIZE + iter*SIZE*SIZE*SIZE*SIZE;
     if (rand_data[rand_ix % RAND_DATA_COUNT] < bplus) {
-        link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*d] = 1;
+        link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d] = 1;
         atomicAdd(cuda_action, staplesum);
     } else {
-        link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*d] = -1;
+        link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d] = -1;
         atomicAdd(cuda_action, -staplesum);
     }
 }

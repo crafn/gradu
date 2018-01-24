@@ -225,7 +225,7 @@ void coldstart()
                             id.m[1*2] = id_2;
                             id.m[1*1] = id_1;
                             id.m[1*0] = id_0;
-                            link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*id.m[1*4]] = 1;
+                            link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*id.m[1*4]] = 1;
                         }
                     }
                 }
@@ -271,19 +271,19 @@ double update(double beta, int iter)
                                     int v1;
                                     int v2;
                                     movedown(&id, dperp);
-                                    v1 = link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*dperp];
-                                    v2 = link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*d];
+                                    v1 = link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
+                                    v2 = link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d];
                                     staple = v1*v2;
                                     moveup(&id, d);
-                                    staple *= link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*dperp];
+                                    staple *= link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
                                     moveup(&id, dperp);
                                     staplesum += staple;
-                                    staple = link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*dperp];
+                                    staple = link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
                                     moveup(&id, dperp);
                                     movedown(&id, d);
-                                    staple *= link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*d];
+                                    staple *= link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d];
                                     movedown(&id, dperp);
-                                    staple *= link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*dperp];
+                                    staple *= link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
                                     staplesum += staple;
                                 }
                             }
@@ -292,10 +292,10 @@ double update(double beta, int iter)
                             bplus = bplus/(bplus + bminus);
                             rand_ix = id.m[1*0] + id.m[1*1]*SIZE + id.m[1*3]*SIZE*SIZE + id.m[1*4]*SIZE*SIZE*SIZE + iter*SIZE*SIZE*SIZE*SIZE;
                             if (rand_data[rand_ix % RAND_DATA_COUNT] < bplus) {
-                                link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*d] = 1;
+                                link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d] = 1;
                                 action += staplesum;
                             } else {
-                                link.m[link.size[0]*link.size[1]*link.size[2]*link.size[3]*id.m[1*0] + link.size[0]*link.size[1]*link.size[2]*id.m[1*1] + link.size[0]*link.size[1]*id.m[1*2] + link.size[0]*id.m[1*3] + 1*d] = -1;
+                                link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d] = -1;
                                 action -= staplesum;
                             }
                         }

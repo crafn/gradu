@@ -2147,7 +2147,7 @@ QC_AST_Node *qc_create_chained_expr(QC_AST_Node **elems, int elem_count, QC_Toke
 	return ret;
 }
 
-QC_AST_Node *qc_create_chained_expr_2(QC_AST_Node **lhs_elems, QC_AST_Node **rhs_elems, int elem_count, QC_Token_Type biop, QC_Token_Type chainop, QC_Bool reverse)
+QC_AST_Node *qc_create_chained_expr_2(QC_AST_Node **lhs_elems, QC_AST_Node **rhs_elems, int elem_count, QC_Token_Type biop, QC_Token_Type chainop)
 {
 	int i;
 	QC_AST_Node *ret = NULL;
@@ -2156,8 +2156,6 @@ QC_AST_Node *qc_create_chained_expr_2(QC_AST_Node **lhs_elems, QC_AST_Node **rhs
 		inner->type = biop;
 		inner->lhs = lhs_elems[i];
 		inner->rhs = rhs_elems[i];
-		if (reverse)
-			inner->lhs = lhs_elems[elem_count - i - 1];
 
 		if (!ret) {
 			ret = QC_B(inner);

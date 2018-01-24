@@ -390,13 +390,14 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 							));
 						qc_push_array(QC_AST_Node_Ptr)(&malloc_calls, QC_B(mirror_decl));
 
+						/* Argument in the call */
 						cuda_arg = qc_try_create_access(qc_copy_ast(QC_B(mirror_decl->ident)));
 						qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args, cuda_arg);
 
 						/* cuda_download_var(cuda_var, &host_var, sizeof(host_var)); */
 						mirror_free = qc_create_call_3(
 							qc_create_ident_with_text(NULL, "cuda_download_var"),
-							qc_copy_ast(qc_try_create_access(qc_copy_ast(QC_B(mirror_decl->ident)))),
+							qc_try_create_access(qc_copy_ast(QC_B(mirror_decl->ident))),
 							QC_B(qc_create_addrof(qc_copy_ast(QC_B(access)))),
 							QC_B(qc_create_sizeof(qc_copy_ast(QC_B(access))))
 						);

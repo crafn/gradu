@@ -542,7 +542,7 @@ void qc_lift_types_and_funcs_to_global_scope(QC_AST_Scope *root)
 	int i, k;
 
 	/* @todo Size should be something like TOTAL_NODE_COUNT*2 */
-	ctx.src_to_dst = qc_create_tbl(QC_AST_Node_Ptr, QC_AST_Node_Ptr)(NULL, NULL, 1024);
+	ctx.src_to_dst = qc_create_tbl(QC_AST_Node_Ptr, QC_AST_Node_Ptr)(NULL, NULL, 2048);
 
 	for (i = 0; i < root->nodes.size; ++i) {
 		QC_AST_Node *sub = root->nodes.data[i];
@@ -572,7 +572,12 @@ void qc_lift_types_and_funcs_to_global_scope(QC_AST_Scope *root)
 
 	qc_destroy_tbl(QC_AST_Node_Ptr, QC_AST_Node_Ptr)(&ctx.src_to_dst);
 
+#if 0
 	qc_move_ast(root, dst);
+#else /* @todo 	Leaks! But moving crashes, because it destroys e.g. global types and doesn't replace references to them.
+				Redo this whole function to simply remove and insert nodes, without destroying or creating. */
+	root->nodes = dst->nodes;
+#endif
 }
 
 /* Modifies the QC_AST */
@@ -932,7 +937,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 
 void qc_apply_c_operator_overloading(QC_AST_Scope *root, QC_Bool convert_mat_expr)
 {
-	int i, k;
+	int i, k, n;
 	QC_Array(QC_AST_Node_Ptr) replace_list_old = qc_create_array(QC_AST_Node_Ptr)(0);
 	QC_Array(QC_AST_Node_Ptr) replace_list_new = qc_create_array(QC_AST_Node_Ptr)(0);
 	QC_Array(QC_AST_Node_Ptr) subnodes = qc_create_array(QC_AST_Node_Ptr)(0);
@@ -1007,35 +1012,39 @@ void qc_apply_c_operator_overloading(QC_AST_Scope *root, QC_Bool convert_mat_exp
 					QC_AST_Node *index_expr = NULL;
 					QC_AST_Var_Decl *size_member_decl = c_field_size_decl(mat_decl);
 					for (k = 0; k < bt.field_dim; ++k) {
-						if (k == 0) {
+						if (k + 1 == bt.field_dim) {
 							qc_push_array(QC_AST_Node_Ptr)(&multipliers, QC_B(qc_create_integer_literal(1, NULL)));
 						} else {
-							QC_AST_Node *field_access = qc_copy_ast(access->base);
-							QC_AST_Access *size_access =
-								qc_create_member_array_access(
-										field_access,
-										size_member_decl,
-										QC_B(qc_create_integer_literal(k - 1, NULL)),
-										access->implicit_deref
-								);
+							QC_AST_Node *expr;
+							for (n = k + 1; n < bt.field_dim; ++n) {
+								QC_AST_Node *field_access = qc_copy_ast(access->base);
+								QC_AST_Access *size_access =
+									qc_create_member_array_access(
+											field_access,
+											size_member_decl,
+											QC_B(qc_create_integer_literal(n, NULL)),
+											access->implicit_deref
+									);
 
-							if (k == 1) {
-								qc_push_array(QC_AST_Node_Ptr)(&multipliers, QC_B(size_access));
-							} else {
-								QC_AST_Biop *mul = qc_create_mul(qc_copy_ast(multipliers.data[k - 1]), QC_B(size_access));
-								qc_push_array(QC_AST_Node_Ptr)(&multipliers, QC_B(mul));
+								if (n == k + 1) {
+									expr = QC_B(size_access);
+								} else {
+									expr = QC_B(qc_create_mul(expr, QC_B(size_access)));
+								}
 							}
+							qc_push_array(QC_AST_Node_Ptr)(&multipliers, expr);
 						}
 					}
 					QC_ASSERT(multipliers.size == access->args.size);
 					index_expr = qc_create_chained_expr_2(multipliers.data, access->args.data,
-							access->args.size, QC_Token_mul, QC_Token_add, QC_true);
+							access->args.size, QC_Token_mul, QC_Token_add);
 					qc_push_array(QC_AST_Node_Ptr)(&array_access->args, index_expr);
 
 					qc_destroy_array(QC_AST_Node_Ptr)(&multipliers);
 
 				} else {
 					/* Matrix access */
+					/* @todo Check that memory layout is correct (same as in C multidim array) */
 					QC_Array(QC_AST_Node_Ptr) multipliers = qc_create_array(QC_AST_Node_Ptr)(0);
 					QC_AST_Node *index_expr = NULL;
 					int mul_accum = 1;
@@ -1045,7 +1054,7 @@ void qc_apply_c_operator_overloading(QC_AST_Scope *root, QC_Bool convert_mat_exp
 					}
 					QC_ASSERT(multipliers.size == access->args.size);
 					index_expr = qc_create_chained_expr_2(multipliers.data, access->args.data,
-							access->args.size, QC_Token_mul, QC_Token_add, QC_true);
+							access->args.size, QC_Token_mul, QC_Token_add);
 					qc_push_array(QC_AST_Node_Ptr)(&array_access->args, index_expr);
 
 					qc_destroy_array(QC_AST_Node_Ptr)(&multipliers);

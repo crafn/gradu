@@ -1029,7 +1029,7 @@ void qc_apply_c_operator_overloading(QC_AST_Scope *root, QC_Bool convert_mat_exp
 					}
 					QC_ASSERT(multipliers.size == access->args.size);
 					index_expr = qc_create_chained_expr_2(multipliers.data, access->args.data,
-							access->args.size, QC_Token_mul, QC_Token_add);
+							access->args.size, QC_Token_mul, QC_Token_add, QC_true);
 					qc_push_array(QC_AST_Node_Ptr)(&array_access->args, index_expr);
 
 					qc_destroy_array(QC_AST_Node_Ptr)(&multipliers);
@@ -1045,7 +1045,7 @@ void qc_apply_c_operator_overloading(QC_AST_Scope *root, QC_Bool convert_mat_exp
 					}
 					QC_ASSERT(multipliers.size == access->args.size);
 					index_expr = qc_create_chained_expr_2(multipliers.data, access->args.data,
-							access->args.size, QC_Token_mul, QC_Token_add);
+							access->args.size, QC_Token_mul, QC_Token_add, QC_true);
 					qc_push_array(QC_AST_Node_Ptr)(&array_access->args, index_expr);
 
 					qc_destroy_array(QC_AST_Node_Ptr)(&multipliers);

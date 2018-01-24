@@ -50,7 +50,7 @@ if __name__ == "__main__":
 	cuda_backend = backend()
 	cuda_backend.name = "cuda"
 	cuda_backend.src_ext = "cu"
-	cuda_backend.compile_command = "nvcc -g -O0 -lc -lcudart"
+	cuda_backend.compile_command = "nvcc -g -O0 -lcudart"
 	backends.append(cuda_backend)
 
 	log = []

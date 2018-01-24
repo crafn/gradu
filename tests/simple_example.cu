@@ -2,6 +2,20 @@
 #include <stdlib.h>
 #include <string.h> /* memcpy */
 #include <math.h>
+#include <stdint.h>
+
+void *cuda_upload_var(void *host_var, int size)
+{
+	void *cuda_var;
+	cudaMalloc(&cuda_var, 4);
+	cudaMemcpy(cuda_var, host_var, size, cudaMemcpyHostToDevice);
+	return cuda_var;
+}
+void cuda_download_var(void *cuda_var, void *host_var, int size)
+{
+	cudaMemcpy(host_var, cuda_var, size, cudaMemcpyDeviceToHost);
+	cudaFree(cuda_var);
+}
 
 typedef struct intfield1
 {
@@ -67,11 +81,11 @@ typedef struct intmat1
 int printf(const char *fmt, ...); /* TODO: Remove */
 
 typedef intfield1 Field; /* One-dimensional integer field type */
-__global__ void kernel_0(intfield1 a, intfield1 b)
+__global__ void kernel_0(intfield1 *cuda_a, intfield1 b)
 {
     intmat1 id;
-    id.m[1*0] = (threadIdx.x % a.size[0])/1;
-    a.m[1*id.m[1*0]] += b.m[1*id.m[1*0]];
+    id.m[1*0] = (threadIdx.x + blockIdx.x*blockDim.x) % (*cuda_a).size[0]/1;
+    (*cuda_a).m[1*id.m[1*0]] += b.m[1*id.m[1*0]];
 }
 
 
@@ -103,9 +117,11 @@ int main()
     memcpy_field_intfield1(b, b_data);
 
     {
-        dim3 dim_grid(1, 1, 1);
-        dim3 dim_block(a.size[0], 1, 1);
-        kernel_0<<<dim_grid, dim_block>>>(a, b);
+        intfield1 *cuda_a = (intfield1*)cuda_upload_var(&a, sizeof(a));
+        dim3 dim_grid(100, 1, 1);
+        dim3 dim_block(a.size[0]/100, 1, 1);
+        kernel_0<<<dim_grid, dim_block>>>(cuda_a, b);
+        cuda_download_var(cuda_a, &a, sizeof(a));
     }
     memcpy_field_intfield1(a_data, a);
 

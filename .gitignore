@@ -28,12 +28,16 @@
 *.x86_64
 *.hex
 gen
+vcvarsall.bat
 
 # Debug files
 *.dSYM/
+*.pdb
+*.exp
 
 # Temp files
 *.swp
+*.swo
 *~
 .fuse_hidden*
 compiled

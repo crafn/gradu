@@ -505,6 +505,33 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					qc_destroy_array(QC_AST_Node_Ptr)(&accesses);
 				}
 
+				if (oddeven_param_decl) { /* Add an early return for those sites that should not be updated this turn */
+					QC_AST_Cond *cond;
+					QC_CASTED_NODE(QC_AST_Var_Decl, id_decl, parallel->body->nodes.data[0]);
+					QC_Array(QC_AST_Node_Ptr) indices = qc_create_array(QC_AST_Node_Ptr)(0);
+					for (k = 0; k < parallel->dim; ++k) {
+						qc_push_array(QC_AST_Node_Ptr)(&indices,
+							QC_AST_BASE(qc_create_element_access_1(
+								qc_try_create_access(qc_copy_ast(QC_AST_BASE(id_decl->ident))),
+								QC_AST_BASE(qc_create_integer_literal(k, root))
+							)));
+					}
+
+					cond = qc_create_if_1(
+						QC_AST_BASE(qc_create_biop(QC_Token_equals,
+							QC_AST_BASE(qc_create_biop(QC_Token_mod,
+								qc_create_chained_expr(indices.data, indices.size, QC_Token_add),
+								QC_AST_BASE(qc_create_integer_literal(2, root))
+							)),
+							qc_try_create_access(qc_copy_ast(QC_AST_BASE(oddeven_param_decl->ident)))
+						)),
+						QC_AST_BASE(qc_create_return(NULL))
+					);
+					qc_insert_array(QC_AST_Node_Ptr)(&parallel->body->nodes, 1, (QC_AST_Node**)&cond, 1);
+					qc_destroy_array(QC_AST_Node_Ptr)(&indices);
+				}
+
+
 				/* Add initialization for 'id' */
 				for (k = parallel->dim - 1; k >= 0; --k) {
 					QC_AST_Node *ix = QC_AST_BASE(qc_create_ident_with_text(NULL, "(threadIdx.x + blockIdx.x*blockDim.x)"));
@@ -534,20 +561,6 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					expr = QC_AST_BASE(qc_create_biop(QC_Token_div, QC_AST_BASE(qc_create_biop(QC_Token_mod, ix, mul_expr)), mul_expr2));
 
 					qc_add_parallel_id_init(root, parallel, k, expr);
-				}
-
-				if (oddeven_param_decl) { /* Add an early return for those sites that should not be updated this turn */
-					QC_AST_Cond *cond = qc_create_if_1(
-						QC_AST_BASE(qc_create_biop(QC_Token_equals,
-							QC_AST_BASE(qc_create_biop(QC_Token_mod,
-								QC_AST_BASE(qc_create_ident_with_text(NULL, "(threadIdx.x + blockIdx.x*blockDim.x)")),
-								QC_AST_BASE(qc_create_integer_literal(2, root))
-							)),
-							qc_try_create_access(qc_copy_ast(QC_AST_BASE(oddeven_param_decl->ident)))
-						)),
-						QC_AST_BASE(qc_create_return(NULL))
-					);
-					qc_insert_array(QC_AST_Node_Ptr)(&parallel->body->nodes, 0, (QC_AST_Node**)&cond, 1);
 				}
 
 				/* Substitute host var usage in parallel loop with new kernel params */

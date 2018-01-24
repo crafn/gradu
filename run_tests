@@ -2,12 +2,13 @@
 import os, sys
 
 test_files = [
-	"./tests/hello_world.qft",
-	#"./tests/c_syntax.qft", # This is quite broken for C89 compilation
-	"./tests/builtin_types.qft",
-	"./tests/syntax.qft",
-	"./tests/simple_example.qft",
-	"./tests/simulation.qft",
+	"./tests/hello_world.qc",
+	#"./tests/c_syntax.qc", # This is quite broken for C89 compilation
+	"./tests/builtin_types.qc",
+	"./tests/syntax.qc",
+	"./tests/simple_example.qc",
+	"./tests/diffusion.qc",
+	"./tests/z2.qc",
 ]
 
 class backend:
@@ -64,7 +65,8 @@ if __name__ == "__main__":
 			phase = "codegen"
 			gen_file = os.path.splitext(test)[0] + "." + backend.src_ext
 			bin_file = os.path.splitext(test)[0] + "_" + backend.src_ext
-			ret = os.system(canonical_path("./gen") + " -backend=" + backend.name + " -output=" + gen_file + " "  + test)
+			print(canonical_path("./gen") + " -b " + backend.name + " -o " + gen_file + " "  + test)
+			ret = os.system(canonical_path("./gen") + " -b " + backend.name + " -o " + gen_file + " "  + test)
 
 			# Compile C to binary
 			if ret == 0:

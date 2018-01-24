@@ -4,19 +4,9 @@
 #include "tokenize.h"
 #include "parse.h"
 
-/* General todo list
-    - tests with different dimensional fields
-    - cuda error checking
-	- overloading test
-	- test for correct error messages
-	- error recovery -- don't stop parsing at first error
-	- handle (ignore but preserve) C preprocessor
-	- handle (ignore but preserve) other C stuff
-*/
-
 const char *backends = "[c|cuda]";
 
-/* get_arg({"-flag=foo"}, "-flag") == "foo". If flag == NULL, then first non-flag argument is given */
+/* get_arg({"-flag foo"}, "-flag") == "foo". If flag == NULL, then first non-flag argument is given */
 const char *get_arg(const char **argv, int argc, const char *flag)
 {
 	int i;
@@ -24,15 +14,28 @@ const char *get_arg(const char **argv, int argc, const char *flag)
 		if (argv[i][0] == '-') {
 			if (flag && !strncmp(flag, argv[i], strlen(flag))) {
 				unsigned int index = strlen(flag) + 1;
-				if (index > strlen(argv[i]))
+				if (index > strlen(argv[i]) && i + 1 == argc)
 					continue;
-				return &argv[i][index];
+				if (argv[i][index - 1] == '=')
+					return &argv[i][index];
+				else
+					return argv[++i];
+			} else if (!strchr(argv[i], '=')) {
+				++i; /* Skip value of flag that was not asked */
 			}
 		} else if (!flag) {
 			return argv[i];
 		}
 	}
 	return NULL;
+}
+
+const char *get_arg2(const char **argv, int argc, const char *f1, const char *f2)
+{
+	const char *ret = get_arg(argv, argc, f1);
+	if (!ret)
+		return ret = get_arg(argv, argc, f2);
+	return ret;
 }
 
 QC_Bool has_arg(const char **argv, int argc, const char *flag)
@@ -44,6 +47,9 @@ QC_Bool has_arg(const char **argv, int argc, const char *flag)
 	}
 	return QC_false;
 }
+
+QC_Bool has_arg2(const char **argv, int argc, const char *f1, const char *f2)
+{ return has_arg(argv, argc, f1) || has_arg(argv, argc, f2); }
 
 int main(int argc, const char **argv)
 {
@@ -59,19 +65,19 @@ int main(int argc, const char **argv)
 	QC_AST_Scope *root = NULL;
 	QC_Array(char) gen_code = {0};
 
-	verbose = has_arg(argv, argc, "-verbose");
-	permissive = has_arg(argv, argc, "-permissive");
+	verbose = has_arg2(argv, argc, "-v", "--verbose");
+	permissive = has_arg2(argv, argc, "-p", "--permissive");
 
 	src_path = get_arg(argv, argc, NULL);
-	output_path = get_arg(argv, argc, "-output");
+	output_path = get_arg2(argv, argc, "-o", "--output");
 	if (!src_path) {
 		printf("Give source file as an argument\n");
 		goto error;
 	}
 
-	backend_str = get_arg(argv, argc, "-backend");
+	backend_str = get_arg2(argv, argc, "-b", "--backend");
 	if (!backend_str) {
-		printf("Give backend as an argument (-backend=%s)\n", backends);
+		printf("Give backend as an argument (-b %s)\n", backends);
 		goto error;
 	}
 
@@ -121,6 +127,7 @@ int main(int argc, const char **argv)
 			gen_code = qc_gen_cuda_code(root);
 		} else {
 			printf("Unknown backend (%s). Supported backends are %s\n", backend_str, backends);	
+			goto error;
 		}
 
 		if (verbose) {

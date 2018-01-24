@@ -100,8 +100,8 @@ __global__ void kernel_0(floatfield2 *cuda_output, floatfield2 input, int size_x
     int px = (x - 1 + size_x) % size_x;
 
     int py = (y - 1 + size_y) % size_y;
-    (*cuda_output).m[1*x + (*cuda_output).size[0]*y] = input.m[1*x + input.size[0]*y] + input.m[1*nx + input.size[0]*y] + input.m[1*px + input.size[0]*y] + input.m[1*x + input.size[0]*ny] + input.m[1*x + input.size[0]*py];
-    (*cuda_output).m[1*x + (*cuda_output).size[0]*y] /= 5.000000;
+    (*cuda_output).m[(*cuda_output).size[0]*x + 1*y] = input.m[input.size[0]*x + 1*y] + input.m[input.size[0]*nx + 1*y] + input.m[input.size[0]*px + 1*y] + input.m[input.size[0]*x + 1*ny] + input.m[input.size[0]*x + 1*py];
+    (*cuda_output).m[(*cuda_output).size[0]*x + 1*y] /= 5.000000;
 }
 
 
@@ -125,10 +125,10 @@ int main(int argc, char **argv)
         for (int x = 0; x < size_x; ++x) {
 
             for (int y = 0; y < size_y; ++y) {
-                host_field.m[1*x + host_field.size[0]*y] = 0;
+                host_field.m[host_field.size[0]*x + 1*y] = 0;
             }
         }
-        host_field.m[1*(size_x/2) + host_field.size[0]*(size_y/2)] = 1000;
+        host_field.m[host_field.size[0]*(size_x/2) + 1*(size_y/2)] = 1000;
     }
     memcpy_field_floatfield2(device_field_1, host_field);
 
@@ -166,9 +166,9 @@ int main(int argc, char **argv)
 
                 const char *ch = " ";
 
-                if (host_field.m[1*x + host_field.size[0]*y] > 0.500000) {
+                if (host_field.m[host_field.size[0]*x + 1*y] > 0.500000) {
                     ch = "#";
-                } else if (host_field.m[1*x + host_field.size[0]*y] > 0.100000) {
+                } else if (host_field.m[host_field.size[0]*x + 1*y] > 0.100000) {
                     ch = ".";
                 }
                 printf("%s", ch);

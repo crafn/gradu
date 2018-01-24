@@ -83,11 +83,14 @@ typedef struct intmat2
 int printf(const char *fmt, ...);
 
 typedef floatfield2 Field;
-__global__ void kernel_0(floatfield2 *cuda_output, floatfield2 input, int size_x, int size_y)
+__global__ void kernel_0(floatfield2 output, floatfield2 input, int size_x, int size_y)
 {
+    if (threadIdx.x + blockIdx.x*blockDim.x >= output.size[0]*output.size[1]) {
+        return;
+    }
     intmat2 id;
-    id.m[1*0] = (threadIdx.x + blockIdx.x*blockDim.x) % (*cuda_output).size[0]/1;
-    id.m[1*1] = (threadIdx.x + blockIdx.x*blockDim.x) % ((*cuda_output).size[0]*(*cuda_output).size[1])/(*cuda_output).size[0];
+    id.m[1*0] = (threadIdx.x + blockIdx.x*blockDim.x) % output.size[0]/1;
+    id.m[1*1] = (threadIdx.x + blockIdx.x*blockDim.x) % (output.size[0]*output.size[1])/output.size[0];
 
     int x = id.m[1*0];
 
@@ -100,8 +103,8 @@ __global__ void kernel_0(floatfield2 *cuda_output, floatfield2 input, int size_x
     int px = (x - 1 + size_x) % size_x;
 
     int py = (y - 1 + size_y) % size_y;
-    (*cuda_output).m[(*cuda_output).size[1]*x + 1*y] = input.m[input.size[1]*x + 1*y] + input.m[input.size[1]*nx + 1*y] + input.m[input.size[1]*px + 1*y] + input.m[input.size[1]*x + 1*ny] + input.m[input.size[1]*x + 1*py];
-    (*cuda_output).m[(*cuda_output).size[1]*x + 1*y] /= 5.000000;
+    output.m[output.size[1]*x + 1*y] = input.m[input.size[1]*x + 1*y] + input.m[input.size[1]*nx + 1*y] + input.m[input.size[1]*px + 1*y] + input.m[input.size[1]*x + 1*ny] + input.m[input.size[1]*x + 1*py];
+    output.m[output.size[1]*x + 1*y] /= 5.000000;
 }
 
 
@@ -150,11 +153,9 @@ int main(int argc, char **argv)
         /* Diffusion! */
 
         {
-            floatfield2 *cuda_output = (floatfield2*)cuda_upload_var(&output, sizeof(output));
-            dim3 dim_grid(100, 1, 1);
-            dim3 dim_block((*output).size[0]*(*output).size[1]/100, 1, 1);
-            kernel_0<<<dim_grid, dim_block>>>(cuda_output, *input, size_x, size_y);
-            cuda_download_var(cuda_output, &output, sizeof(output));
+            dim3 dim_grid((*output).size[0]*(*output).size[1]/128 + 1, 1, 1);
+            dim3 dim_block(128, 1, 1);
+            kernel_0<<<dim_grid, dim_block>>>(*output, *input, size_x, size_y);
         }
         memcpy_field_floatfield2(host_field, *output);
 

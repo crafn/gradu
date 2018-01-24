@@ -260,6 +260,9 @@ __host__ __device__ void movedown(intmat5 *x, int d)
 }
 __global__ void kernel_0(intfield5 link)
 {
+    if (threadIdx.x + blockIdx.x*blockDim.x >= link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4]) {
+        return;
+    }
     intmat5 id;
     id.m[1*0] = (threadIdx.x + blockIdx.x*blockDim.x) % link.size[0]/1;
     id.m[1*1] = (threadIdx.x + blockIdx.x*blockDim.x) % (link.size[0]*link.size[1])/link.size[0];
@@ -274,13 +277,16 @@ void coldstart()
 {
 
     {
-        dim3 dim_grid(100, 1, 1);
-        dim3 dim_block(link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4]/100, 1, 1);
+        dim3 dim_grid(link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4]/128 + 1, 1, 1);
+        dim3 dim_block(128, 1, 1);
         kernel_0<<<dim_grid, dim_block>>>(link);
     }
 }
 __global__ void kernel_1(intfield5 link, double beta, int iter, float *cuda_action, int is_odd)
 {
+    if (threadIdx.x + blockIdx.x*blockDim.x >= link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4]) {
+        return;
+    }
     intmat5 id;
     id.m[1*0] = (threadIdx.x + blockIdx.x*blockDim.x) % link.size[0]/1;
     id.m[1*1] = (threadIdx.x + blockIdx.x*blockDim.x) % (link.size[0]*link.size[1])/link.size[0];
@@ -348,8 +354,8 @@ double update(double beta, int iter)
 
     {
         float *cuda_action = (float*)cuda_upload_var(&action, sizeof(action));
-        dim3 dim_grid(100, 1, 1);
-        dim3 dim_block(link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4]/100, 1, 1);
+        dim3 dim_grid(link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4]/128 + 1, 1, 1);
+        dim3 dim_block(128, 1, 1);
         kernel_1<<<dim_grid, dim_block>>>(link, beta, iter, cuda_action, 0);
         kernel_1<<<dim_grid, dim_block>>>(link, beta, iter, cuda_action, 1);
         cuda_download_var(cuda_action, &action, sizeof(action));

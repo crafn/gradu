@@ -360,7 +360,8 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 						}
 					}
 
-					if (!is_modified_in_kernel) {
+					if (!is_modified_in_kernel || (	var->decl->type == QC_AST_var_decl &&
+													((QC_AST_Var_Decl*)var->decl)->type->base_type_decl->builtin_type.is_field)) {
 						/* Arg in the call */
 						cuda_arg = qc_create_full_deref(qc_copy_ast(QC_B(access))); /* Read-only variables are passed by value */
 						qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args, cuda_arg);
@@ -421,22 +422,30 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 				for (k = 0; k < memcpy_to_device_calls.size; ++k)
 					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, memcpy_to_device_calls.data[k]);
 
-				/* @todo Proper AST */
-				qc_push_array(QC_AST_Node_Ptr)(
-							&scope->nodes,
-							QC_B(qc_create_ident_with_text(NULL, "dim3 dim_grid(100, 1, 1)"))); /* @todo Dynamic value based on size of field */
 
 				for (k = 0; k < parallel->dim; ++k) {
 					qc_push_array(QC_AST_Node_Ptr)(&size_accesses, QC_B(c_create_field_dim_size((QC_AST_Access*)qc_copy_ast(unique_var_accesses.data[0]), k)));
 				}
+				/* @todo Proper AST */
+				qc_push_array(QC_AST_Node_Ptr)(
+							&scope->nodes,
+							QC_B(qc_create_call_3(
+								qc_create_ident_with_text(NULL, "dim3 dim_grid"),
+								QC_B(qc_create_add(
+									QC_B(qc_create_div(
+										qc_create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul),
+										QC_B(qc_create_integer_literal(128, root))
+									)),
+									QC_B(qc_create_integer_literal(1, root))
+								)),
+								QC_B(qc_create_integer_literal(1, root)),
+								QC_B(qc_create_integer_literal(1, root))
+							)));
 				qc_push_array(QC_AST_Node_Ptr)(
 							&scope->nodes,
 							QC_B(qc_create_call_3(
 								qc_create_ident_with_text(NULL, "dim3 dim_block"),
-								QC_B(qc_create_biop(QC_Token_div,
-									qc_create_chained_expr(size_accesses.data, size_accesses.size, QC_Token_mul),
-									QC_B(qc_create_integer_literal(100, root)) /* @todo Dynamic value based on size of field */
-								)),
+								QC_B(qc_create_integer_literal(128, root)), /* @todo Dynamic value based on device */
 								QC_B(qc_create_integer_literal(1, root)), 
 								QC_B(qc_create_integer_literal(1, root))
 							)));
@@ -532,7 +541,6 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					qc_destroy_array(QC_AST_Node_Ptr)(&indices);
 				}
 
-
 				/* Add initialization for 'id' */
 				for (k = parallel->dim - 1; k >= 0; --k) {
 					QC_AST_Node *ix = QC_B(qc_create_ident_with_text(NULL, "(threadIdx.x + blockIdx.x*blockDim.x)"));
@@ -562,6 +570,24 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					expr = QC_B(qc_create_biop(QC_Token_div, QC_B(qc_create_biop(QC_Token_mod, ix, mul_expr)), mul_expr2));
 
 					qc_add_parallel_id_init(root, parallel, k, expr);
+				}
+
+				{ /* Bounds check */
+					QC_AST_Node *ix = QC_B(qc_create_ident_with_text(NULL, "threadIdx.x + blockIdx.x*blockDim.x"));
+					QC_AST_Node *rhs;
+					QC_AST_Cond *cond;
+					{ /* size1*size2 .. */
+						QC_Array(QC_AST_Node_Ptr) sizes = qc_create_array(QC_AST_Node_Ptr)(0);
+						for (n = 0; n < parallel->dim; n++)
+							qc_push_array(QC_AST_Node_Ptr)(&sizes, QC_B(c_create_field_dim_size(qc_create_simple_access(kernel_param_decls.data[0]), n)));
+						rhs = qc_create_chained_expr(sizes.data, sizes.size, QC_Token_mul);
+						qc_destroy_array(QC_AST_Node_Ptr)(&sizes);
+					}
+					cond = qc_create_if_1(
+						QC_B(qc_create_biop(QC_Token_geq, ix, rhs)),
+						QC_B(qc_create_return(NULL))
+					);
+					qc_insert_array(QC_AST_Node_Ptr)(&parallel->body->nodes, 0, (QC_AST_Node**)&cond, 1);
 				}
 
 				/* Substitute host var usage in parallel loop with new kernel params */

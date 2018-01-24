@@ -1958,8 +1958,14 @@ QC_AST_Biop *qc_create_biop(QC_Token_Type type, QC_AST_Node *lhs, QC_AST_Node *r
 QC_AST_Biop *qc_create_assign(QC_AST_Node *lhs, QC_AST_Node *rhs)
 { return qc_create_biop(QC_Token_assign, lhs, rhs); }
 
+QC_AST_Biop *qc_create_add(QC_AST_Node *lhs, QC_AST_Node *rhs)
+{ return qc_create_biop(QC_Token_add, lhs, rhs); }
+
 QC_AST_Biop *qc_create_mul(QC_AST_Node *lhs, QC_AST_Node *rhs)
 { return qc_create_biop(QC_Token_mul, lhs, rhs); }
+
+QC_AST_Biop *qc_create_div(QC_AST_Node *lhs, QC_AST_Node *rhs)
+{ return qc_create_biop(QC_Token_div, lhs, rhs); }
 
 QC_AST_Biop *qc_create_negation(QC_AST_Node *node)
 { return qc_create_biop(QC_Token_sub, NULL, node); }

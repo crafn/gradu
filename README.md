@@ -5,8 +5,6 @@
 
 - z2 cuda simulation
 	- limit dim_block and increase dim_grid automatically
-	- better random
-- QC_AST_NODE -> QC_B
 - reverse field memory layout: should be same as multidim C arrays
 - .qft extension to .lc, .fc, .qc or something (lattice C, field C)
 - simulation.qft -> diffusion.qft

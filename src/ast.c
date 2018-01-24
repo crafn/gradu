@@ -48,22 +48,22 @@ QC_INTERNAL QC_AST_Node *qc_create_node_impl(QC_AST_Node_Type type, int size)
 QC_AST_Node *qc_create_ast_node(QC_AST_Node_Type type)
 {
 	switch (type) {
-		case QC_AST_scope: return QC_AST_BASE(qc_create_scope_node());
-		case QC_AST_ident: return QC_AST_BASE(qc_create_ident_node());
-		case QC_AST_type: return QC_AST_BASE(qc_create_type_node());
-		case QC_AST_type_decl: return QC_AST_BASE(qc_create_type_decl_node());
-		case QC_AST_var_decl: return QC_AST_BASE(qc_create_var_decl_node());
-		case QC_AST_func_decl: return QC_AST_BASE(qc_create_func_decl_node());
-		case QC_AST_literal: return QC_AST_BASE(qc_create_literal_node());
-		case QC_AST_biop: return QC_AST_BASE(qc_create_biop_node());
-		case QC_AST_control: return QC_AST_BASE(qc_create_control_node());
-		case QC_AST_call: return QC_AST_BASE(qc_create_call_node());
-		case QC_AST_access: return QC_AST_BASE(qc_create_access_node());
-		case QC_AST_cond: return QC_AST_BASE(qc_create_cond_node());
-		case QC_AST_loop: return QC_AST_BASE(qc_create_loop_node());
-		case QC_AST_cast: return QC_AST_BASE(qc_create_cast_node());
-		case QC_AST_typedef: return QC_AST_BASE(qc_create_typedef_node());
-		case QC_AST_parallel: return QC_AST_BASE(qc_create_parallel_node());
+		case QC_AST_scope: return QC_B(qc_create_scope_node());
+		case QC_AST_ident: return QC_B(qc_create_ident_node());
+		case QC_AST_type: return QC_B(qc_create_type_node());
+		case QC_AST_type_decl: return QC_B(qc_create_type_decl_node());
+		case QC_AST_var_decl: return QC_B(qc_create_var_decl_node());
+		case QC_AST_func_decl: return QC_B(qc_create_func_decl_node());
+		case QC_AST_literal: return QC_B(qc_create_literal_node());
+		case QC_AST_biop: return QC_B(qc_create_biop_node());
+		case QC_AST_control: return QC_B(qc_create_control_node());
+		case QC_AST_call: return QC_B(qc_create_call_node());
+		case QC_AST_access: return QC_B(qc_create_access_node());
+		case QC_AST_cond: return QC_B(qc_create_cond_node());
+		case QC_AST_loop: return QC_B(qc_create_loop_node());
+		case QC_AST_cast: return QC_B(qc_create_cast_node());
+		case QC_AST_typedef: return QC_B(qc_create_typedef_node());
+		case QC_AST_parallel: return QC_B(qc_create_parallel_node());
 		default: QC_FAIL(("qc_create_ast_node: Unknown node type %i", type));
 	}
 }
@@ -260,7 +260,7 @@ void qc_shallow_copy_ast_node(QC_AST_Node *copy, QC_AST_Node* node)
 void qc_copy_scope_node(QC_AST_Scope *copy, QC_AST_Scope *scope, QC_AST_Node **subnodes, int subnode_count)
 {
 	int i;
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(scope));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(scope));
 
 	qc_clear_array(QC_AST_Node_Ptr)(&copy->nodes);
 	for (i = 0; i < subnode_count; ++i) {
@@ -273,7 +273,7 @@ void qc_copy_scope_node(QC_AST_Scope *copy, QC_AST_Scope *scope, QC_AST_Node **s
 
 void qc_copy_ident_node(QC_AST_Ident *copy, QC_AST_Ident *ident, QC_AST_Node *ref_to_decl)
 {
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(ident));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(ident));
 	if (copy != ident) {
 		qc_destroy_array(char)(&copy->text);
 		copy->text = qc_copy_array(char)(&ident->text);
@@ -284,7 +284,7 @@ void qc_copy_ident_node(QC_AST_Ident *copy, QC_AST_Ident *ident, QC_AST_Node *re
 
 void qc_copy_type_node(QC_AST_Type *copy, QC_AST_Type *type, QC_AST_Node *ident, QC_AST_Node *ref_to_base_type_decl, QC_AST_Node *ref_to_base_typedef)
 {
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(type));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(type));
 	QC_ASSERT(!ref_to_base_type_decl || ref_to_base_type_decl->type == QC_AST_type_decl);
 	QC_ASSERT(!ref_to_base_typedef || ref_to_base_typedef->type == QC_AST_typedef);
 	QC_ASSERT(!ident || ident->type == QC_AST_ident);
@@ -302,7 +302,7 @@ void qc_copy_type_decl_node(QC_AST_Type_Decl *copy, QC_AST_Type_Decl *decl, QC_A
 	QC_ASSERT(!body || body->type == QC_AST_scope);
 	QC_ASSERT(!builtin_decl_ref || builtin_decl_ref->type == QC_AST_type_decl);
 	QC_ASSERT(!builtin_sub_decl_ref || builtin_sub_decl_ref->type == QC_AST_type_decl);
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(decl));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(decl));
 	copy->ident = (QC_AST_Ident*)ident;
 	copy->body = (QC_AST_Scope*)body;
 	copy->is_builtin = decl->is_builtin;
@@ -315,7 +315,7 @@ void qc_copy_var_decl_node(QC_AST_Var_Decl *copy, QC_AST_Var_Decl *decl, QC_AST_
 {
 	QC_ASSERT(type->type == QC_AST_type);
 	QC_ASSERT(ident->type == QC_AST_ident);
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(decl));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(decl));
 	copy->type = (QC_AST_Type*)type;
 	copy->ident = (QC_AST_Ident*)ident;
 	copy->value = value;
@@ -330,7 +330,7 @@ void qc_copy_func_decl_node(QC_AST_Func_Decl *copy, QC_AST_Func_Decl *decl, QC_A
 	QC_ASSERT(return_type->type == QC_AST_type);
 	QC_ASSERT(!body || body->type == QC_AST_scope);
 	QC_ASSERT(!backend_decl_ref || backend_decl_ref->type == QC_AST_func_decl);
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(decl));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(decl));
 	copy->return_type = (QC_AST_Type*)return_type;
 	copy->ident = (QC_AST_Ident*)ident;
 	copy->body = (QC_AST_Scope*)body;
@@ -359,7 +359,7 @@ void qc_copy_literal_node(QC_AST_Literal *copy, QC_AST_Literal *literal, QC_AST_
 	}
 
 	QC_ASSERT(!type_decl_ref || type_decl_ref->type == QC_AST_type_decl);
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(literal));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(literal));
 	copy->type = literal->type;
 	copy->value = literal->value;
 	copy->base_type_decl = (QC_AST_Type_Decl*)type_decl_ref;
@@ -386,7 +386,7 @@ void qc_copy_literal_node(QC_AST_Literal *copy, QC_AST_Literal *literal, QC_AST_
 
 void qc_copy_biop_node(QC_AST_Biop *copy, QC_AST_Biop *biop, QC_AST_Node *lhs, QC_AST_Node *rhs)
 {
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(biop));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(biop));
 	copy->type = biop->type;
 	copy->is_top_level = biop->is_top_level;
 	copy->lhs = lhs;
@@ -395,7 +395,7 @@ void qc_copy_biop_node(QC_AST_Biop *copy, QC_AST_Biop *biop, QC_AST_Node *lhs, Q
 
 void qc_copy_control_node(QC_AST_Control *copy, QC_AST_Control *control, QC_AST_Node *value)
 {
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(control));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(control));
 	copy->type = control->type;
 	copy->value = value;
 }
@@ -403,7 +403,7 @@ void qc_copy_control_node(QC_AST_Control *copy, QC_AST_Control *control, QC_AST_
 void qc_copy_call_node(QC_AST_Call *copy, QC_AST_Call *call, QC_AST_Node *base, QC_AST_Node **args, int arg_count)
 {
 	int i;
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(call));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(call));
 	copy->base = base;
 	qc_clear_array(QC_AST_Node_Ptr)(&copy->args);
 	for (i = 0; i < arg_count; ++i) {
@@ -414,7 +414,7 @@ void qc_copy_call_node(QC_AST_Call *copy, QC_AST_Call *call, QC_AST_Node *base, 
 void qc_copy_access_node(QC_AST_Access *copy, QC_AST_Access *access, QC_AST_Node *base, QC_AST_Node **args, int arg_count)
 {
 	int i;
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(access));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(access));
 	copy->base = base;
 	qc_clear_array(QC_AST_Node_Ptr)(&copy->args);
 	for (i = 0; i < arg_count; ++i)
@@ -429,7 +429,7 @@ void qc_copy_access_node(QC_AST_Access *copy, QC_AST_Access *access, QC_AST_Node
 
 void qc_copy_cond_node(QC_AST_Cond *copy, QC_AST_Cond *cond, QC_AST_Node *expr, QC_AST_Node *body, QC_AST_Node *after_else)
 {
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(cond));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(cond));
 	QC_ASSERT(!body || body->type == QC_AST_scope);
 	copy->expr = expr;
 	copy->body = (QC_AST_Scope*)body;
@@ -439,7 +439,7 @@ void qc_copy_cond_node(QC_AST_Cond *copy, QC_AST_Cond *cond, QC_AST_Node *expr, 
 
 void qc_copy_loop_node(QC_AST_Loop *copy, QC_AST_Loop *loop, QC_AST_Node *init, QC_AST_Node *cond, QC_AST_Node *incr, QC_AST_Node *body)
 {
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(loop));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(loop));
 	QC_ASSERT(!body || body->type == QC_AST_scope);
 	copy->init = init;
 	copy->cond = cond;
@@ -450,7 +450,7 @@ void qc_copy_loop_node(QC_AST_Loop *copy, QC_AST_Loop *loop, QC_AST_Node *init, 
 
 void qc_copy_cast_node(QC_AST_Cast *copy, QC_AST_Cast *cast, QC_AST_Node *type, QC_AST_Node *target)
 {
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(cast));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(cast));
 	QC_ASSERT(!type || type->type == QC_AST_type);
 	copy->type = (QC_AST_Type*)type;
 	copy->target = target;
@@ -458,7 +458,7 @@ void qc_copy_cast_node(QC_AST_Cast *copy, QC_AST_Cast *cast, QC_AST_Node *type, 
 
 void qc_copy_typedef_node(QC_AST_Typedef *copy, QC_AST_Typedef *def, QC_AST_Node *type, QC_AST_Node *ident)
 {
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(def));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(def));
 	QC_ASSERT(!type || type->type == QC_AST_type);
 	QC_ASSERT(!ident || ident->type == QC_AST_ident);
 	copy->type = (QC_AST_Type*)type;
@@ -467,7 +467,7 @@ void qc_copy_typedef_node(QC_AST_Typedef *copy, QC_AST_Typedef *def, QC_AST_Node
 
 void qc_copy_parallel_node(QC_AST_Parallel *copy, QC_AST_Parallel *parallel, QC_AST_Node *output, QC_AST_Node *input, QC_AST_Node *body)
 {
-	qc_copy_ast_node_base(QC_AST_BASE(copy), QC_AST_BASE(parallel));
+	qc_copy_ast_node_base(QC_B(copy), QC_B(parallel));
 	QC_ASSERT(!body || body->type == QC_AST_scope);
 	copy->output = output;
 	copy->input = input;
@@ -494,35 +494,35 @@ void qc_destroy_node(QC_AST_Node *node)
 
 	case QC_AST_type: {
 		QC_CASTED_NODE(QC_AST_Type, type, node);
-		qc_destroy_node(QC_AST_BASE(type->ident));
+		qc_destroy_node(QC_B(type->ident));
 	} break;
 
 	case QC_AST_type_decl: {
 		QC_CASTED_NODE(QC_AST_Type_Decl, decl, node);
-		qc_destroy_node(QC_AST_BASE(decl->ident));
-		qc_destroy_node(QC_AST_BASE(decl->body));
+		qc_destroy_node(QC_B(decl->ident));
+		qc_destroy_node(QC_B(decl->body));
 	} break;
 
 	case QC_AST_var_decl: {
 		QC_CASTED_NODE(QC_AST_Var_Decl, decl, node);
-		qc_destroy_node(QC_AST_BASE(decl->type));
-		qc_destroy_node(QC_AST_BASE(decl->ident));
+		qc_destroy_node(QC_B(decl->type));
+		qc_destroy_node(QC_B(decl->ident));
 		qc_destroy_node(decl->value);
 	} break;
 
 	case QC_AST_func_decl: {
 		QC_CASTED_NODE(QC_AST_Func_Decl, decl, node);
-		qc_destroy_node(QC_AST_BASE(decl->return_type));
-		qc_destroy_node(QC_AST_BASE(decl->ident));
+		qc_destroy_node(QC_B(decl->return_type));
+		qc_destroy_node(QC_B(decl->ident));
 		for (i = 0; i < decl->params.size; ++i)
-			qc_destroy_node(QC_AST_BASE(decl->params.data[i]));
-		qc_destroy_node(QC_AST_BASE(decl->body));
+			qc_destroy_node(QC_B(decl->params.data[i]));
+		qc_destroy_node(QC_B(decl->body));
 	} break;
 
 	case QC_AST_literal: {
 		QC_CASTED_NODE(QC_AST_Literal, literal, node);
 		if (literal->type == QC_Literal_compound) {
-			qc_destroy_node(QC_AST_BASE(literal->value.compound.type));
+			qc_destroy_node(QC_B(literal->value.compound.type));
 			for (i = 0; i < literal->value.compound.subnodes.size; ++i)
 				qc_destroy_node(literal->value.compound.subnodes.data[i]);
 		}
@@ -556,7 +556,7 @@ void qc_destroy_node(QC_AST_Node *node)
 	case QC_AST_cond: {
 		QC_CASTED_NODE(QC_AST_Cond, cond, node);
 		qc_destroy_node(cond->expr);
-		qc_destroy_node(QC_AST_BASE(cond->body));
+		qc_destroy_node(QC_B(cond->body));
 		qc_destroy_node(cond->after_else);
 	} break;
 
@@ -565,26 +565,26 @@ void qc_destroy_node(QC_AST_Node *node)
 		qc_destroy_node(loop->init);
 		qc_destroy_node(loop->cond);
 		qc_destroy_node(loop->incr);
-		qc_destroy_node(QC_AST_BASE(loop->body));
+		qc_destroy_node(QC_B(loop->body));
 	} break;
 
 	case QC_AST_cast: {
 		QC_CASTED_NODE(QC_AST_Cast, cast, node);
-		qc_destroy_node(QC_AST_BASE(cast->type));
+		qc_destroy_node(QC_B(cast->type));
 		qc_destroy_node(cast->target);
 	} break;
 
 	case QC_AST_typedef: {
 		QC_CASTED_NODE(QC_AST_Typedef, def, node);
-		qc_destroy_node(QC_AST_BASE(def->type));
-		qc_destroy_node(QC_AST_BASE(def->ident));
+		qc_destroy_node(QC_B(def->type));
+		qc_destroy_node(QC_B(def->ident));
 	} break;
 
 	case QC_AST_parallel: {
 		QC_CASTED_NODE(QC_AST_Parallel, parallel, node);
 		qc_destroy_node(parallel->output);
 		qc_destroy_node(parallel->input);
-		qc_destroy_node(QC_AST_BASE(parallel->body));
+		qc_destroy_node(QC_B(parallel->body));
 	} break;
 
 	default: QC_FAIL(("qc_destroy_node: Unknown node type %i", node->type));
@@ -743,7 +743,7 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 			rhs = qc_eval_const_expr(biop->rhs);
 			if (!lhs || !rhs || lhs->type != rhs->type)
 				break;
-			ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(rhs));
+			ret = (QC_AST_Literal*)qc_copy_ast(QC_B(rhs));
 
 			switch (rhs->type) {
 			case QC_Literal_integer: {
@@ -771,7 +771,7 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 			rhs = qc_eval_const_expr(biop->rhs);
 			if (!rhs)
 				break;
-			ret = (QC_AST_Literal*)qc_copy_ast(QC_AST_BASE(rhs));
+			ret = (QC_AST_Literal*)qc_copy_ast(QC_B(rhs));
 
 			switch (rhs->type) {
 			case QC_Literal_integer: {
@@ -802,7 +802,7 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 	case QC_AST_access: {
 		QC_AST_Ident *ident = qc_unwrap_ident(expr);
 		if (ident)
-			return qc_eval_const_expr(QC_AST_BASE(ident));
+			return qc_eval_const_expr(QC_B(ident));
 	} break;
 
 	case QC_AST_ident: {
@@ -817,8 +817,8 @@ QC_AST_Literal *qc_eval_const_expr(QC_AST_Node *expr)
 	default:;
 	}
 
-	qc_destroy_node(QC_AST_BASE(lhs));
-	qc_destroy_node(QC_AST_BASE(rhs));
+	qc_destroy_node(QC_B(lhs));
+	qc_destroy_node(QC_B(rhs));
 	return ret;
 }
 
@@ -985,7 +985,7 @@ void qc_move_ast(QC_AST_Scope *dst, QC_AST_Scope *src)
 	qc_insert_array(QC_AST_Node_Ptr)(&dst->nodes, 0, src->nodes.data, src->nodes.size);
 
 	/* Don't destroy subnodes because they were moved */
-	qc_shallow_destroy_node(QC_AST_BASE(src));
+	qc_shallow_destroy_node(QC_B(src));
 }
 
 QC_INTERNAL void print_indent(int indent)
@@ -1066,7 +1066,7 @@ void qc_find_decls_scoped(QC_AST_Parent_Map *map, QC_Array(QC_AST_Node_Ptr) *ret
 		case QC_AST_func_decl: {
 			QC_CASTED_NODE(QC_AST_Func_Decl, decl, stack_node);
 			for (i = 0; i < decl->params.size; ++i) {
-				QC_AST_Node *node = QC_AST_BASE(decl->params.data[i]);
+				QC_AST_Node *node = QC_B(decl->params.data[i]);
 				if (!qc_is_decl(node))
 					continue;
 
@@ -1173,7 +1173,7 @@ QC_INTERNAL QC_Bool resolve_node(QC_AST_Parent_Map *map, QC_AST_Ident *ident, QC
 	ident->decl = NULL;
 
 	{ /* Designated initializer ident search from enclosing compound literal type */
-		QC_AST_Node *parent = qc_find_parent_node(map, QC_AST_BASE(ident));
+		QC_AST_Node *parent = qc_find_parent_node(map, QC_B(ident));
 		if (parent->type == QC_AST_literal) {
 			QC_CASTED_NODE(QC_AST_Literal, literal, parent);
 			if (	literal->type == QC_Literal_compound &&
@@ -1188,7 +1188,7 @@ QC_INTERNAL QC_Bool resolve_node(QC_AST_Parent_Map *map, QC_AST_Ident *ident, QC
 	if (!ident->decl) {
 		QC_AST_Node *best_match = NULL;
 
-		qc_find_decls_scoped(map, &decls, QC_AST_BASE(ident), qc_c_str_to_buf_str(ident->text.data), hint);
+		qc_find_decls_scoped(map, &decls, QC_B(ident), qc_c_str_to_buf_str(ident->text.data), hint);
 		for (i = 0; i < decls.size; ++i) {
 			QC_AST_Node *decl = decls.data[i];
 			if (!best_match) {
@@ -1305,9 +1305,9 @@ QC_AST_Call *qc_resolve_overloaded_call(QC_AST_Parent_Map *map, QC_AST_Call *cal
 void qc_resolve_ast(QC_AST_Scope *root)
 {
 	int i;
-	QC_AST_Parent_Map parent_map = qc_create_parent_map(QC_AST_BASE(root));
+	QC_AST_Parent_Map parent_map = qc_create_parent_map(QC_B(root));
 	QC_Array(QC_AST_Node_Ptr) subnodes = qc_create_array(QC_AST_Node_Ptr)(0);
-	qc_push_subnodes(&subnodes, QC_AST_BASE(root), QC_false);
+	qc_push_subnodes(&subnodes, QC_B(root), QC_false);
 
 	for (i = 0; i < subnodes.size; ++i) {
 		QC_AST_Node *node = subnodes.data[i];
@@ -1379,35 +1379,35 @@ void qc_push_immediate_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *nod
 
 	case QC_AST_type: {
 		QC_CASTED_NODE(QC_AST_Type, type, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(type->ident));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(type->ident));
 	} break;
 
 	case QC_AST_type_decl: {
 		QC_CASTED_NODE(QC_AST_Type_Decl, decl, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->ident));
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->body));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->ident));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->body));
 	} break;
 
 	case QC_AST_var_decl: {
 		QC_CASTED_NODE(QC_AST_Var_Decl, decl, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->type));
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->ident));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->type));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->ident));
 		qc_push_array(QC_AST_Node_Ptr)(ret, decl->value);
 	} break;
 
 	case QC_AST_func_decl: {
 		QC_CASTED_NODE(QC_AST_Func_Decl, decl, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->return_type));
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->ident));
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->body));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->return_type));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->ident));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->body));
 		for (i = 0; i < decl->params.size; ++i)
-			qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->params.data[i]));
+			qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->params.data[i]));
 	} break;
 
 	case QC_AST_literal: {
 		QC_CASTED_NODE(QC_AST_Literal, literal, node);
 		if (literal->type == QC_Literal_compound) {
-			qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(literal->value.compound.type));
+			qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(literal->value.compound.type));
 			for (i = 0; i < literal->value.compound.subnodes.size; ++i)
 				qc_push_array(QC_AST_Node_Ptr)(ret, literal->value.compound.subnodes.data[i]);
 		}
@@ -1440,7 +1440,7 @@ void qc_push_immediate_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *nod
 	case QC_AST_cond: {
 		QC_CASTED_NODE(QC_AST_Cond, cond, node);
 		qc_push_array(QC_AST_Node_Ptr)(ret, cond->expr);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(cond->body));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(cond->body));
 		qc_push_array(QC_AST_Node_Ptr)(ret, cond->after_else);
 	} break;
 
@@ -1449,26 +1449,26 @@ void qc_push_immediate_subnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *nod
 		qc_push_array(QC_AST_Node_Ptr)(ret, loop->init);
 		qc_push_array(QC_AST_Node_Ptr)(ret, loop->cond);
 		qc_push_array(QC_AST_Node_Ptr)(ret, loop->incr);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(loop->body));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(loop->body));
 	} break;
 
 	case QC_AST_cast: {
 		QC_CASTED_NODE(QC_AST_Cast, cast, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(cast->type));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(cast->type));
 		qc_push_array(QC_AST_Node_Ptr)(ret, cast->target);
 	} break;
 
 	case QC_AST_typedef: {
 		QC_CASTED_NODE(QC_AST_Typedef, def, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(def->type));
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(def->ident));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(def->type));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(def->ident));
 	} break;
 
 	case QC_AST_parallel: {
 		QC_CASTED_NODE(QC_AST_Parallel, parallel, node);
 		qc_push_array(QC_AST_Node_Ptr)(ret, parallel->output);
 		qc_push_array(QC_AST_Node_Ptr)(ret, parallel->input);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(parallel->body));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(parallel->body));
 	} break;
 
 	default: QC_FAIL(("qc_push_immediate_subnodes: Unknown node type: %i", node->type));
@@ -1490,26 +1490,26 @@ void qc_push_immediate_refnodes(QC_Array(QC_AST_Node_Ptr) *ret, QC_AST_Node *nod
 
 	case QC_AST_type: {
 		QC_CASTED_NODE(QC_AST_Type, type, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(type->base_type_decl));
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(type->base_typedef));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(type->base_type_decl));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(type->base_typedef));
 	} break;
 
 	case QC_AST_type_decl: {
 		QC_CASTED_NODE(QC_AST_Type_Decl, decl, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->builtin_sub_type_decl));
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->builtin_concrete_decl));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->builtin_sub_type_decl));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->builtin_concrete_decl));
 	} break;
 
 	case QC_AST_var_decl: break;
 
 	case QC_AST_func_decl: {
 		QC_CASTED_NODE(QC_AST_Func_Decl, decl, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(decl->builtin_concrete_decl));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(decl->builtin_concrete_decl));
 	} break;
 
 	case QC_AST_literal: {
 		QC_CASTED_NODE(QC_AST_Literal, literal, node);
-		qc_push_array(QC_AST_Node_Ptr)(ret, QC_AST_BASE(literal->base_type_decl));
+		qc_push_array(QC_AST_Node_Ptr)(ret, QC_B(literal->base_type_decl));
 	} break;
 
 	case QC_AST_biop: break;
@@ -1665,26 +1665,26 @@ void qc_print_ast(QC_AST_Node *node, int indent)
 		} else {
 			printf("type_decl\n");
 		}
-		qc_print_ast(QC_AST_BASE(decl->ident), indent + 2);
-		qc_print_ast(QC_AST_BASE(decl->body), indent + 2);
+		qc_print_ast(QC_B(decl->ident), indent + 2);
+		qc_print_ast(QC_B(decl->body), indent + 2);
 	} break;
 
 	case QC_AST_var_decl: {
 		QC_CASTED_NODE(QC_AST_Var_Decl, decl, node);
 		printf("var_decl\n");
-		qc_print_ast(QC_AST_BASE(decl->type), indent + 2);
-		qc_print_ast(QC_AST_BASE(decl->ident), indent + 2);
+		qc_print_ast(QC_B(decl->type), indent + 2);
+		qc_print_ast(QC_B(decl->ident), indent + 2);
 		qc_print_ast(decl->value, indent + 2);
 	} break;
 
 	case QC_AST_func_decl: {
 		QC_CASTED_NODE(QC_AST_Func_Decl, decl, node);
 		printf("func_decl\n");
-		qc_print_ast(QC_AST_BASE(decl->return_type), indent + 2);
-		qc_print_ast(QC_AST_BASE(decl->ident), indent + 2);
+		qc_print_ast(QC_B(decl->return_type), indent + 2);
+		qc_print_ast(QC_B(decl->ident), indent + 2);
 		for (i = 0; i < decl->params.size; ++i)
-			qc_print_ast(QC_AST_BASE(decl->params.data[i]), indent + 2);
-		qc_print_ast(QC_AST_BASE(decl->body), indent + 2);
+			qc_print_ast(QC_B(decl->params.data[i]), indent + 2);
+		qc_print_ast(QC_B(decl->body), indent + 2);
 	} break;
 
 	case QC_AST_literal: {
@@ -1752,7 +1752,7 @@ void qc_print_ast(QC_AST_Node *node, int indent)
 		QC_CASTED_NODE(QC_AST_Cond, cond, node);
 		printf("cond\n");
 		qc_print_ast(cond->expr, indent + 2);
-		qc_print_ast(QC_AST_BASE(cond->body), indent + 2);
+		qc_print_ast(QC_B(cond->body), indent + 2);
 		qc_print_ast(cond->after_else, indent + 2);
 	} break;
 
@@ -1762,21 +1762,21 @@ void qc_print_ast(QC_AST_Node *node, int indent)
 		qc_print_ast(loop->init, indent + 2);
 		qc_print_ast(loop->cond, indent + 2);
 		qc_print_ast(loop->incr, indent + 2);
-		qc_print_ast(QC_AST_BASE(loop->body), indent + 2);
+		qc_print_ast(QC_B(loop->body), indent + 2);
 	} break;
 
 	case QC_AST_cast: {
 		QC_CASTED_NODE(QC_AST_Cast, cast, node);
 		printf("cast\n");
-		qc_print_ast(QC_AST_BASE(cast->type), indent + 2);
+		qc_print_ast(QC_B(cast->type), indent + 2);
 		qc_print_ast(cast->target, indent + 2);
 	} break;
 
 	case QC_AST_typedef: {
 		QC_CASTED_NODE(QC_AST_Typedef, def, node);
 		printf("typedef\n");
-		qc_print_ast(QC_AST_BASE(def->type), indent + 2);
-		qc_print_ast(QC_AST_BASE(def->ident), indent + 2);
+		qc_print_ast(QC_B(def->type), indent + 2);
+		qc_print_ast(QC_B(def->ident), indent + 2);
 	} break;
 
 	case QC_AST_parallel: {
@@ -1784,7 +1784,7 @@ void qc_print_ast(QC_AST_Node *node, int indent)
 		printf("parallel\n");
 		qc_print_ast(parallel->input, indent + 2);
 		qc_print_ast(parallel->output, indent + 2);
-		qc_print_ast(QC_AST_BASE(parallel->body), indent + 2);
+		qc_print_ast(QC_B(parallel->body), indent + 2);
 	} break;
 
 	default: QC_FAIL(("qc_print_ast: Unknown node type %i", node->type));
@@ -1812,7 +1812,7 @@ QC_AST_Var_Decl *qc_create_var_decl(QC_AST_Type_Decl *type_decl, QC_AST_Ident *i
 	decl->type = qc_create_type_node();
 	decl->type->base_type_decl = type_decl;
 	decl->ident = ident;
-	decl->ident->decl = QC_AST_BASE(decl);
+	decl->ident->decl = QC_B(decl);
 	decl->value = value;
 	return decl;
 }
@@ -1888,7 +1888,7 @@ QC_AST_Literal *qc_create_boolean_literal(QC_Bool value, QC_AST_Scope *root)
 QC_AST_Call *qc_create_call_1(QC_AST_Ident *ident, QC_AST_Node *arg)
 {
 	QC_AST_Call *call = qc_create_call_node();
-	call->base = qc_try_create_access(QC_AST_BASE(ident));
+	call->base = qc_try_create_access(QC_B(ident));
 	qc_push_array(QC_AST_Node_Ptr)(&call->args, arg);
 	return call;
 }
@@ -1998,7 +1998,7 @@ QC_AST_Type *qc_create_builtin_type(QC_Builtin_Type bt, int ptr_depth, QC_AST_Sc
 
 QC_AST_Type *qc_copy_and_modify_type(QC_AST_Type *type, int delta_ptr_depth)
 {
-	QC_AST_Type *copy = (QC_AST_Type*)qc_copy_ast(QC_AST_BASE(type));
+	QC_AST_Type *copy = (QC_AST_Type*)qc_copy_ast(QC_B(type));
 	copy->ptr_depth += delta_ptr_depth;
 	return copy;
 }
@@ -2013,9 +2013,9 @@ QC_AST_Type *qc_create_simple_type(QC_AST_Type_Decl *type_decl)
 QC_AST_Loop *qc_create_for_loop(QC_AST_Var_Decl *index, QC_AST_Node *max_expr, QC_AST_Scope *body)
 {
 	QC_AST_Loop *loop = qc_create_loop_node();
-	loop->init = QC_AST_BASE(index);
-	loop->cond = QC_AST_BASE(qc_create_less_than(qc_copy_ast(QC_AST_BASE(index->ident)), max_expr));
-	loop->incr = QC_AST_BASE(qc_create_pre_increment(qc_copy_ast(QC_AST_BASE(index->ident))));
+	loop->init = QC_B(index);
+	loop->cond = QC_B(qc_create_less_than(qc_copy_ast(QC_B(index->ident)), max_expr));
+	loop->incr = QC_B(qc_create_pre_increment(qc_copy_ast(QC_B(index->ident))));
 	loop->body = body;
 	return loop;
 }
@@ -2026,7 +2026,7 @@ QC_AST_Node *qc_try_create_access(QC_AST_Node *node)
 		QC_AST_Access *access = qc_create_access_node();
 		access->base = node;
 		access->is_var_access = QC_true;
-		return QC_AST_BASE(access);
+		return QC_B(access);
 	}
 	return node;
 }
@@ -2043,7 +2043,7 @@ QC_AST_Access *qc_create_element_access_1(QC_AST_Node *base, QC_AST_Node *arg)
 QC_AST_Access *qc_create_simple_access(QC_AST_Var_Decl *var)
 {
 	QC_AST_Access *access = qc_create_access_node();
-	access->base = qc_shallow_copy_ast(QC_AST_BASE(var->ident));
+	access->base = qc_shallow_copy_ast(QC_B(var->ident));
 	access->is_var_access = QC_true;
 	return access;
 }
@@ -2052,13 +2052,13 @@ QC_AST_Access *qc_create_simple_member_access(QC_AST_Var_Decl *base, QC_AST_Var_
 {
 	QC_AST_Access *access = qc_create_access_node();
 	QC_AST_Access *base_access = qc_create_access_node();
-	QC_AST_Ident *member_ident = (QC_AST_Ident*)qc_shallow_copy_ast(QC_AST_BASE(member->ident));
+	QC_AST_Ident *member_ident = (QC_AST_Ident*)qc_shallow_copy_ast(QC_B(member->ident));
 
-	base_access->base = qc_shallow_copy_ast(QC_AST_BASE(base->ident));
+	base_access->base = qc_shallow_copy_ast(QC_B(base->ident));
 	base_access->is_var_access = QC_true;
 
-	access->base = QC_AST_BASE(base_access);
-	qc_push_array(QC_AST_Node_Ptr)(&access->args, QC_AST_BASE(member_ident));
+	access->base = QC_B(base_access);
+	qc_push_array(QC_AST_Node_Ptr)(&access->args, QC_B(member_ident));
 	access->is_member_access = QC_true;
 
 	return access;
@@ -2087,7 +2087,7 @@ QC_AST_Node *qc_create_full_deref(QC_AST_Node *expr)
 		QC_FAIL(("qc_create_full_deref: qc_expr_type failed"));
 
 	while (type.ptr_depth-- > 0)
-		expr = QC_AST_BASE(qc_create_deref(expr));
+		expr = QC_B(qc_create_deref(expr));
 
 	return expr;
 }
@@ -2141,7 +2141,7 @@ QC_AST_Node *qc_create_chained_expr(QC_AST_Node **elems, int elem_count, QC_Toke
 			chain->lhs = ret;
 			chain->rhs = elems[i];
 
-			ret = QC_AST_BASE(chain);
+			ret = QC_B(chain);
 		}
 	}
 	return ret;
@@ -2158,14 +2158,14 @@ QC_AST_Node *qc_create_chained_expr_2(QC_AST_Node **lhs_elems, QC_AST_Node **rhs
 		inner->rhs = rhs_elems[i];
 
 		if (!ret) {
-			ret = QC_AST_BASE(inner);
+			ret = QC_B(inner);
 		} else {
 			QC_AST_Biop *outer = qc_create_biop_node();
 			outer->type = chainop;
 			outer->lhs = ret;
-			outer->rhs = QC_AST_BASE(inner);
+			outer->rhs = QC_B(inner);
 
-			ret = QC_AST_BASE(outer);
+			ret = QC_B(outer);
 		}
 	}
 	return ret;
@@ -2180,9 +2180,9 @@ void qc_add_parallel_id_init(QC_AST_Scope *root, QC_AST_Parallel *parallel, int 
 		QC_CASTED_NODE(QC_AST_Var_Decl, id_decl, parallel->body->nodes.data[0]);
 		QC_AST_Biop *assign =
 			qc_create_assign(
-				QC_AST_BASE(qc_create_element_access_1(
-					qc_try_create_access(qc_copy_ast(QC_AST_BASE(id_decl->ident))),
-					QC_AST_BASE(qc_create_integer_literal(ix, root))
+				QC_B(qc_create_element_access_1(
+					qc_try_create_access(qc_copy_ast(QC_B(id_decl->ident))),
+					QC_B(qc_create_integer_literal(ix, root))
 				)),
 				value
 			);
@@ -2257,7 +2257,7 @@ void qc_begin_initializer(QC_Write_Context *ctx)
 	compound->type = QC_Literal_compound;
 	compound->value.compound.subnodes = qc_create_array(QC_AST_Node_Ptr)(2);
 
-	qc_push_write_stack(ctx, QC_AST_BASE(compound));
+	qc_push_write_stack(ctx, QC_B(compound));
 }
 
 void qc_end_initializer(QC_Write_Context *ctx)
@@ -2278,8 +2278,8 @@ void qc_begin_compound(QC_Write_Context *ctx, const char *type_name)
 
 		QC_ASSERT(compound->value.compound.type->base_type_decl);
 
-		qc_push_write_stack(ctx, QC_AST_BASE(compound));
-		qc_push_array(QC_AST_Node_Ptr)(&ctx->loose_nodes, QC_AST_BASE(type_decl));
+		qc_push_write_stack(ctx, QC_B(compound));
+		qc_push_array(QC_AST_Node_Ptr)(&ctx->loose_nodes, QC_B(type_decl));
 	} else {
 		qc_begin_initializer(ctx);
 	}
@@ -2294,34 +2294,34 @@ void qc_add_designated(QC_Write_Context *ctx, const char *var_name)
 	QC_AST_Ident *ident = qc_create_ident_with_text(NULL, "%s", var_name);
 	QC_AST_Biop *assign =
 		qc_create_assign(
-			qc_try_create_access(QC_AST_BASE(ident)),
+			qc_try_create_access(QC_B(ident)),
 			NULL);
 	ident->is_designated = QC_true;
 	/* This is popped in next qc_add_to_parent() at one level deeper */
-	qc_push_write_stack(ctx, QC_AST_BASE(assign));
+	qc_push_write_stack(ctx, QC_B(assign));
 }
 
 void qc_add_string(QC_Write_Context *ctx, const char *str)
 {
 	QC_AST_Literal *literal = qc_create_string_literal(str, NULL);
-	qc_add_to_parent(ctx, QC_AST_BASE(literal));
+	qc_add_to_parent(ctx, QC_B(literal));
 }
 
 void qc_add_integer(QC_Write_Context *ctx, int value)
 {
 	QC_AST_Literal *literal = qc_create_integer_literal(value, NULL);
-	qc_add_to_parent(ctx, QC_AST_BASE(literal));
+	qc_add_to_parent(ctx, QC_B(literal));
 }
 
 void qc_add_floating(QC_Write_Context *ctx, double value)
 {
 	QC_AST_Literal *literal = qc_create_floating_literal(value, NULL);
-	qc_add_to_parent(ctx, QC_AST_BASE(literal));
+	qc_add_to_parent(ctx, QC_B(literal));
 }
 
 void qc_add_boolean(QC_Write_Context *ctx, QC_Bool value)
 {
 	QC_AST_Literal *literal = qc_create_boolean_literal(value, NULL);
-	qc_add_to_parent(ctx, QC_AST_BASE(literal));
+	qc_add_to_parent(ctx, QC_B(literal));
 }
 

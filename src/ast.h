@@ -297,7 +297,7 @@ QC_API const char *qc_node_type_str(QC_AST_Node_Type type);
 /* Usage: QC_CASTED_NODE(QC_AST_Ident, ident, generic_node); printf("%c", ident->text_buf[0]); */
 #define QC_CASTED_NODE(type, name, assign) \
 	type *name = (type*)assign
-#define QC_AST_BASE(node) (&(node)->b)
+#define QC_B(node) (&(node)->b)
 
 QC_API QC_AST_Scope *qc_create_ast();
 QC_API void qc_destroy_ast(QC_AST_Scope *node);

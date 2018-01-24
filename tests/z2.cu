@@ -87,18 +87,27 @@ typedef struct intmat5
 } intmat5;
 
 /* Adapted from: */
+
 /* Z_2 lattice gauge simulation */
+
 /* Michael Creutz <creutz@bnl.gov>     */
+
 /* http://thy.phy.bnl.gov/~creutz/z2.c */
 
 
+
+
+
 /* the lattice is of dimensions SIZE**4  */
+
 __constant__ const int SIZE = 10;
+
 typedef intfield5 Links; /* Last index is link direction */
 
 intfield5 link;
 
 __constant__ const int RAND_DATA_COUNT = 128;
+
 /* Poor man's random generator */
 
 __constant__ const float rand_data[128] = {
@@ -235,6 +244,7 @@ __constant__ const float rand_data[128] = {
 __host__ __device__ void moveup(intmat5 *x, int d)
 {
     x->m[1*d] += 1;
+
     if (x->m[1*d] >= SIZE) {
         x->m[1*d] -= SIZE;
     }
@@ -243,6 +253,7 @@ __host__ __device__ void moveup(intmat5 *x, int d)
 __host__ __device__ void movedown(intmat5 *x, int d)
 {
     x->m[1*d] -= 1;
+
     if (x->m[1*d] < 0) {
         x->m[1*d] += SIZE;
     }
@@ -261,6 +272,7 @@ __global__ void kernel_0(intfield5 link)
 
 void coldstart()
 {
+
     {
         dim3 dim_grid(100, 1, 1);
         dim3 dim_block(link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4]/100, 1, 1);
@@ -278,17 +290,26 @@ __global__ void kernel_1(intfield5 link, double beta, int iter, float *cuda_acti
     if ((id.m[1*0] + id.m[1*1] + id.m[1*2] + id.m[1*3] + id.m[1*4]) % 2 == is_odd) {
         return;
     }
+
     int dperp;
+
     float staplesum = 0;
+
     int staple;
+
     float bplus;
+
     float bminus;
 
     int d = id.m[1*4];
+
     for (dperp = 0; dperp < 4; dperp += 1) {
+
         if (dperp != d) {
             movedown(&id, dperp);
+
             int v1 = link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
+
             int v2 = link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d];
             staple = v1*v2;
             moveup(&id, d);
@@ -309,6 +330,7 @@ __global__ void kernel_1(intfield5 link, double beta, int iter, float *cuda_acti
     bplus = bplus/(bplus + bminus);
 
     int rand_ix = id.m[1*0] + id.m[1*1]*SIZE + id.m[1*3]*SIZE*SIZE + id.m[1*4]*SIZE*SIZE*SIZE + iter*SIZE*SIZE*SIZE*SIZE;
+
     if (rand_data[rand_ix % RAND_DATA_COUNT] < bplus) {
         link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d] = 1;
         atomicAdd(cuda_action, staplesum);
@@ -321,6 +343,7 @@ __global__ void kernel_1(intfield5 link, double beta, int iter, float *cuda_acti
 
 double update(double beta, int iter)
 {
+
     float action = 0.000000;
 
     {
@@ -332,6 +355,7 @@ double update(double beta, int iter)
         cuda_download_var(cuda_action, &action, sizeof(action));
     }
     action /= SIZE*SIZE*SIZE*SIZE*4*6;
+
     return 1.000000 - action;
 }
 
@@ -340,20 +364,26 @@ int main()
     link = alloc_device_field_intfield5(SIZE, SIZE, SIZE, SIZE, 4);
 
     double beta;
+
     double action;
+
     double dbeta = 0.010000;
     coldstart();
 
     int iter = 0;
+
     for (beta = 1; beta > 0.000000; beta -= dbeta) {
         action = update(beta, iter);
         printf("%g\t%g\n", beta, action);
+
         ++iter;
     }
     printf("\n\n");
+
     for (beta = 0; beta < 1.000000; beta += dbeta) {
         action = update(beta, iter);
         printf("%g\t%g\n", beta, action);
+
         ++iter;
     }
     free_device_field_intfield5(link);

@@ -35,7 +35,7 @@ int main(int argc, char **argv)
 		}
 
 		// Diffusion!
-		for_field (*output; *input) {
+		parallel (*output; *input) {
 			int x = id(0);
 			int y = id(1);
 			int nx = (x + 1) % size_x;

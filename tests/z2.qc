@@ -48,7 +48,7 @@ void movedown(int matrix(5) *x, int d)
 
 void coldstart()
 {
-	for_field(link; link) {
+	parallel (link; link) {
 		link(id(0), id(1), id(2), id(3), id(4)) = 1;
 	}
 }
@@ -57,7 +57,7 @@ double update(double beta, int iter)
 {
 	float action = 0.0; 
 
-	for_field(link; link; oddeven) {
+	parallel (link; link; oddeven) {
 		int dperp;
 		float staplesum = 0;
 		int staple;

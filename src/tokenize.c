@@ -118,7 +118,7 @@ QC_INTERNAL QC_Token_Type kw_tokentype(const char *buf, int size)
 		return QC_Token_kw_sizeof;
 	if (str_equals_buf("typedef", buf, size))
 		return QC_Token_kw_typedef;
-	if (str_equals_buf("for_field", buf, size))
+	if (str_equals_buf("parallel", buf, size))
 		return QC_Token_kw_parallel;
 	if (str_equals_buf("oddeven", buf, size))
 		return QC_Token_kw_oddeven;
@@ -470,7 +470,7 @@ const char* qc_tokentype_codestr(QC_Token_Type type)
 		case QC_Token_kw_false: return "false";
 		case QC_Token_kw_sizeof: return "sizeof";
 		case QC_Token_kw_typedef: return "typedef";
-		case QC_Token_kw_parallel: return "for_field";
+		case QC_Token_kw_parallel: return "parallel";
 		case QC_Token_kw_oddeven: return "oddeven";
 		case QC_Token_kw_extern: return "extern";
 		case QC_Token_kw_static: return "static";

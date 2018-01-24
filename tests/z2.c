@@ -13,11 +13,13 @@ typedef struct intfield5
 
 
 /* the lattice is of dimensions SIZE**4  */
+
 const int SIZE = 10;
 
 intfield5 link;
 
 const int RAND_DATA_COUNT = 128;
+
 /* Poor man's random generator */
 
 const float rand_data[128] = {
@@ -184,15 +186,23 @@ typedef struct intmat5
 } intmat5;
 
 /* Adapted from: */
+
 /* Z_2 lattice gauge simulation */
+
 /* Michael Creutz <creutz@bnl.gov>     */
+
 /* http://thy.phy.bnl.gov/~creutz/z2.c */
+
+
+
+
 
 typedef intfield5 Links; /* Last index is link direction */
 
 void moveup(intmat5 *x, int d)
 {
     x->m[1*d] += 1;
+
     if (x->m[1*d] >= SIZE) {
         x->m[1*d] -= SIZE;
     }
@@ -201,6 +211,7 @@ void moveup(intmat5 *x, int d)
 void movedown(intmat5 *x, int d)
 {
     x->m[1*d] -= 1;
+
     if (x->m[1*d] < 0) {
         x->m[1*d] += SIZE;
     }
@@ -208,6 +219,7 @@ void movedown(intmat5 *x, int d)
 
 void coldstart()
 {
+
     {
         int id_0;
         for (id_0 = 0; id_0 < size_intfield5(link, 0); ++id_0) {
@@ -236,6 +248,7 @@ void coldstart()
 
 double update(double beta, int iter)
 {
+
     float action = 0.000000;
 
     {
@@ -250,10 +263,15 @@ double update(double beta, int iter)
                         int id_4;
                         for (id_4 = 0; id_4 < size_intfield5(link, 4); ++id_4) {
                             intmat5 id;
+
                             int dperp;
+
                             float staplesum;
+
                             int staple;
+
                             float bplus;
+
                             float bminus;
 
                             int d;
@@ -266,9 +284,13 @@ double update(double beta, int iter)
                             id.m[1*0] = id_0;
                             staplesum = 0;
                             d = id.m[1*4];
+
                             for (dperp = 0; dperp < 4; dperp += 1) {
+
                                 if (dperp != d) {
+
                                     int v1;
+
                                     int v2;
                                     movedown(&id, dperp);
                                     v1 = link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*dperp];
@@ -291,6 +313,7 @@ double update(double beta, int iter)
                             bminus = 1/bplus;
                             bplus = bplus/(bplus + bminus);
                             rand_ix = id.m[1*0] + id.m[1*1]*SIZE + id.m[1*3]*SIZE*SIZE + id.m[1*4]*SIZE*SIZE*SIZE + iter*SIZE*SIZE*SIZE*SIZE;
+
                             if (rand_data[rand_ix % RAND_DATA_COUNT] < bplus) {
                                 link.m[link.size[1]*link.size[2]*link.size[3]*link.size[4]*id.m[1*0] + link.size[2]*link.size[3]*link.size[4]*id.m[1*1] + link.size[3]*link.size[4]*id.m[1*2] + link.size[4]*id.m[1*3] + 1*d] = 1;
                                 action += staplesum;
@@ -305,6 +328,7 @@ double update(double beta, int iter)
         }
     }
     action /= SIZE*SIZE*SIZE*SIZE*4*6;
+
     return 1.000000 - action;
 }
 
@@ -312,7 +336,9 @@ int main()
 {
 
     double beta;
+
     double action;
+
     double dbeta;
 
     int iter;
@@ -320,15 +346,19 @@ int main()
     dbeta = 0.010000;
     coldstart();
     iter = 0;
+
     for (beta = 1; beta > 0.000000; beta -= dbeta) {
         action = update(beta, iter);
         printf("%g\t%g\n", beta, action);
+
         ++iter;
     }
     printf("\n\n");
+
     for (beta = 0; beta < 1.000000; beta += dbeta) {
         action = update(beta, iter);
         printf("%g\t%g\n", beta, action);
+
         ++iter;
     }
     free_field_intfield5(link);

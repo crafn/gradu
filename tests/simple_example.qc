@@ -29,8 +29,8 @@ int main()
 	memcpy_field(a, a_data);
 	memcpy_field(b, b_data);
 	
-	for_field(a; b) {
-		a(id(0)) += b(id(0)); // TODO: id -> ix 
+	parallel (a; b) {
+		a(id(0)) += b(id(0));
 	}
 
 	memcpy_field(a_data, a);

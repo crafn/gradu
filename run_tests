@@ -65,7 +65,6 @@ if __name__ == "__main__":
 			phase = "codegen"
 			gen_file = os.path.splitext(test)[0] + "." + backend.src_ext
 			bin_file = os.path.splitext(test)[0] + "_" + backend.src_ext
-			print(canonical_path("./gen") + " -b " + backend.name + " -o " + gen_file + " "  + test)
 			ret = os.system(canonical_path("./gen") + " -b " + backend.name + " -o " + gen_file + " "  + test)
 
 			# Compile C to binary

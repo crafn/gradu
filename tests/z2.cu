@@ -282,7 +282,7 @@ void coldstart()
         kernel_0<<<dim_grid, dim_block>>>(link);
     }
 }
-__global__ void kernel_1(intfield5 link, double beta, int iter, float *cuda_action, int is_odd)
+__global__ void kernel_1(intfield5 link, double beta, int iter, float *cuda_action, int oddeven_phase)
 {
     if (threadIdx.x + blockIdx.x*blockDim.x >= link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4]) {
         return;
@@ -293,7 +293,7 @@ __global__ void kernel_1(intfield5 link, double beta, int iter, float *cuda_acti
     id.m[1*2] = (threadIdx.x + blockIdx.x*blockDim.x) % (link.size[0]*link.size[1]*link.size[2])/(link.size[0]*link.size[1]);
     id.m[1*3] = (threadIdx.x + blockIdx.x*blockDim.x) % (link.size[0]*link.size[1]*link.size[2]*link.size[3])/(link.size[0]*link.size[1]*link.size[2]);
     id.m[1*4] = (threadIdx.x + blockIdx.x*blockDim.x) % (link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4])/(link.size[0]*link.size[1]*link.size[2]*link.size[3]);
-    if ((id.m[1*0] + id.m[1*1] + id.m[1*2] + id.m[1*3] + id.m[1*4]) % 2 == is_odd) {
+    if ((id.m[1*0] + id.m[1*1] + id.m[1*2] + id.m[1*3]) % 2 == oddeven_phase % 2 || id.m[1*4] != oddeven_phase/2) {
         return;
     }
 
@@ -356,8 +356,9 @@ double update(double beta, int iter)
         float *cuda_action = (float*)cuda_upload_var(&action, sizeof(action));
         dim3 dim_grid(link.size[0]*link.size[1]*link.size[2]*link.size[3]*link.size[4]/128 + 1, 1, 1);
         dim3 dim_block(128, 1, 1);
-        kernel_1<<<dim_grid, dim_block>>>(link, beta, iter, cuda_action, 0);
-        kernel_1<<<dim_grid, dim_block>>>(link, beta, iter, cuda_action, 1);
+        for (int cuda_phase = 0; cuda_phase < 8; ++cuda_phase) {
+            kernel_1<<<dim_grid, dim_block>>>(link, beta, iter, cuda_action, cuda_phase);
+        }
         cuda_download_var(cuda_action, &action, sizeof(action));
     }
     action /= SIZE*SIZE*SIZE*SIZE*4*6;

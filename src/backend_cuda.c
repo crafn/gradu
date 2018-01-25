@@ -41,7 +41,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 
 					alloc_func->body = qc_create_scope_node();
 
-					field_var_decl = qc_create_simple_var_decl(field_decl, "field");
+					field_var_decl = qc_create_simple_var_decl(field_decl, "field", NULL);
 					qc_push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_B(field_var_decl));
 
 					sizeof_expr =
@@ -251,7 +251,8 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 		if (parallel->is_oddeven) { /* Extra param for indicating are we executing odd or even */
 			oddeven_param_decl = qc_create_simple_var_decl(
 				qc_find_builtin_type_decl(qc_int_builtin_type(), root),
-				"is_odd"
+				"oddeven_phase",
+				NULL
 			);
 		}
 
@@ -367,7 +368,7 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 						qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args, cuda_arg);
 
 						/* Param in the kernel */
-						cuda_var_decl = qc_create_simple_var_decl(type.base_type_decl, host_var_name);
+						cuda_var_decl = qc_create_simple_var_decl(type.base_type_decl, host_var_name, NULL);
 						qc_push_array(QC_AST_Var_Decl_Ptr)(&kernel_param_decls, cuda_var_decl);
 						qc_push_array(int)(&kernel_param_flags, 0);
 					} else {
@@ -453,12 +454,18 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 				if (!parallel->is_oddeven) {
 					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_B(cuda_call));
 				} else {
-					/* Two calls with extra oddeven argument */
-					QC_AST_Literal *is_odd = qc_create_integer_literal(1, root);
-					qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args, QC_B(is_odd));
-					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_B(cuda_call));
-					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, qc_copy_ast(QC_B(cuda_call)));
-					is_odd->value.integer = 0; /* Now first call has param value 0 and latter 1 */
+					/* Multiple calls with extra oddeven argument */
+					QC_AST_Loop *loop;
+					QC_AST_Var_Decl *phase_var_decl = qc_create_simple_var_decl(
+						qc_find_builtin_type_decl(qc_int_builtin_type(), root),
+						"cuda_phase",
+						QC_B(qc_create_integer_literal(0, root)));
+					qc_push_array(QC_AST_Node_Ptr)(&cuda_call->args, qc_try_create_access(qc_copy_ast(QC_B(phase_var_decl->ident))));
+					loop = qc_create_for_loop(
+							phase_var_decl,
+							QC_B(qc_create_integer_literal((parallel->dim - 1)*2, root)), /* Last dimension is assumed to be link direction */
+							qc_create_scope_1(QC_B(cuda_call)));
+					qc_push_array(QC_AST_Node_Ptr)(&scope->nodes, QC_B(loop));
 				}
 
 				for (k = 0; k < memcpy_from_device_calls.size; ++k)
@@ -515,11 +522,11 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 					qc_destroy_array(QC_AST_Node_Ptr)(&accesses);
 				}
 
-				if (oddeven_param_decl) { /* Add an early return for those sites that should not be updated this turn */
+				if (oddeven_param_decl) { /* Add an early return for those sites and links that should not be updated this turn */
 					QC_AST_Cond *cond;
 					QC_CASTED_NODE(QC_AST_Var_Decl, id_decl, parallel->body->nodes.data[0]);
 					QC_Array(QC_AST_Node_Ptr) indices = qc_create_array(QC_AST_Node_Ptr)(0);
-					for (k = 0; k < parallel->dim; ++k) {
+					for (k = 0; k < parallel->dim - 1; ++k) { /* Only site location dimensions (last should be link dir) */
 						qc_push_array(QC_AST_Node_Ptr)(&indices,
 							QC_B(qc_create_element_access_1(
 								qc_try_create_access(qc_copy_ast(QC_B(id_decl->ident))),
@@ -527,13 +534,29 @@ void parallel_loops_to_cuda(QC_AST_Scope *root)
 							)));
 					}
 
+    				/* if ((id.m[1*0] + id.m[1*1] + id.m[1*2] + id.m[1*3]) % 2 == (phase % 2) || id.m[1*4] != phase/2) return; */
 					cond = qc_create_if_1(
-						QC_B(qc_create_biop(QC_Token_equals,
-							QC_B(qc_create_biop(QC_Token_mod,
-								qc_create_chained_expr(indices.data, indices.size, QC_Token_add),
-								QC_B(qc_create_integer_literal(2, root))
+						QC_B(qc_create_biop(QC_Token_or,
+							QC_B(qc_create_biop(QC_Token_equals,
+								QC_B(qc_create_biop(QC_Token_mod,
+									qc_create_chained_expr(indices.data, indices.size, QC_Token_add),
+									QC_B(qc_create_integer_literal(2, root))
+								)),
+								QC_B(qc_create_biop(QC_Token_mod,
+									qc_try_create_access(qc_copy_ast(QC_B(oddeven_param_decl->ident))),
+									QC_B(qc_create_integer_literal(2, root))
+								))
 							)),
-							qc_try_create_access(qc_copy_ast(QC_B(oddeven_param_decl->ident)))
+							QC_B(qc_create_biop(QC_Token_nequals,
+								QC_B(qc_create_element_access_1(
+									qc_try_create_access(qc_copy_ast(QC_B(id_decl->ident))),
+									QC_B(qc_create_integer_literal(parallel->dim - 1, root)) /* Link dir */
+								)),
+								QC_B(qc_create_biop(QC_Token_div,
+									qc_try_create_access(qc_copy_ast(QC_B(oddeven_param_decl->ident))),
+									QC_B(qc_create_integer_literal(2, root))
+								))
+							))
 						)),
 						QC_B(qc_create_return(NULL))
 					);

@@ -1803,8 +1803,8 @@ QC_AST_Ident *qc_create_ident_with_text(QC_AST_Node *decl, const char *fmt, ...)
 	return ident;
 }
 
-QC_AST_Var_Decl *qc_create_simple_var_decl(QC_AST_Type_Decl *type_decl, const char *ident)
-{ return qc_create_var_decl(type_decl, qc_create_ident_with_text(NULL, ident), NULL); }
+QC_AST_Var_Decl *qc_create_simple_var_decl(QC_AST_Type_Decl *type_decl, const char *ident, QC_AST_Node *value)
+{ return qc_create_var_decl(type_decl, qc_create_ident_with_text(NULL, ident), value); }
 
 QC_AST_Var_Decl *qc_create_var_decl(QC_AST_Type_Decl *type_decl, QC_AST_Ident *ident, QC_AST_Node *value)
 {

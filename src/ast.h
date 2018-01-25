@@ -416,7 +416,7 @@ QC_API void qc_print_ast(QC_AST_Node *node, int indent);
 /* Convenience functions */
 
 QC_API QC_AST_Ident *qc_create_ident_with_text(QC_AST_Node *decl, const char *fmt, ...);
-QC_API QC_AST_Var_Decl *qc_create_simple_var_decl(QC_AST_Type_Decl *type_decl, const char *ident);
+QC_API QC_AST_Var_Decl *qc_create_simple_var_decl(QC_AST_Type_Decl *type_decl, const char *ident, QC_AST_Node *value);
 QC_API QC_AST_Var_Decl *qc_create_var_decl(QC_AST_Type_Decl *type_decl, QC_AST_Ident *ident, QC_AST_Node *value);
 QC_API QC_AST_Var_Decl *qc_create_ptr_decl(QC_AST_Type_Decl *base_decl, QC_AST_Ident *ident, QC_AST_Node *value);
 QC_API QC_AST_Type_Decl *qc_find_builtin_type_decl(QC_Builtin_Type bt, QC_AST_Scope *root);

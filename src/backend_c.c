@@ -627,7 +627,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 					else if (m_type_decl->builtin_type.is_matrix)
 						m_type_decl->builtin_type.is_matrix = QC_false;
 
-					member_decl = qc_create_simple_var_decl(m_type_decl, "m");
+					member_decl = qc_create_simple_var_decl(m_type_decl, "m", NULL);
 					if (bt.is_field)
 						++member_decl->type->ptr_depth;
 					else
@@ -643,7 +643,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 							s_type_decl->is_builtin = QC_true;
 							s_type_decl->builtin_type.is_integer = QC_true;
 
-							s_decl = qc_create_simple_var_decl(s_type_decl, "size");
+							s_decl = qc_create_simple_var_decl(s_type_decl, "size", NULL);
 							s_decl->type->array_size = bt.field_dim;
 							qc_push_array(QC_AST_Node_Ptr)(&mat_decl->body->nodes, QC_B(s_decl));
 							generated[0] = QC_B(s_type_decl);
@@ -652,7 +652,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 						{ /* Field has a flag telling if it's a device or a host field */
 							QC_AST_Var_Decl *flag_decl =
 								qc_create_simple_var_decl(	qc_find_builtin_type_decl(qc_int_builtin_type(), root),
-														"is_device_field");
+															"is_device_field", NULL);
 
 							qc_push_array(QC_AST_Node_Ptr)(&mat_decl->body->nodes, QC_B(flag_decl));
 						}
@@ -679,8 +679,8 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 				mul_decl->return_type->base_type_decl = mat_decl;
 
 				{ /* Params */
-					lhs_decl = qc_create_simple_var_decl(mat_decl, "lhs");
-					rhs_decl = qc_create_simple_var_decl(mat_decl, "rhs");
+					lhs_decl = qc_create_simple_var_decl(mat_decl, "lhs", NULL);
+					rhs_decl = qc_create_simple_var_decl(mat_decl, "rhs", NULL);
 
 					qc_push_array(QC_AST_Var_Decl_Ptr)(&mul_decl->params, lhs_decl);
 					qc_push_array(QC_AST_Var_Decl_Ptr)(&mul_decl->params, rhs_decl);
@@ -688,7 +688,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 
 				{ /* Body */
 					int x, y;
-					QC_AST_Var_Decl *ret_decl = qc_create_simple_var_decl(mat_decl, "ret");
+					QC_AST_Var_Decl *ret_decl = qc_create_simple_var_decl(mat_decl, "ret", NULL);
 					QC_AST_Control *return_stmt = qc_create_control_node();
 
 					mul_decl->body = qc_create_scope_node();
@@ -751,7 +751,7 @@ void qc_add_builtin_c_decls_to_global_scope(QC_AST_Scope *root, QC_Bool cpu_devi
 
 					alloc_func->body = qc_create_scope_node();
 
-					field_var_decl = qc_create_simple_var_decl(field_decl, "field");
+					field_var_decl = qc_create_simple_var_decl(field_decl, "field", NULL);
 					qc_push_array(QC_AST_Node_Ptr)(&alloc_func->body->nodes, QC_B(field_var_decl));
 
 					sizeof_expr = c_create_mat_element_sizeof(field_var_decl);

@@ -1,11 +1,13 @@
 # gradu
 ???
 
-## TODO
+## Necessary
 
-- cuda
-	- limit dim_block and increase dim_grid automatically
 - acceleratedness to field type, e.g. "device int field(2) data;"
+	- remove separate syntax for host and device field allocation/free
+
+## Later
+
 - optimize matrix & field access by reducing unnecessary index calculations
 - overloading test
 - test for correct error messages

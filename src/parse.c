@@ -558,8 +558,8 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 				fdecl->ident = qc_create_ident_with_text(QC_B(fdecl), "memcpy_field");
 
 				{
-					QC_AST_Var_Decl *dst = qc_create_simple_var_decl(tdecl, "dst");
-					QC_AST_Var_Decl *src = qc_create_simple_var_decl(tdecl, "src");
+					QC_AST_Var_Decl *dst = qc_create_simple_var_decl(tdecl, "dst", NULL);
+					QC_AST_Var_Decl *src = qc_create_simple_var_decl(tdecl, "src", NULL);
 					qc_push_array(QC_AST_Var_Decl_Ptr)(&fdecl->params, dst);
 					qc_push_array(QC_AST_Var_Decl_Ptr)(&fdecl->params, src);
 				}
@@ -575,11 +575,11 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 				fdecl->ident = qc_create_ident_with_text(QC_B(fdecl), "size");
 
 				{
-					QC_AST_Var_Decl *param1 = qc_create_simple_var_decl(tdecl, "field");
+					QC_AST_Var_Decl *param1 = qc_create_simple_var_decl(tdecl, "field", NULL);
 					QC_AST_Var_Decl *param2 =
 						qc_create_simple_var_decl(
 								qc_create_builtin_decl(ctx, qc_int_builtin_type()),
-								"index");
+								"index", NULL);
 					qc_push_array(QC_AST_Var_Decl_Ptr)(&fdecl->params, param1);
 					qc_push_array(QC_AST_Var_Decl_Ptr)(&fdecl->params, param2);
 				}

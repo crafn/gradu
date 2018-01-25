@@ -11,7 +11,17 @@ typedef struct floatfield2
     int is_device_field;
 } floatfield2;
 
-floatfield2 alloc_field_floatfield2(int size_0, int size_1)
+void memcpy_field_floatfield2(floatfield2 dst, floatfield2 src)
+{
+    memcpy(dst.m, src.m, (sizeof(*dst.m))*dst.size[0]*dst.size[1]);
+}
+
+int size_floatfield2(floatfield2 field, int index)
+{
+    return field.size[index];
+}
+
+floatfield2 alloc_host_field_floatfield2(int size_0, int size_1)
 {
     floatfield2 field;
     field.m = (float*)malloc((sizeof(*field.m))*size_0*size_1);
@@ -21,19 +31,24 @@ floatfield2 alloc_field_floatfield2(int size_0, int size_1)
     return field;
 }
 
-void free_field_floatfield2(floatfield2 field)
+void free_host_field_floatfield2(floatfield2 field)
 {
     free(field.m);
 }
 
-void memcpy_field_floatfield2(floatfield2 dst, floatfield2 src)
+floatfield2 alloc_device_field_floatfield2(int size_0, int size_1)
 {
-    memcpy(dst.m, src.m, (sizeof(*dst.m))*dst.size[0]*dst.size[1]);
+    floatfield2 field;
+    field.m = (float*)malloc((sizeof(*field.m))*size_0*size_1);
+    field.size[0] = size_0;
+    field.size[1] = size_1;
+    field.is_device_field = 0;
+    return field;
 }
 
-int size_floatfield2(floatfield2 field, int index)
+void free_device_field_floatfield2(floatfield2 field)
 {
-    return field.size[index];
+    free(field.m);
 }
 
 typedef struct intmat2
@@ -53,11 +68,11 @@ int main(int argc, char **argv)
 
     int size_y = 20;
 
-    Field host_field = alloc_field_floatfield2(size_x, size_y);
+    floatfield2 host_field = alloc_host_field_floatfield2(size_x, size_y);
 
-    Field device_field_1 = alloc_field_floatfield2(size_x, size_y);
+    floatfield2 device_field_1 = alloc_device_field_floatfield2(size_x, size_y);
 
-    Field device_field_2 = alloc_field_floatfield2(size_x, size_y);
+    floatfield2 device_field_2 = alloc_device_field_floatfield2(size_x, size_y);
 
     /* Init field */
 
@@ -78,15 +93,15 @@ int main(int argc, char **argv)
     for (i = 0; i < 5; ++i) {
         int y;
 
-        Field *input = &device_field_1;
+        floatfield2 *input = &device_field_1;
 
-        Field *output = &device_field_2;
+        floatfield2 *output = &device_field_2;
 
         /* Swap */
 
         if (i % 2 == 1) {
 
-            Field *tmp = output;
+            floatfield2 *tmp = output;
             output = input;
             input = tmp;
         }
@@ -146,9 +161,9 @@ int main(int argc, char **argv)
         }
         printf("\n");
     }
-    free_field_floatfield2(host_field);
-    free_field_floatfield2(device_field_1);
-    free_field_floatfield2(device_field_2);
+    free_host_field_floatfield2(host_field);
+    free_device_field_floatfield2(device_field_1);
+    free_device_field_floatfield2(device_field_2);
 
     return 0;
 }

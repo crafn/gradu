@@ -19,6 +19,8 @@ QC_Bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b)
 {
 	QC_Bool is_same_matrix = (a.is_matrix == b.is_matrix);
 	QC_Bool is_same_field = (a.is_field == b.is_field);
+	QC_Bool is_same_device = (a.is_device == b.is_device);
+	QC_Bool is_same_host = (a.is_host == b.is_host);
 	if (is_same_matrix && a.is_matrix)
 		is_same_matrix = !memcmp(a.matrix_dim, b.matrix_dim, sizeof(a.matrix_dim));
 	if (is_same_field && a.is_field)
@@ -31,7 +33,31 @@ QC_Bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b)
 			a.bitness == b.bitness &&
 			a.is_unsigned == b.is_unsigned &&
 			is_same_matrix &&
-			is_same_field;
+			is_same_field &&
+			is_same_device &&
+			is_same_host;
+}
+
+QC_Builtin_Type qc_combined_builtin_type(QC_Builtin_Type a, QC_Builtin_Type b)
+{
+	/* @todo Detect when combining is impossible. Think through. */
+	int i;
+	a.is_void |= b.is_void;
+	a.is_integer |= b.is_integer;
+	a.is_boolean |= b.is_boolean;
+	a.is_char |= b.is_char;
+	a.is_float |= b.is_float;
+	a.bitness = (a.bitness > b.bitness ? a.bitness : b.bitness);
+	a.is_unsigned |= b.is_unsigned;
+	a.is_matrix |= b.is_matrix;
+	a.matrix_rank = (a.matrix_rank > b.matrix_rank ? a.matrix_rank : b.matrix_rank);
+	for (i = 0; i < b.matrix_rank; ++i)
+		a.matrix_dim[i] = (a.matrix_dim[i] > b.matrix_dim[i] ? a.matrix_dim[i] : b.matrix_dim[i]);
+	a.is_field |= b.is_field;
+	a.field_dim = (a.field_dim > b.field_dim ? a.field_dim : b.field_dim);
+	a.is_device |= b.is_device;
+	a.is_host |= b.is_host;
+	return a;
 }
 
 QC_INTERNAL QC_AST_Node *qc_create_node_impl(QC_AST_Node_Type type, int size)

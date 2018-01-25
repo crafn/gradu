@@ -9,9 +9,10 @@ extern int printf(const char* fmt, ..);
 extern double exp(double e);
 
 /* the lattice is of dimensions SIZE**4  */
+// @todo Move field decl to main
 const int SIZE = 10;
 typedef int field(5) Links; // Last index is link direction
-int field(5) link;
+device Links link;
 
 const int RAND_DATA_COUNT = 128;
 // Poor man's random generator
@@ -106,7 +107,7 @@ double update(double beta, int iter)
 
 int main()
 {
-	link = alloc_device_field(SIZE, SIZE, SIZE, SIZE, 4);
+	link = alloc_field(SIZE, SIZE, SIZE, SIZE, 4);
 
 	double beta;
 	double action;
@@ -127,7 +128,7 @@ int main()
 		++iter;
 	}
 
-	free_device_field(link);
+	free_field(link);
 
 	return 0;
 }

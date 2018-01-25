@@ -24,42 +24,6 @@ typedef struct intfield5
     int is_device_field;
 } intfield5;
 
-intfield5 alloc_field_intfield5(int size_0, int size_1, int size_2, int size_3, int size_4)
-{
-    intfield5 field;
-    field.m = (int*)malloc((sizeof(*field.m))*size_0*size_1*size_2*size_3*size_4);
-    field.size[0] = size_0;
-    field.size[1] = size_1;
-    field.size[2] = size_2;
-    field.size[3] = size_3;
-    field.size[4] = size_4;
-    field.is_device_field = 0;
-    return field;
-}
-
-intfield5 alloc_device_field_intfield5(int size_0, int size_1, int size_2, int size_3, int size_4)
-{
-    intfield5 field;
-    cudaMalloc((void**)&field.m, (sizeof(*field.m))*size_0*size_1*size_2*size_3*size_4);
-    field.size[0] = size_0;
-    field.size[1] = size_1;
-    field.size[2] = size_2;
-    field.size[3] = size_3;
-    field.size[4] = size_4;
-    field.is_device_field = 1;
-    return field;
-}
-
-void free_field_intfield5(intfield5 field)
-{
-    free(field.m);
-}
-
-void free_device_field_intfield5(intfield5 field)
-{
-    cudaFree(field.m);
-}
-
 void memcpy_field_intfield5(intfield5 dst, intfield5 src)
 {
     if (dst.is_device_field == 0 && src.is_device_field == 0) {
@@ -81,6 +45,24 @@ int size_intfield5(intfield5 field, int index)
     return field.size[index];
 }
 
+intfield5 alloc_device_field_intfield5(int size_0, int size_1, int size_2, int size_3, int size_4)
+{
+    intfield5 field;
+    cudaMalloc((void**)&field.m, (sizeof(*field.m))*size_0*size_1*size_2*size_3*size_4);
+    field.size[0] = size_0;
+    field.size[1] = size_1;
+    field.size[2] = size_2;
+    field.size[3] = size_3;
+    field.size[4] = size_4;
+    field.is_device_field = 1;
+    return field;
+}
+
+void free_device_field_intfield5(intfield5 field)
+{
+    cudaFree(field.m);
+}
+
 typedef struct intmat5
 {
     int m[5];
@@ -99,6 +81,8 @@ typedef struct intmat5
 
 
 /* the lattice is of dimensions SIZE**4  */
+
+/* @todo Move field decl to main */
 
 __constant__ const int SIZE = 10;
 

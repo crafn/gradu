@@ -109,9 +109,15 @@ typedef struct QC_Builtin_Type {
 	QC_Bool is_field;
 	int field_dim;
 
-	/* When adding members, remember to update builtin_type_equals! */
+	/* If neither is set in code, parser should determine by usage (if relevant) */
+	/* @todo Think semantics through. What if both are true? */
+	QC_Bool is_device;
+	QC_Bool is_host;
+
+	/* When adding members, remember to update builtin_type_equals and qc_combined_builtin_type! */
 } QC_Builtin_Type;
-QC_API QC_Bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b);
+QC_API QC_Bool builtin_type_equals(QC_Builtin_Type a, QC_Builtin_Type b); /* @todo qc_ */
+QC_API QC_Builtin_Type qc_combined_builtin_type(QC_Builtin_Type a, QC_Builtin_Type b);
 
 /* Type declaration / definition */
 typedef struct QC_AST_Type_Decl {

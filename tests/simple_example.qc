@@ -6,9 +6,8 @@ int main()
 {
     int N = 5; 
 	
-	// TODO: alloc_field -> alloc_host_field
-	Field a_data = alloc_field(N);
-	Field b_data = alloc_field(N);
+	host Field a_data = alloc_field(N);
+	host Field b_data = alloc_field(N);
 	
 	// TODO: Initializers
 	a_data(0) = 1;
@@ -23,8 +22,8 @@ int main()
 	b_data(3) = 40;
 	b_data(4) = 50;
 	
-	Field a = alloc_device_field(N);
-	Field b = alloc_device_field(N);
+	device Field a = alloc_field(N);
+	device Field b = alloc_field(N);
 	
 	memcpy_field(a, a_data);
 	memcpy_field(b, b_data);
@@ -39,11 +38,10 @@ int main()
 		printf("%i ", a_data(i)); // Prints 11 22 33 44 55
 	}
 	
-	// TODO: free_field -> free_host_field
 	free_field(a_data);
 	free_field(b_data);
-	free_device_field(a);
-	free_device_field(b);
+	free_field(a);
+	free_field(b);
 
 	return 0;
 }

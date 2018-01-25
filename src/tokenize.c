@@ -146,6 +146,10 @@ QC_INTERNAL QC_Token_Type kw_tokentype(const char *buf, int size)
 		return QC_Token_kw_double;
 	if (str_equals_buf("matrix", buf, size))
 		return QC_Token_kw_matrix;
+	if (str_equals_buf("device", buf, size))
+		return QC_Token_kw_device;
+	if (str_equals_buf("host", buf, size))
+		return QC_Token_kw_host;
 	if (str_equals_buf("field", buf, size))
 		return QC_Token_kw_field;
 	if (str_equals_buf("const", buf, size))

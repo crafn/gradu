@@ -6,9 +6,9 @@ int main(int argc, char **argv)
 {
 	int size_x = 20;
 	int size_y = 20;
-	Field host_field = alloc_field(size_x, size_y);
-	Field device_field_1 = alloc_device_field(size_x, size_y);
-	Field device_field_2 = alloc_device_field(size_x, size_y);
+	host Field host_field = alloc_field(size_x, size_y);
+	device Field device_field_1 = alloc_field(size_x, size_y);
+	device Field device_field_2 = alloc_field(size_x, size_y);
 
 	// Init field
 	{
@@ -24,12 +24,12 @@ int main(int argc, char **argv)
 	memcpy_field(device_field_1, host_field);
 
 	for (int i = 0; i < 5; ++i) {
-		Field *input = &device_field_1;
-		Field *output = &device_field_2;
+		device Field *input = &device_field_1;
+		device Field *output = &device_field_2;
 
 		// Swap
 		if (i % 2 == 1) {
-			Field *tmp = output;
+			device Field *tmp = output;
 			output = input;
 			input = tmp;
 		}
@@ -71,8 +71,8 @@ int main(int argc, char **argv)
 	}
 
 	free_field(host_field);
-	free_device_field(device_field_1);
-	free_device_field(device_field_2);
+	free_field(device_field_1);
+	free_field(device_field_2);
 	return 0;
 }
 

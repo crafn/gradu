@@ -3,11 +3,10 @@
 
 ## Necessary
 
-- acceleratedness to field type, e.g. "device int field(2) data;"
-	- remove separate syntax for host and device field allocation/free
-
+	
 ## Later
 
+- fix ast type representation
 - optimize matrix & field access by reducing unnecessary index calculations
 - overloading test
 - test for correct error messages

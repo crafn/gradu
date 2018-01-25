@@ -497,23 +497,30 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 
 	{ /* Create new builtin decl if not found */
 		QC_AST_Type_Decl *tdecl = qc_create_type_decl_node();
+
+		if (bt.is_device || bt.is_host) {
+			/* Create decls that are shared among device and host types */
+			QC_Builtin_Type generic = bt;
+			generic.is_device = generic.is_host = QC_false;
+			qc_create_builtin_decl(ctx, generic);
+		}
+
 		/* Note that the declaration doesn't have ident -- it's up to backend to generate it */
 		tdecl->is_builtin = QC_true;
 		tdecl->builtin_type = bt;
 		qc_push_array(QC_AST_Node_Ptr)(&ctx->parent_map.builtin_decls, QC_B(tdecl));
 
 		if (bt.is_field) {
-			int type;
-			/* Create field alloc funcs */
-			for (type = 0; type < 2; ++type) { 
-				const char *names[2] = { "alloc_field", "alloc_device_field" };
+
+			/* Create field alloc func */
+			if (bt.is_device || bt.is_host) {
 				QC_AST_Func_Decl *fdecl = qc_create_func_decl_node();
 				fdecl->is_builtin = QC_true;
 
 				fdecl->return_type = qc_create_type_node();
 				fdecl->return_type->base_type_decl = tdecl;
 
-				fdecl->ident = qc_create_ident_with_text(QC_B(fdecl), names[type]);
+				fdecl->ident = qc_create_ident_with_text(QC_B(fdecl), "alloc_field");
 
 				for (i = 0; i < bt.field_dim; ++i) {
 					QC_AST_Var_Decl *param = qc_create_var_decl_node();
@@ -526,16 +533,15 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 				qc_push_array(QC_AST_Node_Ptr)(&ctx->parent_map.builtin_decls, QC_B(fdecl));
 			}
 
-			/* Create field free funcs */
-			for (type = 0; type < 2; ++type) { 
-				const char *names[2] = { "free_field", "free_device_field" };
+			/* Create field free func */
+			if (bt.is_device || bt.is_host) { 
 				QC_AST_Func_Decl *fdecl = qc_create_func_decl_node();
 				fdecl->is_builtin = QC_true;
 
 				fdecl->return_type = qc_create_type_node();
 				fdecl->return_type->base_type_decl = qc_create_builtin_decl(ctx, qc_void_builtin_type());
 
-				fdecl->ident = qc_create_ident_with_text(QC_B(fdecl), names[type]);
+				fdecl->ident = qc_create_ident_with_text(QC_B(fdecl), "free_field");
 
 				{
 					QC_AST_Var_Decl *param = qc_create_var_decl_node();
@@ -548,7 +554,7 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 				qc_push_array(QC_AST_Node_Ptr)(&ctx->parent_map.builtin_decls, QC_B(fdecl));
 			}
 
-			{ /* Create field memcpy func */
+			if (!bt.is_device && !bt.is_host) { /* Create field memcpy func (shared by host and device) */
 				QC_AST_Func_Decl *fdecl = qc_create_func_decl_node();
 				fdecl->is_builtin = QC_true;
 
@@ -567,7 +573,7 @@ QC_AST_Type_Decl *qc_create_builtin_decl(Parse_Ctx *ctx, QC_Builtin_Type bt)
 				qc_push_array(QC_AST_Node_Ptr)(&ctx->parent_map.builtin_decls, QC_B(fdecl));
 			}
 
-			{ /* Create field size query func */
+			if (!bt.is_device && !bt.is_host) { /* Create field size query func (shared by host and device) */
 				QC_AST_Func_Decl *fdecl = qc_create_func_decl_node();
 				fdecl->is_builtin = QC_true;
 
@@ -612,7 +618,7 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 		QC_Builtin_Type bt = {0};
 		QC_Bool recognized = QC_true;
 
-		if (accept_tok(ctx, QC_Token_kw_const))
+		if (accept_tok(ctx, QC_Token_kw_const)) /* @todo Should be in loop */
 			type->is_const = QC_true;
 
 		/* Gather all builtin type specifiers (like int, matrix(), field()) */
@@ -620,6 +626,35 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 			QC_Token *tok = cur_tok(ctx);
 
 			switch (tok->type) {
+			case QC_Token_name: { /* Handle builtin typedef */
+				/* @todo This whole "builtin phase" is bad. Think of "field(3) const SomeTypedef device" */
+				QC_CASTED_NODE(QC_AST_Ident, ident, tok);
+				QC_Token *pre_tok = tok;
+				if (!parse_ident(ctx, &ident, NULL, QC_false)) {
+					recognized = QC_false;
+					break;
+				}
+				if (!resolve_parsed_ident(ctx, ident)) {
+					qc_destroy_node(QC_B(ident));
+					recognized = QC_false;
+					ctx->tok = pre_tok;
+					break;
+				}
+				if (ident->decl->type == QC_AST_typedef) {
+					/* @todo Handle base_typedef */
+					QC_CASTED_NODE(QC_AST_Typedef, def, ident->decl);
+					if (def->type->base_type_decl->is_builtin) {
+						bt = qc_combined_builtin_type(bt, def->type->base_type_decl->builtin_type);
+					} else {
+						ctx->tok = pre_tok;
+						recognized = QC_false;
+					}
+				} else {
+					ctx->tok = pre_tok;
+					recognized = QC_false;
+				}
+				qc_destroy_node(QC_B(ident)); /* AST has no place for this */
+			} break;
 			case QC_Token_kw_void:
 				bt.is_void = QC_true;
 				advance_tok(ctx);
@@ -694,6 +729,14 @@ QC_INTERNAL QC_Bool parse_type_and_ident(Parse_Ctx *ctx, QC_AST_Type **ret_type,
 					report_error_expected(ctx, "')'", cur_tok(ctx));
 					goto mismatch;
 				}
+			} break;
+			case QC_Token_kw_device: {
+				bt.is_device = QC_true;
+				advance_tok(ctx);
+			} break;
+			case QC_Token_kw_host: {
+				bt.is_host = QC_true;
+				advance_tok(ctx);
 			} break;
 			case QC_Token_kw_field: {
 				QC_AST_Node *dim_expr = NULL;
@@ -859,7 +902,7 @@ QC_INTERNAL QC_Bool parse_var_decl(Parse_Ctx *ctx, QC_AST_Node **ret, QC_Bool is
 
 	if (!is_param_decl) {
 		if (accept_tok(ctx, QC_Token_assign)) {
-			if (!parse_expr(ctx, &decl->value, 0, NULL, QC_true))
+			if (!parse_expr(ctx, &decl->value, 0, decl->type, QC_true))
 				goto mismatch;
 		} else if (!accept_tok(ctx, QC_Token_semi)) {
 			report_error_expected(ctx, "';'", cur_tok(ctx));

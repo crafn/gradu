@@ -14,6 +14,8 @@ typedef struct intfield5
 
 /* the lattice is of dimensions SIZE**4  */
 
+/* @todo Move field decl to main */
+
 const int SIZE = 10;
 
 intfield5 link;
@@ -152,7 +154,17 @@ const float rand_data[128] = {
     0.496274,
     0.896794
 };
-intfield5 alloc_field_intfield5(int size_0, int size_1, int size_2, int size_3, int size_4)
+void memcpy_field_intfield5(intfield5 dst, intfield5 src)
+{
+    memcpy(dst.m, src.m, (sizeof(*dst.m))*dst.size[0]*dst.size[1]*dst.size[2]*dst.size[3]*dst.size[4]);
+}
+
+int size_intfield5(intfield5 field, int index)
+{
+    return field.size[index];
+}
+
+intfield5 alloc_device_field_intfield5(int size_0, int size_1, int size_2, int size_3, int size_4)
 {
     intfield5 field;
     field.m = (int*)malloc((sizeof(*field.m))*size_0*size_1*size_2*size_3*size_4);
@@ -165,19 +177,9 @@ intfield5 alloc_field_intfield5(int size_0, int size_1, int size_2, int size_3, 
     return field;
 }
 
-void free_field_intfield5(intfield5 field)
+void free_device_field_intfield5(intfield5 field)
 {
     free(field.m);
-}
-
-void memcpy_field_intfield5(intfield5 dst, intfield5 src)
-{
-    memcpy(dst.m, src.m, (sizeof(*dst.m))*dst.size[0]*dst.size[1]*dst.size[2]*dst.size[3]*dst.size[4]);
-}
-
-int size_intfield5(intfield5 field, int index)
-{
-    return field.size[index];
 }
 
 typedef struct intmat5
@@ -342,7 +344,7 @@ int main()
     double dbeta;
 
     int iter;
-    link = alloc_field_intfield5(SIZE, SIZE, SIZE, SIZE, 4);
+    link = alloc_device_field_intfield5(SIZE, SIZE, SIZE, SIZE, 4);
     dbeta = 0.010000;
     coldstart();
     iter = 0;
@@ -361,7 +363,7 @@ int main()
 
         ++iter;
     }
-    free_field_intfield5(link);
+    free_device_field_intfield5(link);
 
     return 0;
 }

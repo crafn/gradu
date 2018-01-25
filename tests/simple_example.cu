@@ -24,34 +24,6 @@ typedef struct intfield1
     int is_device_field;
 } intfield1;
 
-intfield1 alloc_field_intfield1(int size_0)
-{
-    intfield1 field;
-    field.m = (int*)malloc((sizeof(*field.m))*size_0);
-    field.size[0] = size_0;
-    field.is_device_field = 0;
-    return field;
-}
-
-intfield1 alloc_device_field_intfield1(int size_0)
-{
-    intfield1 field;
-    cudaMalloc((void**)&field.m, (sizeof(*field.m))*size_0);
-    field.size[0] = size_0;
-    field.is_device_field = 1;
-    return field;
-}
-
-void free_field_intfield1(intfield1 field)
-{
-    free(field.m);
-}
-
-void free_device_field_intfield1(intfield1 field)
-{
-    cudaFree(field.m);
-}
-
 void memcpy_field_intfield1(intfield1 dst, intfield1 src)
 {
     if (dst.is_device_field == 0 && src.is_device_field == 0) {
@@ -71,6 +43,34 @@ void memcpy_field_intfield1(intfield1 dst, intfield1 src)
 int size_intfield1(intfield1 field, int index)
 {
     return field.size[index];
+}
+
+intfield1 alloc_host_field_intfield1(int size_0)
+{
+    intfield1 field;
+    field.m = (int*)malloc((sizeof(*field.m))*size_0);
+    field.size[0] = size_0;
+    field.is_device_field = 0;
+    return field;
+}
+
+void free_host_field_intfield1(intfield1 field)
+{
+    free(field.m);
+}
+
+intfield1 alloc_device_field_intfield1(int size_0)
+{
+    intfield1 field;
+    cudaMalloc((void**)&field.m, (sizeof(*field.m))*size_0);
+    field.size[0] = size_0;
+    field.is_device_field = 1;
+    return field;
+}
+
+void free_device_field_intfield1(intfield1 field)
+{
+    cudaFree(field.m);
 }
 
 typedef struct intmat1
@@ -97,11 +97,9 @@ int main()
 
     int N = 5;
 
-    /* TODO: alloc_field -> alloc_host_field */
+    intfield1 a_data = alloc_host_field_intfield1(N);
 
-    Field a_data = alloc_field_intfield1(N);
-
-    Field b_data = alloc_field_intfield1(N);
+    intfield1 b_data = alloc_host_field_intfield1(N);
     a_data.m[1*0] = 1;
     a_data.m[1*1] = 2;
     a_data.m[1*2] = 3;
@@ -113,9 +111,9 @@ int main()
     b_data.m[1*3] = 40;
     b_data.m[1*4] = 50;
 
-    Field a = alloc_device_field_intfield1(N);
+    intfield1 a = alloc_device_field_intfield1(N);
 
-    Field b = alloc_device_field_intfield1(N);
+    intfield1 b = alloc_device_field_intfield1(N);
     memcpy_field_intfield1(a, a_data);
     memcpy_field_intfield1(b, b_data);
 
@@ -129,8 +127,8 @@ int main()
     for (int i = 0; i < N; ++i) {
         printf("%i ", a_data.m[1*i]);
     }
-    free_field_intfield1(a_data);
-    free_field_intfield1(b_data);
+    free_host_field_intfield1(a_data);
+    free_host_field_intfield1(b_data);
     free_device_field_intfield1(a);
     free_device_field_intfield1(b);
 

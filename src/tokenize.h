@@ -78,6 +78,8 @@ typedef enum {
 	QC_Token_kw_float,
 	QC_Token_kw_double,
 	QC_Token_kw_matrix,
+	QC_Token_kw_device,
+	QC_Token_kw_host,
 	QC_Token_kw_field,
 	QC_Token_kw_const,
 	QC_Token_unknown

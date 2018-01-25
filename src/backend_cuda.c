@@ -12,11 +12,19 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 		if (root->nodes.data[i]->type == QC_AST_func_decl) {
 			/* Create concrete field alloc and dealloc funcs */
 
+			QC_Builtin_Type ret_bt;
+			QC_Builtin_Type param0_bt;
 			QC_CASTED_NODE(QC_AST_Func_Decl, func_decl, root->nodes.data[i]);
 			if (!func_decl->is_builtin)
 				continue;
 
-			if (!strcmp(func_decl->ident->text.data, "alloc_device_field")) {
+			ret_bt = func_decl->return_type->base_type_decl->builtin_type;
+			if (func_decl->params.size > 0)
+				param0_bt = func_decl->params.data[0]->type->base_type_decl->builtin_type;
+			else
+				param0_bt = qc_void_builtin_type();
+
+			if (ret_bt.is_device && !strcmp(func_decl->ident->text.data, "alloc_field")) {
 				QC_AST_Func_Decl *alloc_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_B(func_decl));
 				QC_AST_Type_Decl *field_decl = alloc_func->return_type->base_type_decl;
 				QC_Builtin_Type bt = field_decl->builtin_type;
@@ -27,6 +35,8 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 
 				alloc_func->is_builtin = QC_false;
 				func_decl->builtin_concrete_decl = alloc_func;
+				alloc_func->ident->text.size = 0;
+				qc_append_str(&alloc_func->ident->text, "alloc_%s_field", bt.is_device ? "device" : "host");
 				qc_append_str(&alloc_func->ident->text, "_");
 				qc_append_builtin_type_c_str(&alloc_func->ident->text,
 						alloc_func->return_type->base_type_decl->builtin_type);
@@ -110,7 +120,7 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 				}
 
 				generated = QC_B(alloc_func);
-			} else if (!strcmp(func_decl->ident->text.data, "free_device_field")) {
+			} else if (param0_bt.is_device && !strcmp(func_decl->ident->text.data, "free_field")) {
 				QC_AST_Func_Decl *free_func = (QC_AST_Func_Decl*)qc_copy_ast(QC_B(func_decl));
 				QC_AST_Type_Decl *field_decl = free_func->params.data[0]->type->base_type_decl;
 				QC_Builtin_Type bt = field_decl->builtin_type;
@@ -121,6 +131,8 @@ void add_builtin_cuda_funcs(QC_AST_Scope *root)
 
 				free_func->is_builtin = QC_false;
 				func_decl->builtin_concrete_decl = free_func;
+				free_func->ident->text.size = 0;
+				qc_append_str(&free_func->ident->text, "free_%s_field", bt.is_device ? "device" : "host");
 				qc_append_str(&free_func->ident->text, "_");
 				qc_append_builtin_type_c_str(&free_func->ident->text, bt);
 
